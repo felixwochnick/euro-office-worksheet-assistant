@@ -14,7 +14,9 @@ import { VERSION } from '../version.js';
 import { setAutostart } from './autostart.js';
 import { Companion } from './companion.js';
 import { uninstallPlugin } from './install.js';
-import { desktopApps } from './paths.js';
+import fs from 'node:fs';
+import { configDir, desktopApps } from './paths.js';
+import { settingsFile } from './settings-store.js';
 import { runStdio } from './stdio.js';
 
 const HELP = `Arbeitsblatt-Assistent ${VERSION} – Begleitprogramm für die Euro-Office-Desktop-App
@@ -75,6 +77,11 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
   }
   if (cmd === 'version') {
     process.stdout.write(VERSION + '\n');
+    return 0;
+  }
+  if (cmd === 'status' && !fs.existsSync(settingsFile(configDir()))) {
+    // Read-only: do not create the configuration.
+    process.stdout.write(JSON.stringify({ running: false, configured: false, config_dir: configDir() }, null, 2) + '\n');
     return 0;
   }
 

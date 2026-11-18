@@ -46,6 +46,7 @@
     if (err && err.name === 'ProxyError') {
       if (err.kind === 'auth') return t('error.auth');
       if (err.kind === 'rateLimit') return t('error.rateLimit');
+      if (err.kind === 'busy') return t('error.busy');
       if (err.kind === 'network') return t('error.network', { detail: err.detail });
       if (err.kind === 'maxRounds') return t('error.maxRounds');
       if (err.kind === 'aborted') return t('chat.stopped');
@@ -73,11 +74,50 @@
   // ---------------------------------------------------------------------------
   // Chat
   // ---------------------------------------------------------------------------
-  function addChat(cls, text) {
+  /**
+   * Assistant messages: models often answer with a little Markdown. Render **bold**, list items and headings with
+   * DOM nodes (never as HTML), drop other emphasis markers.
+   */
+  function appendRich(div, text) {
+    String(text).split('\n').forEach(function (line, i) {
+      if (i) div.appendChild(document.createElement('br'));
+      var item = /^\s*(?:[-*•]|\d+[.)])\s+(.*)$/.exec(line);
+      if (item) {
+        var num = /^\s*(\d+[.)])/.exec(line);
+        div.appendChild(document.createTextNode((num ? num[1] : '•') + ' '));
+        line = item[1];
+      }
+      var heading = /^\s*#{1,6}\s+(.*)$/.exec(line);
+      if (heading) line = '**' + heading[1].replace(/\*\*/g, '') + '**';
+      line.split(/(\*\*[^*]+\*\*)/).forEach(function (part) {
+        var bold = /^\*\*([^*]+)\*\*$/.exec(part);
+        if (bold) {
+          var strong = document.createElement('strong');
+          strong.textContent = bold[1];
+          div.appendChild(strong);
+        } else if (part) {
+          div.appendChild(document.createTextNode(part.replace(/(^|\s)[*_]([^*_\s][^*_]*)[*_](?=\s|[.,;:!?]|$)/g, '$1$2').replace(/`([^`]+)`/g, '$1')));
+        }
+      });
+    });
+  }
+
+  function addChat(cls, text, link) {
     var log = $('chat-log');
     var div = document.createElement('div');
     div.className = 'msg ' + cls;
-    div.textContent = text;
+    if (cls === 'assistant') appendRich(div, text);
+    else div.textContent = text;
+    if (link) {
+      // e.g. the companion's settings page (opens in the system browser in the desktop app)
+      var a = document.createElement('a');
+      a.href = link;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = link;
+      div.appendChild(document.createTextNode(' '));
+      div.appendChild(a);
+    }
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
     return div;
@@ -216,7 +256,8 @@
         return;
       }
       if (meta && meta.chat === false) {
-        addChat('error', meta.settings_url ? t('chat.disabledLocal', { url: meta.settings_url }) : t('chat.disabled'));
+        if (meta.settings_url) addChat('error', t('chat.disabledLocal'), meta.settings_url);
+        else addChat('error', t('chat.disabled'));
         return;
       }
       $('chat-text').value = '';
@@ -460,8 +501,13 @@
 
   function updateAuthUi() {
     var nc = isNextcloud();
+    // Connected to the companion app (desktop editors): address and token come from local-config.js.
+    var local = Settings.local && Settings.local();
+    var companion = !!(local && settings.proxyUrl === local.proxyUrl);
+    $('s-companion').classList.toggle('hidden', !companion);
+    $('s-origin-hint').classList.toggle('hidden', companion);
     $('s-nc').classList.toggle('hidden', !nc);
-    $('s-token-field').classList.toggle('hidden', nc);
+    $('s-token-field').classList.toggle('hidden', nc || companion);
     var signedIn = nc && !!settings.token;
     $('s-nc-user').textContent = signedIn ? t('settings.ncSignedIn', { name: settings.userName || '?' }) : '';
     $('s-nc-login').classList.toggle('hidden', signedIn);

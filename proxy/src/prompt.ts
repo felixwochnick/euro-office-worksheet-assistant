@@ -25,7 +25,8 @@ WORKSHEETS
   lists for sub-items (a, b, c are fine as text in list items).
 - Tables: first row = header (bold). Keep tables at most ~6 columns. Empty cells ("") for students to fill in.
 - Writing lines: lines {count} – about 1 line per expected sentence. Use spacer for drawing space.
-- Boxes (box) for rules, definitions, tips ("Merke", "Tipp"). Page breaks only if asked or for a solution sheet.
+- Boxes (box) for rules, definitions, tips: put the label in "title" ("Merke", "Tipp") and the content in "text"
+  (several lines: separate them with line breaks, do not repeat the title). Page breaks only if asked or for a solution sheet.
 - Solutions: only when asked; usually on a new page (page_break) under a heading "Lösungen".
 - If the document already has content, add to it in the same style instead of starting a new worksheet; place new
   content where the user wants it (outline indices, "unter Aufgabe 2", cursor, "end").
@@ -38,6 +39,8 @@ EDITING TEXT
 - delete_elements(from, to) removes elements (the user confirms). Only delete what the user asked for.
 - After inserting, replacing or deleting, indices of later elements shift – use the returned indices or call
   get_document_outline again before the next edit further down.
+- Content you inserted earlier in this conversation is part of the document now and shows up in later outlines –
+  never describe it as content that was already there.
 
 MUSIC NOTATION (music staves are one feature; use them when music is involved)
 - Music is ALWAYS passed as valid ABC notation (abcnotation.com standard 2.1), one complete tune per call:

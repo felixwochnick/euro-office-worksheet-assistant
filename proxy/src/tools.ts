@@ -274,9 +274,18 @@ export const CLIENT_TOOLS = new Set([
 
 const BLOCK_TYPES = new Set(['heading', 'paragraph', 'list', 'table', 'lines', 'box', 'staff', 'empty_staves', 'page_break', 'spacer']);
 
+/**
+ * Some models escape line breaks twice in tool arguments ("Zeile 1\\nZeile 2" arrives as a literal backslash + n);
+ * worksheet texts never need a literal "\n", so turn it into a real line break (and "\t" into a tab).
+ */
+export function unescapeText(v: string): string {
+  return v.includes('\\') ? v.replace(/\\r\\n|\\n/g, '\n').replace(/\\t/g, '\t') : v;
+}
+
 function str(v: unknown, max: number): string | null {
   if (typeof v !== 'string') return null;
-  return v.length > max ? v.slice(0, max) : v;
+  const t = unescapeText(v);
+  return t.length > max ? t.slice(0, max) : t;
 }
 
 /**
@@ -310,14 +319,14 @@ export function checkBlocks(raw: unknown): { blocks?: Record<string, unknown>[];
       }
       case 'list': {
         if (!Array.isArray(b.items) || !b.items.length) return { error: `${at}: list needs "items" (array of strings).` };
-        out.push({ type, items: b.items.slice(0, 50).map((x) => String(x).slice(0, 2000)), ordered: b.ordered === true });
+        out.push({ type, items: b.items.slice(0, 50).map((x) => unescapeText(String(x)).slice(0, 2000)), ordered: b.ordered === true });
         break;
       }
       case 'table': {
         if (!Array.isArray(b.rows) || !b.rows.length || !b.rows.every((r) => Array.isArray(r))) {
           return { error: `${at}: table needs "rows" (array of arrays of strings).` };
         }
-        const rows = (b.rows as unknown[][]).slice(0, 60).map((r) => r.slice(0, 10).map((c) => (c == null ? '' : String(c).slice(0, 1000))));
+        const rows = (b.rows as unknown[][]).slice(0, 60).map((r) => r.slice(0, 10).map((c) => (c == null ? '' : unescapeText(String(c)).slice(0, 1000))));
         out.push({ type, rows, header: b.header !== false });
         break;
       }

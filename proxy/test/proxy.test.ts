@@ -415,3 +415,42 @@ test('server: rate limit', async () => {
     await app.close();
   }
 });
+
+test('tools: literal \\n in worksheet texts becomes a line break', async () => {
+  const { unescapeText, checkBlocks } = await import('../src/tools.js');
+  assert.equal(unescapeText('Zeile 1\\nZeile 2'), 'Zeile 1\nZeile 2');
+  assert.equal(unescapeText('a\\tb'), 'a\tb');
+  assert.equal(unescapeText('kein Backslash'), 'kein Backslash');
+  const r = checkBlocks([{ type: 'box', title: 'Merke', text: 'a\\nb' }, { type: 'table', rows: [['x\\ny']] }]);
+  assert.equal((r.blocks![0] as { text: string }).text, 'a\nb');
+  assert.deepEqual((r.blocks![1] as { rows: string[][] }).rows, [['x\ny']]);
+});
+
+test('providers: temporary provider errors are retried, the message is readable', async () => {
+  const { postJson } = await import('../src/providers/http.js');
+  const { ProviderError } = await import('../src/types.js');
+  const realFetch = globalThis.fetch;
+  let calls = 0;
+  const busy = () => new Response(JSON.stringify({ object: 'error', message: 'Service unavailable.', code: '3800' }), { status: 503 });
+  globalThis.fetch = (async () => (++calls < 3 ? busy() : new Response('{"ok":1}', { status: 200 }))) as typeof fetch;
+  try {
+    assert.deepEqual(await postJson('http://x', {}, {}, 1000, [1, 1]), { ok: 1 });
+    assert.equal(calls, 3);
+    calls = -10;
+    await assert.rejects(postJson('http://x', {}, {}, 1000, [1, 1]), (err: unknown) => {
+      assert.ok(err instanceof ProviderError);
+      assert.match((err as Error).message, /busy or not available right now \(HTTP 503: Service unavailable\.\)/);
+      return true;
+    });
+    // other errors are not retried
+    calls = 0;
+    globalThis.fetch = (async () => {
+      calls++;
+      return new Response('{"message":"bad key"}', { status: 401 });
+    }) as typeof fetch;
+    await assert.rejects(postJson('http://x', {}, {}, 1000, [1, 1]), /LLM API error 401: bad key/);
+    assert.equal(calls, 1);
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+});

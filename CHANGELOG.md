@@ -11,6 +11,12 @@
   command; it starts the companion if needed.
 - Release packages `arbeitsblatt-assistent-<os>-<arch>.zip` (Linux x64/arm64, Windows x64, macOS arm64/x64) with
   the third-party licenses of everything bundled.
+- Tested in the real desktop apps (Euro-Office and Nextcloud Office 9.3.8, Linux): installation before the first
+  start, automatic connection, MCP over HTTP and stdio, reconnecting after restarts.
+- Fixes found with Mistral: cloze gaps (`________`) no longer underline the text between two gaps; literal `\n` in
+  worksheet texts becomes a line break; the chat shows the model's **bold** and lists instead of raw Markdown;
+  temporary provider errors (429/5xx) are retried and shown as "Der KI-Anbieter ist gerade überlastet …"; the
+  model no longer mistakes content it inserted for pre-existing content.
 
 
 ## 0.3.0 – MCP endpoint and sign-in with Nextcloud

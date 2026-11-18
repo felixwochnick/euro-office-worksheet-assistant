@@ -117,3 +117,4 @@ button.danger { background: #c0392b; border-color: #c0392b; color: #fff; }
 #s-mcp-status.ok { color: #2e7d32; }
 #s-mcp-status.bad { color: #c62828; }
 .msg.mcp { border-left: 3px solid var(--accent); }
+.msg a { color: inherit; text-decoration: underline; word-break: break-all; }

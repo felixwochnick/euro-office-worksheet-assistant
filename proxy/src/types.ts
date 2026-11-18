@@ -87,7 +87,8 @@ export interface DocumentContext {
 }
 
 export class ProviderError extends Error {
-  constructor(message: string, readonly status?: number) {
+  /** status: HTTP status for our client; upstreamStatus: the provider's own HTTP status, if any. */
+  constructor(message: string, readonly status?: number, readonly upstreamStatus?: number) {
     super(message);
     this.name = 'ProviderError';
   }

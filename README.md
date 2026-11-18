@@ -247,8 +247,9 @@ needed) does both on the user's computer:
 
 Commands: `arbeitsblatt-assistent [--background] [--port n]`, `install-plugin [--force]`, `uninstall`,
 `autostart on|off`, `mcp-stdio`, `status`, `help`. Build it yourself with `bash scripts/build.sh &&
-(cd proxy && npm ci) && npm ci && node scripts/build-companion.mjs` (Node ≥ 25.5; CI builds Linux x64/arm64,
-Windows x64 and macOS arm64/x64).
+(cd proxy && npm ci) && npm ci && node scripts/build-companion.mjs` (an official Node.js ≥ 25.5 from nodejs.org,
+nvm or fnm – distribution packages link system libraries and the executable would only run on that system; CI
+builds Linux x64/arm64, Windows x64 and macOS arm64/x64).
 
 ## Proxy configuration
 

@@ -254,7 +254,8 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
     } catch (err) {
       if (err instanceof ProviderError) {
         req.log.error({ err: err.message }, 'provider error');
-        return reply.code(err.status ?? 502).send({ error: 'llm_error', message: err.message });
+        const busy = err.upstreamStatus !== undefined && [429, 502, 503, 504, 529].includes(err.upstreamStatus);
+        return reply.code(busy ? 503 : (err.status ?? 502)).send({ error: busy ? 'llm_busy' : 'llm_error', message: err.message });
       }
       throw err;
     }

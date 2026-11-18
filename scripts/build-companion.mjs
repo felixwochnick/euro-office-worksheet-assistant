@@ -38,6 +38,19 @@ if (major < 25 || (major === 25 && minor < 5)) {
   console.error(`Node ${process.versions.node}: building the executable needs Node >= 25.5 (node --build-sea).`);
   process.exit(1);
 }
+// The executable is this Node binary plus the bundle. Distribution builds of Node (Arch, Fedora, Homebrew …)
+// often link OpenSSL, libuv, ICU … from the system – such an executable only runs on that exact system.
+const shared = Object.entries(process.config.variables)
+  .filter(([k, v]) => k.startsWith('node_shared_') && v === true)
+  .map(([k]) => k.slice('node_shared_'.length));
+if (shared.length && !process.argv.includes('--allow-shared-libs')) {
+  console.error(
+    `This Node.js (${process.execPath}) uses system libraries (${shared.join(', ')}); the executable would not run on\n` +
+      'other computers. Use an official build from nodejs.org (e.g. via nvm, fnm or actions/setup-node), or pass\n' +
+      '--allow-shared-libs for a build that only runs here.',
+  );
+  process.exit(1);
+}
 if (!fs.existsSync(path.join(pluginDir, 'config.json'))) {
   console.error('dist/worksheet-assistant is missing – run bash scripts/build.sh first.');
   process.exit(1);

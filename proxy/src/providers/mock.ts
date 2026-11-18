@@ -128,6 +128,7 @@ export class MockProvider implements LLMProvider {
           { type: 'paragraph', text: `Lies den Text über **${topic}** und beantworte die Fragen.` },
           { type: 'list', ordered: true, items: ['Was ist das Wichtigste?', 'Nenne ein Beispiel.'] },
           { type: 'lines', count: 3 },
+          { type: 'paragraph', text: 'Ergänze: Es ________ und dann ________. __Wichtig__: genau lesen.' },
           { type: 'heading', level: 2, text: 'Aufgabe 2' },
           { type: 'paragraph', text: 'Ergänze die Tabelle.' },
           { type: 'table', rows: [['Begriff', 'Erklärung'], ['', ''], ['', '']] },
