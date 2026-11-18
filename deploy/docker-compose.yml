@@ -27,7 +27,9 @@ services:
       # for your image version: docker exec <container> ls /var/www/euro-office/documentserver/sdkjs-plugins
       - ${PLUGIN_DIR:-../dist/music-notation}:/var/www/euro-office/documentserver/sdkjs-plugins/music-notation:ro
     ports:
-      - "${EUROOFFICE_PUBLISH_PORT:-8090}:80"
+      # Bound to localhost: the TLS reverse proxy forwards to it. Remove "ports" when the
+      # reverse proxy reaches the container via the Docker network (e.g. Coolify).
+      - "127.0.0.1:${EUROOFFICE_PUBLISH_PORT:-8090}:80"
 
   music-proxy:
     build:
@@ -41,14 +43,17 @@ services:
       # add the Nextcloud domain as well if your setup serves the editor from there).
       CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS in .env}
       LLM_PROVIDER: ${LLM_PROVIDER:-mistral}
-      LLM_MODEL: ${LLM_MODEL:-mistral-large-latest}
+      # empty = provider default (mistral-large-latest, claude-…, …)
+      LLM_MODEL: ${LLM_MODEL:-}
       LLM_API_KEY: ${LLM_API_KEY:-}
       LLM_BASE_URL: ${LLM_BASE_URL:-}
-      TRUST_PROXY: ${TRUST_PROXY:-true}
+      # Only trust X-Forwarded-For from your reverse proxy (IP/CIDR, e.g. 10.0.0.0/8);
+      # "true" would let clients spoof their IP and bypass the rate limit.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-30}
     read_only: true
     ports:
-      - "${PROXY_PUBLISH_PORT:-8787}:8787"
+      - "127.0.0.1:${PROXY_PUBLISH_PORT:-8787}:8787"
 
 volumes:
   eurooffice-data:

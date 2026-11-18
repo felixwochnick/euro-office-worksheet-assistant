@@ -37,7 +37,7 @@ const widthSchema = {
   type: 'number',
   minimum: 3,
   maximum: 19,
-  description: 'Image width in centimetres (A4 text width is about 16 cm). Default 16.',
+  description: 'Image width in centimetres (A4 text width is about 16 cm). Omit to use the user\'s default width.',
 };
 
 export const TOOL_DEFINITIONS: ToolDefinition[] = [
@@ -141,11 +141,16 @@ export function normalizePosition(pos: unknown): ToolCheck['args']['position'] |
   return null;
 }
 
-function normalizeWidth(w: unknown): number | null {
-  if (w == null) return 16;
+/** undefined = not given (the plugin then uses the user's default width), null = invalid. */
+function normalizeWidth(w: unknown): number | null | undefined {
+  if (w == null || w === '') return undefined;
   const n = Number(w);
   if (!Number.isFinite(n)) return null;
   return Math.min(19, Math.max(3, n));
+}
+
+function withWidth(args: Record<string, unknown>, width: number | undefined): Record<string, unknown> {
+  return width === undefined ? args : { ...args, width_cm: width };
 }
 
 /** Validate (and normalise) the arguments of a client tool call. */
@@ -171,7 +176,7 @@ export function checkClientToolCall(call: ToolCall): ToolCheck {
           error: `Invalid ABC notation – nothing was inserted. Fix these problems and call insert_staff again: ${abcTools.formatValidationErrors(v)}`,
         };
       }
-      return { ok: true, args: { abc: v.normalized, width_cm: width, position } };
+      return { ok: true, args: withWidth({ abc: v.normalized, position }, width) };
     }
 
     case 'insert_empty_staves': {
@@ -185,7 +190,7 @@ export function checkClientToolCall(call: ToolCall): ToolCheck {
       if (!Number.isFinite(count) || count < 1 || count > 12) return { ok: false, args: a, error: '"count" must be an integer between 1 and 12.' };
       const measures = a.measures == null ? 4 : Math.round(Number(a.measures));
       if (!Number.isFinite(measures) || measures < 0 || measures > 8) return { ok: false, args: a, error: '"measures" must be between 0 and 8.' };
-      return { ok: true, args: { clef, count, measures, width_cm: width, position } };
+      return { ok: true, args: withWidth({ clef, count, measures, position }, width) };
     }
 
     default:

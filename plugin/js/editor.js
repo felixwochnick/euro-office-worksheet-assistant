@@ -159,7 +159,7 @@
             item.has_image = true;
             for (var d = 0; d < drawings.length; d++) {
               var desc = describe(drawings[d]);
-              if (desc && /^\s*X:\s*\d+/.test(desc)) { item.abc = desc; break; }
+              if (desc && /^\s*X:\s*\d+/.test(desc)) { item.abc = desc.length > 1000 ? desc.slice(0, 1000) + '…' : desc; break; }
             }
           }
         } catch (e) {}
@@ -207,7 +207,7 @@
       if (pos && typeof pos === 'object' && pos.after_paragraph_index != null) {
         target = Number(pos.after_paragraph_index);
         if (!(target >= 0 && target < count)) {
-          return { ok: false, error: 'after_paragraph_index ' + target + ' is out of range (0..' + (count - 1) + ')' };
+          return { ok: false, fatal: true, error: 'after_paragraph_index ' + target + ' is out of range (0..' + (count - 1) + ')' };
         }
       } else if (pos && typeof pos === 'object' && pos.after_heading) {
         var needle = norm(pos.after_heading);
@@ -222,7 +222,7 @@
           if (score && isHeading(el)) score += 3;
           if (score > bestScore) { best = i; bestScore = score; }
         }
-        if (best === null) return { ok: false, error: 'No paragraph matching "' + pos.after_heading + '" found' };
+        if (best === null) return { ok: false, fatal: true, error: 'No paragraph matching "' + pos.after_heading + '" found' };
         target = best;
       }
 
@@ -235,10 +235,9 @@
 
       if (target === null) {
         doc.InsertContent([para]);
+        // Only trust the index if the inserted paragraph object itself is in the
+        // document (InsertContent may copy/merge it) – otherwise report it as unknown.
         try { var p = para.GetPosInParent ? para.GetPosInParent() : -1; if (p >= 0) res.index = p; } catch (e) {}
-        if (res.index === null) {
-          try { var ld = doc.Document; if (ld && ld.CurPos) res.index = ld.CurPos.ContentPos; } catch (e) {}
-        }
         res.position = 'cursor';
       } else {
         doc.AddElement(target + 1, para);
@@ -246,15 +245,18 @@
         res.position = 'after ' + target;
       }
 
-      // InsertContent may copy the paragraph: make sure the inserted drawing has the alt text.
+      // Make sure the inserted drawing kept its alt text. Only drawings with
+      // exactly our size and no description are touched, never other images.
       try {
         if (res.index !== null) {
           var inserted = doc.GetElement(res.index);
           var ds = inserted && inserted.GetAllDrawingObjects ? inserted.GetAllDrawingObjects() : [];
           for (var k = 0; k < ds.length; k++) {
             var cur = null;
+            var w = null;
             try { cur = ds[k].GetDescription ? ds[k].GetDescription() : null; } catch (e) {}
-            if (!cur) { var a = setAlt(ds[k]); if (a) res.alt_text = a; }
+            try { w = ds[k].GetWidth ? ds[k].GetWidth() : null; } catch (e) {}
+            if (!cur && w !== null && Math.abs(w - req.wEmu) <= 2) { var a = setAlt(ds[k]); if (a) res.alt_text = a; }
           }
         }
       } catch (e) {}
@@ -340,7 +342,7 @@
     try {
       var doc = Api.GetDocument();
       var ds = doc.GetSelectedDrawings ? doc.GetSelectedDrawings() : [];
-      if (!ds || !ds.length) return { ok: false, error: 'no drawing selected' };
+      if (!ds || !ds.length) return { ok: false, fatal: true, error: 'no drawing selected' };
       var old = ds[0];
       var para = old.GetParentParagraph ? old.GetParentParagraph() : null;
       if (!para) return { ok: false, error: 'GetParentParagraph not available' };
@@ -408,6 +410,8 @@
     if (method === 'auto' || method === 'api') {
       chain = callCommand(cmdInsertImage, { req: req }, true).then(function (r) {
         if (r && r.ok) { r.warnings = []; return r; }
+        // Invalid position etc.: report to the caller/model instead of silently falling back.
+        if (r && r.fatal) { r.warnings = []; return r; }
         firstError = (r && r.error) || 'Api.CreateImage failed';
         return null;
       }, function (e) { firstError = e.message; return null; });
@@ -462,7 +466,8 @@
       alt: img.abc
     };
     return callCommand(cmdReplaceSelected, { req: req }, true).then(function (r) {
-      if (r && r.ok) return r;
+      // Nothing selected: do not fall back (PutImageDataToSelection would insert a new image).
+      if (r && (r.ok || r.fatal)) return r;
       // Fallback: PutImageDataToSelection replaces the selected drawing.
       return executeMethod('PutImageDataToSelection', [{
         src: req.dataUrl,

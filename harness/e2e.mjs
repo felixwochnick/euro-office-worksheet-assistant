@@ -26,12 +26,24 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
 
+let d0;
 const doc = () => page.evaluate(() => window.HarnessMock.state.elements.map((e) => ({ text: e.text, alts: e.drawings.map((d) => d.descr) })));
 
 try {
   await page.goto(BASE);
   const frame = page.frameLocator('#panel');
   await frame.locator('#chat-text').waitFor();
+
+  // 0) "Neuer Chat" while a preview is waiting must not block the chat (regression)
+  await frame.locator('#chat-text').fill('Füge eine Notenzeile mit c – d – e ein');
+  await frame.locator('#chat-send').click();
+  await frame.locator('.card button.primary').first().waitFor({ timeout: 15000 });
+  await frame.locator('#chat-new').click();
+  await page.waitForTimeout(300);
+  assert.equal(await frame.locator('.card').count(), 0);
+  d0 = await doc();
+  assert.ok(!d0.some((e) => e.alts.some((a) => /C D E/.test(a || ''))), 'discarded preview must not be inserted');
+  console.log('ok - new chat during an open preview');
 
   // 1) AI chat (mock model) with preview confirmation
   await frame.locator('#chat-text').fill('Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein und darunter eine leere Zeile zum Nachschreiben');

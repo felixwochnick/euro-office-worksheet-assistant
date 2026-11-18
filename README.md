@@ -93,6 +93,10 @@ docker compose up -d
   `/var/www/euro-office/documentserver/sdkjs-plugins/music-notation`,
 - `music-proxy` – the LLM proxy (see below).
 
+Both ports are published on `127.0.0.1` only; remove the `ports:` entries when the reverse proxy reaches the
+containers through the Docker network (as in Coolify). Set `TRUST_PROXY` to the reverse proxy's IP/CIDR – not to
+`true` – so clients cannot spoof `X-Forwarded-For` to bypass the rate limit.
+
 Put a TLS reverse proxy in front (Coolify does this automatically), e.g. `https://office.example.org` → `eurooffice:80`
 and `https://notes-proxy.example.org` → `music-proxy:8787`. In Nextcloud, disable the AIO-internal office
 integration and enter the Document Server URL (`https://office.example.org/`) and the same JWT secret in the
@@ -121,7 +125,7 @@ Without Docker: `cd proxy && npm ci && npm run build && node --env-file=.env bui
 | `PROXY_TOKEN` | – (required) | Shared secret, min. 16 characters. The plugin sends it as `Authorization: Bearer …`. `openssl rand -hex 24` |
 | `CORS_ORIGINS` | – | Comma-separated allowlist of browser origins, i.e. the origin that serves the editor (your Euro-Office / Nextcloud domain, e.g. `https://cloud.example.org`). `*` only for testing |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` | `30` / `1 minute` | Requests per IP and window |
-| `TRUST_PROXY` | `false` | `true` behind a reverse proxy so the rate limit sees client IPs |
+| `TRUST_PROXY` | `false` | IP/CIDR of your reverse proxy (e.g. `172.16.0.0/12`) so the rate limit sees real client IPs. Avoid `true` when the port is reachable directly – clients could spoof `X-Forwarded-For` |
 | `LLM_PROVIDER` | `mistral` | `mistral`, `openai` (any OpenAI-compatible API), `anthropic`, `mock` |
 | `LLM_MODEL` | provider default | e.g. `mistral-large-latest`, `qwen2.5:7b`, `claude-sonnet-5-5` |
 | `LLM_API_KEY` | – | Provider key (alternatively `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) |
@@ -206,6 +210,8 @@ Chords: `[CEG]`. Ties: `C2-C`. Lyrics line below the notes: `w: Al-le mei-ne Ent
 The German converter in the manual tab (and the AI tool) understands `c d e f g a h`, `b` = B flat,
 `-is`/`-es` (incl. `es`, `as`, `heses`), octave marks `c'`, `c''`, `c1`, `c²`, `C`, `C,`, and `|` bar lines. Note names
 without octave marks are placed in the one-line octave for treble clef (`c` → c') and in the small octave for bass clef.
+Commas separate notes only in lists of lower-case names (`c, f, g`); after upper-case names they are Helmholtz octave
+marks (`G, A, H,` = Kontra-Oktave).
 
 ## Development
 

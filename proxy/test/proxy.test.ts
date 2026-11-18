@@ -66,14 +66,14 @@ test('tools: insert_staff validates and normalises ABC', () => {
   const ok = checkClientToolCall({ id: '1', name: 'insert_staff', arguments: { abc: '```abc\n' + VALID_ABC + '\n```', position: 'cursor' } });
   assert.equal(ok.ok, true);
   assert.equal(ok.args.abc, VALID_ABC);
-  assert.equal(ok.args.width_cm, 16);
+  assert.equal(ok.args.width_cm, undefined); // the plugin falls back to the user's default width
   const bad = checkClientToolCall({ id: '2', name: 'insert_staff', arguments: { abc: 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\nc d e h', position: 'cursor' } });
   assert.equal(bad.ok, false);
   assert.match(bad.error!, /German note "h"/);
   const noClef = checkClientToolCall({ id: '3', name: 'insert_staff', arguments: { abc: 'X:1\nM:4/4\nL:1/4\nK:C\nC', position: 'cursor' } });
   assert.equal(noClef.ok, false);
   const empty = checkClientToolCall({ id: '4', name: 'insert_empty_staves', arguments: { clef: 'bass', count: 2, position: { after_paragraph_index: 1 }, width_cm: 40 } });
-  assert.deepEqual(empty.args, { clef: 'bass', count: 2, measures: 4, width_cm: 19, position: { after_paragraph_index: 1 } });
+  assert.deepEqual(empty.args, { clef: 'bass', count: 2, measures: 4, position: { after_paragraph_index: 1 }, width_cm: 19 });
 });
 
 test('agent: mock provider runs the worksheet scenario', async () => {

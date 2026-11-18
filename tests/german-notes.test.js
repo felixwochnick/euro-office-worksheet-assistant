@@ -96,3 +96,9 @@ test('germanToAbc: reports unknown tokens', () => {
 test('explicit naturals on request', () => {
   assert.equal(abc.germanToAbc("f' fis'", { explicitNatural: true }).abc, '=F ^F');
 });
+
+test('germanToAbc: commas after upper-case notes are octave marks', () => {
+  assert.equal(abc.germanToAbc('G, A, H, | C D').abc, 'G,,, A,,, B,,, | C,, D,,');
+  assert.equal(abc.germanToAbc('C,, D,,').abc, 'C,,,, D,,,,');
+  assert.equal(abc.germanToAbc("c, f, g'").abc, 'C F G');
+});

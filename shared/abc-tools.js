@@ -217,7 +217,10 @@
     var clef = opts.clef === 'bass' ? 'bass' : 'treble';
     var bareOctave = typeof opts.bareOctave === 'number' ? opts.bareOctave : (clef === 'bass' ? 3 : 4);
     var tokens = tokenizeGermanNotes(text);
-    var isList = tokens.length > 1 && tokens.some(function (t) { return /,$/.test(t); });
+    // Commas are list separators only if a lower-case note (which never takes
+    // octave commas) ends with one ("c, f, g"). Otherwise commas after upper-case
+    // notes are Helmholtz octave marks ("G, A, H," = Kontra-Oktave).
+    var isList = tokens.length > 1 && tokens.some(function (t) { return /^[a-h][^,]*,$/.test(t); });
     var out = [];
     var notes = [];
     var errors = [];
@@ -295,18 +298,36 @@
     return { key: key, clef: clef, other: other };
   }
 
+  /**
+   * Remove annotations, comments, decorations and inline fields from a body
+   * line so that only notes, rests and bar lines remain. Quoted strings are
+   * handled before comments ("50%" is an annotation, not a comment).
+   * @returns {{clean:string, unbalancedQuote:boolean}}
+   */
   function stripBodyNoise(line) {
-    return line
-      .replace(/%.*$/, '')                 // comments
-      .replace(/"[^"]*"/g, ' ')            // chord symbols / annotations
+    var out = '';
+    var inQuote = false;
+    for (var i = 0; i < line.length; i++) {
+      var ch = line.charAt(i);
+      if (inQuote) {
+        if (ch === '"') { inQuote = false; out += ' '; }
+        continue;
+      }
+      if (ch === '"') { inQuote = true; continue; }
+      if (ch === '%') break; // comment
+      out += ch;
+    }
+    var clean = out
       .replace(/![^!\n]*!/g, ' ')          // !decorations!
       .replace(/\+[^+\n]*\+/g, ' ')        // +decorations+
       .replace(/\[[A-Za-z]:[^\]]*\]/g, ' ') // inline fields [K:...]
+      .replace(/\[\|\]/g, '|')              // invisible bar line [|]
       .replace(/\|\]|\[\||\[(?=[0-9])/g, '|') // bar lines |] [| and endings [1 [2
-      .replace(/\\$/, '');                 // line continuation
+      .replace(/\\\s*$/, '');               // line continuation
+    return { clean: clean, unbalancedQuote: inQuote };
   }
 
-  var ALLOWED_BODY = /[A-Ga-gzZxXy^_=,'0-9\/<>()[\]{}|:.\-~ \tHLMOPSTuv&$]/;
+  var ALLOWED_BODY = /[A-Ga-gzZxXy^_=,'0-9\/<>()[\]{}|:.\-~ \tHLMOPSTuv&$`]/;
 
   /**
    * Validate ABC notation (one tune) for use in this plugin.
@@ -379,8 +400,8 @@
     var clef = 'treble';
     if ('K' in headers) {
       var k = parseKeyField(headers.K);
-      if (!k.key) err('bad_key', 'K: needs a key, e.g. "K:C clef=treble".');
-      else if (!KEY_RE.test(k.key)) err('bad_key', 'Invalid key "' + k.key + '". German "H" is "B" in ABC, "B" (German) is "Bb".');
+      if (!k.key && k.clef === null) err('bad_key', 'K: needs a key, e.g. "K:C clef=treble".');
+      else if (k.key && !KEY_RE.test(k.key)) err('bad_key', 'Invalid key "' + k.key + '". German "H" is "B" in ABC, "B" (German) is "Bb".');
       if (k.clef === null) {
         if (opts.requireClef) err('missing_clef', 'K: must contain clef=treble or clef=bass.');
         else warn('missing_clef', 'No clef given in K:, treble clef is assumed.');
@@ -402,8 +423,9 @@
       if (/^X:/.test(raw)) { err('multiple_tunes', 'Only one tune (one X: header) is allowed.', lineNo); continue; }
       if (/^[wW]:/.test(raw)) continue;            // lyrics
       if (/^[A-Za-z]:/.test(raw)) continue;        // header field inside the body (e.g. K: change)
-      if ((raw.match(/"/g) || []).length % 2) err('unbalanced_quotes', 'Unbalanced double quotes.', lineNo);
-      var clean = stripBodyNoise(raw);
+      var stripped = stripBodyNoise(raw);
+      if (stripped.unbalancedQuote) err('unbalanced_quotes', 'Unbalanced double quotes.', lineNo);
+      var clean = stripped.clean;
       var reportedH = false;
       for (var c = 0; c < clean.length; c++) {
         var ch = clean.charAt(c);

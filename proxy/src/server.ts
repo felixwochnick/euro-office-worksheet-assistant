@@ -25,13 +25,13 @@ const chatBodySchema = {
     messages: {
       type: 'array',
       minItems: 1,
-      maxItems: 200,
+      maxItems: 400,
       items: {
         type: 'object',
         required: ['role'],
         properties: {
           role: { type: 'string', enum: ['user', 'assistant', 'tool'] },
-          content: { type: ['string', 'null'], maxLength: 50000 },
+          content: { type: ['string', 'null'], maxLength: 200000 },
           tool_call_id: { type: 'string', maxLength: 128 },
           name: { type: 'string', maxLength: 64 },
           tool_calls: {

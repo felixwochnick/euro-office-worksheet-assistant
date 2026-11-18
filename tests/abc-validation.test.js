@@ -102,3 +102,14 @@ test('looksLikeAbc detects alt texts created by the plugin', () => {
   assert.equal(abc.looksLikeAbc('Ein Bild'), false);
   assert.equal(abc.looksLikeAbc(null), false);
 });
+
+test('accepts valid ABC that looks unusual (review regressions)', () => {
+  const head = 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\n';
+  for (const body of ['"50%"C D E F|]', 'C D [|] E F|]', 'C D \\ % continued\nE F|]', 'A`B`c d|]', 'C D % a "quote" in a comment\nE F|]']) {
+    const r = abc.validateAbc(head + body);
+    assert.equal(r.valid, true, `${JSON.stringify(body)}: ${abc.formatValidationErrors(r)}`);
+  }
+  const noKey = abc.validateAbc('X:1\nM:4/4\nL:1/4\nK:clef=bass\nC,D,|]');
+  assert.equal(noKey.valid, true, abc.formatValidationErrors(noKey));
+  assert.equal(noKey.clef, 'bass');
+});

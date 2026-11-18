@@ -25,6 +25,7 @@
 
   var settings = Settings.load();
   var agent = null;
+  var chatGeneration = 0;
   var started = false;
 
   function $(id) { return document.getElementById(id); }
@@ -90,8 +91,9 @@
     return ' ' + t('warning.fallback', { method: result.method, extra: extra });
   }
 
-  function confirmInsert(call, rendered) {
+  function confirmInsert(call, rendered, abc, signal) {
     return new Promise(function (resolve) {
+      if (signal && signal.aborted) { resolve(false); return; }
       var log = $('chat-log');
       var card = document.createElement('div');
       card.className = 'card';
@@ -119,16 +121,20 @@
       card.appendChild(row);
       log.appendChild(card);
       log.scrollTop = log.scrollHeight;
-      setLoading(false);
+      // The loading bar (with the Stop button) stays visible: Stop and "Neuer Chat"
+      // abort the run and thereby discard the open preview.
+      var settled = false;
       function done(v) {
+        if (settled) return;
+        settled = true;
         yes.disabled = true;
         no.disabled = true;
         card.classList.add(v ? 'accepted' : 'rejected');
-        setLoading(true);
         resolve(v);
       }
       yes.addEventListener('click', function () { done(true); });
       no.addEventListener('click', function () { done(false); });
+      if (signal) signal.addEventListener('abort', function () { done(false); });
     });
   }
 
@@ -173,9 +179,11 @@
       $('chat-text').value = '';
       addChat('user', text);
       setLoading(true);
+      var gen = chatGeneration;
       agent.send(text).then(function () {
-        setLoading(false);
+        if (gen === chatGeneration) setLoading(false);
       }, function (err) {
+        if (gen !== chatGeneration) return; // chat was reset meanwhile
         setLoading(false);
         addChat(err && err.kind === 'aborted' ? 'tool' : 'error', errorText(err));
       });
@@ -187,7 +195,9 @@
     });
     $('chat-stop').addEventListener('click', function () { agent.abort(); });
     $('chat-new').addEventListener('click', function () {
+      chatGeneration++;
       agent.reset();
+      setLoading(false);
       $('chat-log').innerHTML = '';
       addChat('assistant', t('chat.welcome'));
     });
