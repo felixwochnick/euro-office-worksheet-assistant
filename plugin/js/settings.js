@@ -18,7 +18,13 @@
     // Let MCP clients edit this document through the proxy's plugin bridge (bridge.js).
     mcpEnabled: false,
     // Display name of the Nextcloud user (AUTH_MODE=nextcloud; the token is then a sign-in token).
-    userName: ''
+    userName: '',
+    // House style: design of new worksheets, school name and logo (PNG data URL) for the page header.
+    theme: 'modern',
+    school: '',
+    logo: '',
+    // Optional font for the worksheet text (e.g. a "Grundschrift" installed on the Document Server).
+    font: ''
   };
 
   var memory = null;
@@ -63,6 +69,10 @@
     s.widthCm = Math.min(19, Math.max(3, Number(s.widthCm) || DEFAULTS.widthCm));
     s.dpi = Math.min(600, Math.max(96, Number(s.dpi) || DEFAULTS.dpi));
     s.proxyUrl = String(s.proxyUrl || '').trim().replace(/\/+$/, '');
+    if (['classic', 'modern', 'primary'].indexOf(s.theme) === -1) s.theme = DEFAULTS.theme;
+    s.school = String(s.school || '').trim().slice(0, 120);
+    s.font = String(s.font || '').replace(/[^\w .\-äöüÄÖÜß]/g, '').trim().slice(0, 60);
+    if (!/^data:image\/(png|jpeg);base64,/.test(s.logo) || s.logo.length > 400000) s.logo = '';
     memory = s;
     try {
       window.localStorage.setItem(KEY, JSON.stringify(s));
