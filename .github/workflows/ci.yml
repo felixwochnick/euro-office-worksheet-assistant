@@ -1,0 +1,58 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install dependencies
+        run: |
+          npm ci
+          npm --prefix proxy ci
+
+      - name: Unit tests (shared ABC helpers + proxy)
+        run: npm test
+
+      - name: Build plugin
+        run: bash scripts/build.sh
+
+      - name: Install script (syntax, systemd unit)
+        run: |
+          bash -n scripts/install-aio.sh
+          scripts/install-aio.sh --print-unit > /tmp/eurooffice-music-notation.service
+          systemd-analyze verify /tmp/eurooffice-music-notation.service || true
+
+      - name: End-to-end test (harness + mock proxy)
+        env:
+          CHROMIUM_PATH: /usr/bin/google-chrome
+          PROXY_URL: http://localhost:8788
+        run: |
+          (cd proxy && LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 \
+            CORS_ORIGINS=http://localhost:8080 PORT=8788 LOG_LEVEL=warn node build/src/server.js &)
+          node scripts/serve.mjs 8080 &
+          for i in $(seq 1 30); do curl -fs http://localhost:8788/healthz && curl -fs -o /dev/null http://localhost:8080/harness/ && break; sleep 1; done
+          node harness/e2e.mjs
+
+      - name: Proxy Docker image builds
+        run: docker build -f proxy/Dockerfile -t music-notation-proxy:ci .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: music-notation-plugin
+          path: |
+            dist/music-notation.tar.gz
+            dist/music-notation.zip
+            dist/music-notation.plugin

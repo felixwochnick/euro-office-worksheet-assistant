@@ -426,6 +426,8 @@
 
   function initSettings() {
     fillSettings();
+    // The origin the plugin runs on (= the Document Server's) – needed for the proxy's CORS_ORIGINS.
+    $('s-origin').textContent = window.location.origin;
     $('s-save').addEventListener('click', function () {
       var langBefore = settings.language;
       settings = Settings.save(readSettingsForm());

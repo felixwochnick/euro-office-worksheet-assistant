@@ -64,6 +64,7 @@ textarea { resize: vertical; }
 .check { display: flex; align-items: center; gap: 4px; }
 .check.grow { flex: 1; }
 .hint { color: var(--text-muted); }
+.hint code { font-family: Consolas, "DejaVu Sans Mono", monospace; user-select: all; }
 .about { color: var(--text-muted); font-size: 10px; margin-top: auto; }
 
 .message { padding: 6px 8px; border-radius: 3px; background: var(--bg-alt); white-space: pre-wrap; }

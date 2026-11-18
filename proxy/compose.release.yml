@@ -1,0 +1,17 @@
+# Proxy from the released image (no build needed):
+#   cp .env.example .env    # edit
+#   docker compose -f compose.release.yml up -d
+services:
+  music-proxy:
+    image: ghcr.io/felixwochnick/eurooffice-music-notation-proxy:${PROXY_VERSION:-latest}
+    restart: unless-stopped
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      PORT: "8787"
+    ports:
+      - "${PROXY_PUBLISH_PORT:-8787}:8787"
+    read_only: true
+    security_opt:
+      - no-new-privileges:true

@@ -42,7 +42,9 @@ The UI language is German (i18n-ready, English included).
 | `proxy/` | LLM proxy (TypeScript), `Dockerfile`, `docker-compose.yml`, `.env.example` |
 | `deploy/` | Example compose: Euro-Office as its own container with the plugin as a volume, plus the proxy |
 | `harness/` | Local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
-| `scripts/build.sh` | Builds `dist/music-notation/` and `dist/music-notation.plugin` |
+| `scripts/build.sh` | Builds `dist/music-notation/`, `.plugin`, `.tar.gz` and `.zip` |
+| `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
+| `.github/workflows/` | CI (tests, build, e2e, Docker) and release (packages + proxy image on GHCR) |
 | `tests/` | Unit tests (ABC validation, German note names) |
 
 ## Build
@@ -58,28 +60,79 @@ Result:
 
 - `dist/music-notation/` – the plugin folder (copy this into `sdkjs-plugins/`)
 - `dist/music-notation.plugin` – the same as ZIP with `config.json` at the root (for editors with a plugin manager)
+- `dist/music-notation.tar.gz` / `.zip` – archives with the `music-notation/` folder (for `install-aio.sh --archive`)
 
-## Test installation in Nextcloud AIO
+## Installation
 
-The AIO container `nextcloud-aio-eurooffice` serves plugins from
-`/var/www/euro-office/documentserver/sdkjs-plugins`. That folder is empty by default – there is no plugin
-manager and no shared `v1/plugins.js` – which is why the plugin ships everything it needs.
+There are three parts: the **plugin** (in the Euro-Office Document Server), the **proxy** (holds the AI key) and the
+**settings** in the plugin. Without the proxy the manual mode works; the AI chat needs it.
+
+| Setup | Effort | Survives updates | Recommended for |
+|-------|--------|------------------|-----------------|
+| **A – Nextcloud AIO + install script with `--watch`** | one command | ✅ (re-installed automatically after every AIO update) | AIO users |
+| B – own Euro-Office container, plugin as volume (`deploy/`) | own Document Server + reverse proxy | ✅ | if you run the Document Server yourself anyway |
+| C – `docker cp` by hand | one command | ❌ (gone after every AIO update) | quick tests |
+
+Prebuilt packages are attached to each [GitHub release](https://github.com/felixwochnick/eurooffice-music-notation-plugin/releases)
+(`music-notation.tar.gz`, `.zip`, `.plugin`); the proxy image is `ghcr.io/felixwochnick/eurooffice-music-notation-proxy`.
+Releases are created by pushing a tag (`git tag v0.1.0 && git push origin v0.1.0`, see `.github/workflows/release.yml`).
+Until the first release exists, build locally with `bash scripts/build.sh` and use `--source dist/music-notation`.
+
+### A – Nextcloud AIO (recommended)
+
+In AIO the Euro-Office container (`nextcloud-aio-eurooffice`) has no plugin manager, its plugin folder
+`/var/www/euro-office/documentserver/sdkjs-plugins` is empty, and **AIO updates re-create the container**, which
+removes plugins copied into it. AIO offers no supported way to mount own plugins. Therefore:
+
+**1. Plugin** – on the AIO host:
 
 ```bash
+# latest release
+curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/scripts/install-aio.sh \
+  | sudo bash -s -- --watch
+
+# or from a checkout / local build
 bash scripts/build.sh
-docker cp dist/music-notation nextcloud-aio-eurooffice:/var/www/euro-office/documentserver/sdkjs-plugins/
-# check
-docker exec nextcloud-aio-eurooffice ls /var/www/euro-office/documentserver/sdkjs-plugins/music-notation
+sudo scripts/install-aio.sh --source dist/music-notation --watch
 ```
 
-Then **reload the editor** in the browser (close and reopen the document). No container restart is needed – the
-Document Server lists the plugin folders on every editor start (verified with Euro-Office 9.3.8). The plugin appears under the *Plugins* tab as **Noten-Assistent** and opens as a
-side panel.
+The script copies the plugin into the running container, checks that the Document Server lists it, stores a copy
+in `/opt/eurooffice-plugins/` and – with `--watch` – installs the systemd service `eurooffice-music-notation`, which
+waits for the container to start (`docker events`) and copies the plugin in again. AIO updates therefore need no
+manual step. Then reopen the document in Nextcloud: *Plugins* → **Noten-Assistent**. No container restart is needed.
 
-> ⚠️ **AIO updates recreate the container and empty the folder again.** Repeat the `docker cp` after every
-> update – or use the permanent setup below.
+```bash
+systemctl status eurooffice-music-notation       # watcher
+sudo scripts/install-aio.sh --print-unit         # show the unit before installing
+sudo scripts/install-aio.sh --version v0.2.0 --watch   # update to another release
+sudo scripts/install-aio.sh --uninstall          # remove plugin and service
+```
 
-## Permanent setup: Euro-Office as its own container
+Options: `--container NAME`, `--plugin-dir PATH` (if your container differs), `--archive FILE` (a downloaded
+`.tar.gz`/`.zip`). Tested with a fresh `ghcr.io/euro-office/documentserver` 9.3.8 container, including a simulated
+update (container removed and re-created → plugin re-installed by the watcher within ~15 s).
+
+**2. Proxy** – on any host with Docker that is reachable via **HTTPS** (the editor runs on HTTPS; browsers block
+plain HTTP from there). On the AIO host itself, put it behind your reverse proxy (e.g. `https://noten-proxy.example.org`
+→ `localhost:8787`):
+
+```bash
+mkdir music-proxy && cd music-proxy
+curl -fsSLO https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/proxy/compose.release.yml
+curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/proxy/.env.example -o .env
+nano .env        # PROXY_TOKEN (openssl rand -hex 24), CORS_ORIGINS, LLM_API_KEY
+docker compose -f compose.release.yml up -d
+```
+
+(From a checkout: `cd proxy && docker compose up -d --build`. If pulling the image fails with "denied", set the
+package `eurooffice-music-notation-proxy` to *public* once under GitHub → Packages → Package settings.)
+
+**3. Settings** – in the editor: *Plugins* → *Noten-Assistent* → *Einstellungen*: enter the proxy URL and the token.
+Below the token field the plugin shows **the origin to add to `CORS_ORIGINS`** (the address of the Document Server
+as seen by the browser). Add it to the proxy's `.env`, restart the proxy (`docker compose … up -d`) and click
+*Verbindung testen*. The settings are stored per browser (`localStorage`).
+
+### B – Euro-Office as its own container
 
 Run the Euro-Office Document Server yourself (e.g. in [Coolify](https://coolify.io/) or plain Docker Compose) and
 mount the plugin folder as a volume. Nextcloud uses it as an **external Document Server**.
@@ -112,7 +165,16 @@ In Coolify you can use the compose file as a "Docker Compose" resource; set `PLU
 (e.g. `/opt/eurooffice-plugins/music-notation`) and copy `dist/music-notation` there. Updating the plugin = replacing
 that folder and reloading the editor – no container rebuild needed.
 
-## Proxy deployment
+### C – manual copy (quick test)
+
+```bash
+bash scripts/build.sh
+docker cp dist/music-notation nextcloud-aio-eurooffice:/var/www/euro-office/documentserver/sdkjs-plugins/
+```
+
+Reopen the document. The plugin is gone after the next AIO update – use A to avoid that.
+
+## Proxy configuration
 
 ```bash
 cd proxy

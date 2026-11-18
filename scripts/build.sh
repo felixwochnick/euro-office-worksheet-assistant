@@ -8,6 +8,10 @@
 # Output:
 #   dist/music-notation/          plugin folder – copy into .../documentserver/sdkjs-plugins/
 #   dist/music-notation.plugin    ZIP with config.json at the root (for plugin managers)
+#   dist/music-notation.tar.gz    archive with the music-notation/ folder (scripts/install-aio.sh --archive)
+#   dist/music-notation.zip       the same as ZIP
+#
+# PLUGIN_VERSION=1.2.3 sets the version in config.json (used by the release workflow).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
@@ -57,10 +61,17 @@ echo "==> Building $OUT"
 # directory would not be visible there.
 mkdir -p "$OUT"
 find "$OUT" -mindepth 1 -delete
-rm -f "$ROOT/dist/$NAME.plugin"
+rm -f "$ROOT/dist/$NAME.plugin" "$ROOT/dist/$NAME.tar.gz" "$ROOT/dist/$NAME.zip"
 mkdir -p "$OUT/vendor" "$OUT/licenses"
 cp -R "$ROOT/plugin/." "$OUT/"
 cp "$ROOT/shared/abc-tools.js" "$OUT/js/abc-tools.js"
+if [[ -n "${PLUGIN_VERSION:-}" ]]; then
+  node -e '
+    const fs = require("fs"); const f = process.argv[1];
+    const c = JSON.parse(fs.readFileSync(f, "utf8")); c.version = process.argv[2];
+    fs.writeFileSync(f, JSON.stringify(c, null, 2) + "\n");
+  ' "$OUT/config.json" "${PLUGIN_VERSION#v}"
+fi
 cp "$VENDOR/onlyoffice/plugins.js" "$VENDOR/onlyoffice/plugins-ui.js" "$OUT/vendor/"
 cp "$VENDOR/abcjs/abcjs-basic-min.js" "$OUT/vendor/"
 cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE-music-notation-plugin.txt"
@@ -90,5 +101,18 @@ with zipfile.ZipFile(dst, "w", zipfile.ZIP_DEFLATED) as z:
 PY
 fi
 
+echo "==> Packing dist/$NAME.tar.gz and dist/$NAME.zip"
+tar -czf "$ROOT/dist/$NAME.tar.gz" -C "$ROOT/dist" "$NAME"
+python3 - "$ROOT/dist" "$NAME" <<'PY'
+import os, sys, zipfile
+dist, name = sys.argv[1], sys.argv[2]
+with zipfile.ZipFile(os.path.join(dist, name + ".zip"), "w", zipfile.ZIP_DEFLATED) as z:
+    for base, dirs, files in os.walk(os.path.join(dist, name)):
+        dirs.sort()
+        for f in sorted(files):
+            full = os.path.join(base, f)
+            z.write(full, os.path.relpath(full, dist))
+PY
+
 echo "==> Done"
-du -sh "$OUT" "$ROOT/dist/$NAME.plugin"
+du -sh "$OUT" "$ROOT/dist/$NAME.plugin" "$ROOT/dist/$NAME.tar.gz" "$ROOT/dist/$NAME.zip"
