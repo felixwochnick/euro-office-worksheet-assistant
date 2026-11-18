@@ -9,7 +9,7 @@
  *   - signing out in the plugin deletes its app password in Nextcloud
  *
  * Prerequisites:
- *   bash scripts/build.sh && npm run build:server
+ *   bash scripts/build.sh && pnpm build:server
  *   (cd dev/eurooffice && docker compose up -d)
  *   (cd dev/nextcloud && docker compose up -d && ./setup.sh)
  *   node dev/nextcloud/e2e-nextcloud.mjs [screenshot-dir]

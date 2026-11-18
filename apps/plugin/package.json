@@ -10,6 +10,6 @@
     "e2e": "node harness/e2e.mjs"
   },
   "dependencies": {
-    "@worksheet-assistant/shared": "*"
+    "@worksheet-assistant/shared": "workspace:*"
   }
 }

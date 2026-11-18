@@ -21,7 +21,7 @@
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
-    "@worksheet-assistant/shared": "*",
+    "@worksheet-assistant/shared": "workspace:*",
     "fastify": "^5.6.0",
     "zod": "^4.6.7"
   },

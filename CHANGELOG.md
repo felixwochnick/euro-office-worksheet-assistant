@@ -36,9 +36,9 @@
   to a settings page in the browser; it calls the app "App Arbeitsblatt-Assistent" instead of "Begleitprogramm".
 - Releases are created as drafts and published once all installers are attached; the release job checks that all
   version numbers match the tag. App self-updates need a signing key (see README, *Releases*).
-- **Repository as a monorepo** (npm workspaces, one `package-lock.json`): `apps/plugin` (was `plugin/` and
-  `harness/`), `apps/server` (was `proxy/`), `apps/desktop`, `apps/website`, `packages/shared` (was `shared/` and
-  `tests/`). One `npm ci` in the root installs everything; the server, the website and the desktop app's server
+- **Repository as a monorepo** (pnpm workspace, one `pnpm-lock.yaml`; pnpm replaces npm, its version is pinned in
+  `packageManager`): `apps/plugin` (was `plugin/` and `harness/`), `apps/server` (was `proxy/`), `apps/desktop`,
+  `apps/website`, `packages/shared` (was `shared/` and `tests/`). One `pnpm install` in the root installs everything; the server, the website and the desktop app's server
   program import the shared modules as `@worksheet-assistant/shared`. The server's Docker image is built with
   `docker build -f apps/server/Dockerfile .`; the compose file and `.env.example` for the released image moved to
   `apps/server/` (raw URLs in the README). `scripts/install-aio.sh` and `scripts/build.sh` keep their paths.

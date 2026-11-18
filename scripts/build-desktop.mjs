@@ -30,7 +30,7 @@ const own = dashdash === -1 ? argv : argv.slice(0, dashdash);
 const tauriArgs = dashdash === -1 ? [] : argv.slice(dashdash + 1);
 const stub = own.includes('--stub');
 const win = process.platform === 'win32';
-const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: 'inherit', cwd: root, shell: win && /^(npm|npx)$/.test(cmd), ...opts });
+const run = (cmd, args, opts = {}) => execFileSync(cmd, args, { stdio: 'inherit', cwd: root, shell: win && /^pnpm$/.test(cmd), ...opts });
 
 function hostTriple() {
   const out = execFileSync('rustc', ['-vV'], { encoding: 'utf8' });
@@ -59,10 +59,10 @@ if (stub) {
   process.exit(0);
 }
 
-// npm workspaces: one install at the repository root covers the server, the app and the build tools.
-if (!fs.existsSync(path.join(root, 'node_modules', '@tauri-apps', 'cli'))) {
-  console.log('==> npm ci');
-  run('npm', ['ci']);
+// pnpm workspace: one install at the repository root covers the server, the app and the build tools.
+if (!fs.existsSync(path.join(desktop, 'node_modules', '@tauri-apps', 'cli'))) {
+  console.log('==> pnpm install');
+  run('pnpm', ['install', '--frozen-lockfile']);
 }
 
 if (!fs.existsSync(path.join(root, 'dist', 'worksheet-assistant', 'config.json'))) {
@@ -92,11 +92,11 @@ const pubkey = (process.env.WORKSHEET_ASSISTANT_UPDATER_PUBKEY || '').trim();
 const signed = !!(process.env.TAURI_SIGNING_PRIVATE_KEY && pubkey);
 console.log(signed ? '    with signed update bundles' : '    without update bundles (TAURI_SIGNING_PRIVATE_KEY / WORKSHEET_ASSISTANT_UPDATER_PUBKEY not set)');
 // The updater key goes into the app's configuration (the app turns self-updates on with it; the CLI signs the
-// bundles against it). A config file, not inline JSON: on Windows npx runs through cmd.exe, which mangles quotes.
+// bundles against it). A config file, not inline JSON: on Windows pnpm runs through cmd.exe, which mangles quotes.
 const updaterConfig = path.join(tauriDir, 'tauri.updater.gen.json');
 fs.rmSync(updaterConfig, { force: true });
 if (signed) {
   fs.writeFileSync(updaterConfig, JSON.stringify({ bundle: { createUpdaterArtifacts: true }, plugins: { updater: { pubkey } } }, null, 2));
 }
-run('npx', ['tauri', 'build', '--target', target, ...(signed ? ['--config', updaterConfig] : []), ...tauriArgs], { cwd: desktop });
+run('pnpm', ['exec', 'tauri', 'build', '--target', target, ...(signed ? ['--config', updaterConfig] : []), ...tauriArgs], { cwd: desktop });
 console.log(`==> ${path.relative(root, path.join(tauriDir, 'target', target, 'release', 'bundle'))}`);

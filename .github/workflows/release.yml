@@ -7,7 +7,7 @@
 # check reads releases/latest).
 #
 # Updates of the desktop app (optional, once): create a key pair with
-#   npm ci && npx tauri signer generate -w ~/.tauri/worksheet-assistant.key
+#   pnpm install && pnpm --filter @worksheet-assistant/desktop exec tauri signer generate -w ~/.tauri/worksheet-assistant.key
 # and store the private key as secret TAURI_SIGNING_PRIVATE_KEY (and its password as
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD), the public key as variable TAURI_UPDATER_PUBKEY
 # (Settings → Secrets and variables → Actions). Without them the app only points to the download page.
@@ -27,10 +27,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
       - name: Version matches the tag
         run: |
@@ -43,8 +45,8 @@ jobs:
 
       - name: Test
         run: |
-          npm ci --include-workspace-root -w @worksheet-assistant/shared -w @worksheet-assistant/server
-          npm test
+          pnpm install --frozen-lockfile --filter '!@worksheet-assistant/desktop' --filter '!@worksheet-assistant/website'
+          pnpm test
 
       - name: Build plugin
         env:
@@ -109,11 +111,12 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           # Node 24 LTS: its Linux build does not need libatomic (Node >= 25 does)
           node-version: 24
-          cache: npm
+          cache: pnpm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
@@ -133,7 +136,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           WORKSHEET_ASSISTANT_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
         run: |
-          npm ci --include-workspace-root -w @worksheet-assistant/server -w @worksheet-assistant/desktop
+          pnpm install --frozen-lockfile --filter '!@worksheet-assistant/website'
           node scripts/build-desktop.mjs --target ${{ matrix.target }}
           node scripts/collect-desktop.mjs ${{ matrix.target }}
       - name: Upload to the release

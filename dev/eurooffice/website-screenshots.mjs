@@ -13,7 +13,7 @@
  *
  * ONLY=music takes only the music tab screenshot (no model needed).
  * ONLY=companion takes only the desktop app screenshot (no editor needed; build it first with
- * `npm run generate -w @worksheet-assistant/desktop`).
+ * `pnpm --filter @worksheet-assistant/desktop generate`).
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';

@@ -5,14 +5,14 @@
  * Env: PROXY_URL – proxy with LLM_PROVIDER=mock (default: what the harness has stored, http://localhost:8787)
  *
  * Prerequisites:
- *   1. npm ci (root, installs playwright-core – no browser download)
+ *   1. pnpm install (root, installs playwright-core – no browser download)
  *   2. a Chromium/Chrome binary (CHROMIUM_PATH, default /usr/bin/chromium)
  *   3. bash scripts/build.sh && node scripts/serve.mjs 8080
  *   4. proxy with the mock provider, e.g. in apps/server/: .env with
  *        LLM_PROVIDER=mock, PROXY_TOKEN=dev-token-change-me-0123, CORS_ORIGINS=http://localhost:8080
- *      and `docker compose up -d` (or `npm run dev`)
+ *      and `docker compose up -d` (or `pnpm dev:server` in the root)
  *
- *   npm run e2e [-- <screenshot-prefix>]
+ *   pnpm e2e [<screenshot-prefix>]
  */
 import { chromium } from 'playwright-core';
 import assert from 'node:assert/strict';

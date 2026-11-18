@@ -4,25 +4,22 @@
   "private": true,
   "description": "Euro-Office (ONLYOFFICE) worksheet assistant: panel plugin with AI chat, MCP endpoint and a desktop app.",
   "license": "MIT",
-  "workspaces": [
-    "packages/*",
-    "apps/*"
-  ],
+  "packageManager": "pnpm@12.15.0",
   "scripts": {
-    "build": "npm run build:plugin && npm run build:server",
+    "build": "pnpm build:plugin && pnpm build:server",
     "build:plugin": "bash scripts/build.sh",
-    "build:server": "npm run build -w @worksheet-assistant/server",
+    "build:server": "pnpm --filter @worksheet-assistant/server build",
     "build:companion": "node scripts/build-companion.mjs",
     "build:desktop": "node scripts/build-desktop.mjs",
-    "build:website": "npm run build -w @worksheet-assistant/website",
-    "test": "npm test -w @worksheet-assistant/shared -w @worksheet-assistant/server",
-    "test:shared": "npm test -w @worksheet-assistant/shared",
+    "build:website": "pnpm --filter @worksheet-assistant/website build",
+    "test": "pnpm --filter @worksheet-assistant/shared --filter @worksheet-assistant/server test",
+    "test:shared": "pnpm --filter @worksheet-assistant/shared test",
     "harness": "bash scripts/build.sh && node scripts/serve.mjs",
     "e2e": "node apps/plugin/harness/e2e.mjs",
     "e2e:real": "node dev/eurooffice/e2e-real-editor.mjs",
-    "dev:server": "npm run dev -w @worksheet-assistant/server",
-    "dev:desktop": "npm run tauri -w @worksheet-assistant/desktop -- dev",
-    "dev:website": "npm run dev -w @worksheet-assistant/website"
+    "dev:server": "pnpm --filter @worksheet-assistant/server dev",
+    "dev:desktop": "pnpm --filter @worksheet-assistant/desktop tauri dev",
+    "dev:website": "pnpm --filter @worksheet-assistant/website dev"
   },
   "devDependencies": {
     "esbuild": "^0.28.2",

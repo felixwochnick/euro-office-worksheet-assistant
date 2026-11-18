@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "nuxt dev",
     "build": "nuxt build --preset github_pages",
-    "preview": "npx serve .output/public",
+    "preview": "pnpm dlx serve .output/public",
     "postinstall": "nuxt prepare"
   },
   "dependencies": {
@@ -15,7 +15,7 @@
     "@iconify-json/simple-icons": "^1.2.103",
     "@nuxt/ui": "^4.12.2",
     "@nuxtjs/i18n": "^10.6.0",
-    "@worksheet-assistant/shared": "*",
+    "@worksheet-assistant/shared": "workspace:*",
     "abcjs": "^6.7.2",
     "nuxt": "^4.6.4",
     "tailwindcss": "^4.3.5"

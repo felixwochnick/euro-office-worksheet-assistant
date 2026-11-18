@@ -95,7 +95,8 @@ note converter and installation guide in German, English, French, Spanish, Itali
 
 ## Repository layout
 
-A monorepo with npm workspaces: one `npm ci` in the root installs everything (one `package-lock.json`); the
+A monorepo with a pnpm workspace (`pnpm-workspace.yaml`): one `pnpm install` in the root installs everything (one
+`pnpm-lock.yaml`; pnpm's version is pinned in `packageManager` of `package.json`, e.g. via `corepack enable`); the
 packages are named `@worksheet-assistant/<name>`.
 
 | Path | Content |
@@ -124,12 +125,12 @@ Root scripts:
 
 | Command | What it does |
 |---------|--------------|
-| `npm ci` | Installs all workspaces (CI installs only the ones a job needs, e.g. `npm ci --include-workspace-root -w @worksheet-assistant/server`) |
-| `npm test` | Unit tests of `packages/shared` and `apps/server` |
-| `npm run build` | Plugin (`scripts/build.sh`) and server (`tsc`) |
-| `npm run build:companion` / `build:desktop` / `build:website` | The desktop app's server program / the desktop app / the website |
-| `npm run e2e` | End-to-end test of the plugin in the harness (see [Local test harness](#local-test-harness-no-euro-office-needed)) |
-| `npm run dev:server` / `dev:desktop` / `dev:website` | Server with `apps/server/.env` / the desktop app (`tauri dev`) / the website |
+| `pnpm install` | Installs all packages (CI installs only the ones a job needs, e.g. `pnpm install --frozen-lockfile --filter '!@worksheet-assistant/desktop' --filter '!@worksheet-assistant/website'`) |
+| `pnpm test` | Unit tests of `packages/shared` and `apps/server` |
+| `pnpm build` | Plugin (`scripts/build.sh`) and server (`tsc`) |
+| `pnpm build:companion` / `build:desktop` / `build:website` | The desktop app's server program / the desktop app / the website |
+| `pnpm e2e` | End-to-end test of the plugin in the harness (see [Local test harness](#local-test-harness-no-euro-office-needed)) |
+| `pnpm dev:server` / `dev:desktop` / `dev:website` | Server with `apps/server/.env` / the desktop app (`tauri dev`) / the website |
 
 ## Build
 
@@ -153,7 +154,7 @@ builds need `libatomic.so.1`, distribution packages link system libraries – th
 everywhere). On Linux also `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf`.
 
 ```bash
-npm ci                                 # all workspaces (or: npm run build:desktop, which installs if needed)
+pnpm install                           # all packages (or: pnpm build:desktop, which installs if needed)
 node scripts/build-desktop.mjs         # -> apps/desktop/src-tauri/target/<target>/release/bundle/
 node scripts/collect-desktop.mjs <target>   # optional: installers under the release names in dist/desktop/
 ```
@@ -166,10 +167,10 @@ checks that the server program starts on a minimal Ubuntu.
 
 Working on the window's UI:
 
-- without Rust: `npm run dev -w @worksheet-assistant/desktop` opens the UI in the browser with a simulated backend
+- without Rust: `pnpm --filter @worksheet-assistant/desktop dev` opens the UI in the browser with a simulated backend
   (URL parameter `?scenario=fresh|ready|error|update|starting`);
 - with Rust: `node scripts/build-desktop.mjs --stub` (placeholders for the server program), then
-  `npm run dev:desktop` (`tauri dev`).
+  `pnpm dev:desktop` (`tauri dev`).
 
 ## Installation
 
@@ -388,8 +389,8 @@ curl http://localhost:8787/healthz           # {"ok":true}
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8787/v1/info
 ```
 
-The image is built from the repository root (npm workspaces: the proxy uses `packages/shared`); `docker compose`
-handles that. Without Docker: `npm ci` in the repository root, then `npm run dev:server` (builds and starts it with
+The image is built from the repository root (pnpm workspace: the proxy uses `packages/shared`); `docker compose`
+handles that. Without Docker: `pnpm install` in the repository root, then `pnpm dev:server` (builds and starts it with
 `apps/server/.env`).
 
 | Variable | Default | Meaning |
@@ -645,8 +646,8 @@ separate notes only in lists of lower-case names (`c, f, g`); after upper-case n
 ## Development
 
 ```bash
-npm ci                      # all workspaces; playwright-core for the e2e test (no browser download)
-npm test                    # unit tests (packages/shared) + server tests (agent loop, providers, server, companion)
+pnpm install                # all packages; playwright-core for the e2e test (no browser download)
+pnpm test                   # unit tests (packages/shared) + server tests (agent loop, providers, server, companion)
 ```
 
 ### Releases
@@ -665,7 +666,7 @@ then:
 **Signing key for the app's self-updates** (once): create a key pair with
 
 ```bash
-npm ci && npx tauri signer generate -w ~/.tauri/worksheet-assistant.key
+pnpm install && pnpm --filter @worksheet-assistant/desktop exec tauri signer generate -w ~/.tauri/worksheet-assistant.key
 ```
 
 and store the private key as repository secret `TAURI_SIGNING_PRIVATE_KEY` (its password as
@@ -679,9 +680,9 @@ SmartScreen (see [D](#d--desktop-app-windows-macos-linux)). Code signing can be 
 ### Website
 
 ```bash
-npm ci
-npm run dev:website                                                    # http://localhost:3000
-NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ npm run build:website   # static site in apps/website/.output/public
+pnpm install
+pnpm dev:website                                                    # http://localhost:3000
+NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ pnpm build:website   # static site in apps/website/.output/public
 ```
 
 The live demo imports `@worksheet-assistant/shared/abc-tools.js`, so it always uses the same converter as the plugin. The site is
@@ -710,7 +711,7 @@ like the example above; with a real provider key the harness talks to the real m
 Note: with `LLM_PROVIDER=mock` the chat is **not an AI** – the mock only recognises a note list (the longest run of
 note names in the message), a task heading ("Aufgabe 2") and "leere Zeile". Use a real provider to test free-form requests.
 
-`npm run e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
+`pnpm e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
 `/usr/bin/chromium`).
 
 ### Testing with a real Nextcloud (sign-in, MCP, OAuth)
@@ -721,7 +722,7 @@ flow (registration, PKCE, Nextcloud login, consent, refresh, revocation in Nextc
 Euro-Office (next section):
 
 ```bash
-bash scripts/build.sh && npm run build:server
+bash scripts/build.sh && pnpm build:server
 (cd dev/eurooffice && docker compose up -d)
 (cd dev/nextcloud && docker compose up -d && ./setup.sh)
 node dev/nextcloud/e2e-nextcloud.mjs
