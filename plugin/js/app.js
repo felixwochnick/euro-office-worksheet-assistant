@@ -551,6 +551,8 @@
           if (bridge) bridge.update();
         }, function (err) {
           if (login !== me) return;
+          // Rate limit or a short network problem: keep waiting.
+          if (err && (err.status === 429 || err.kind === 'network')) { me.timer = setTimeout(poll, 5000); return; }
           stopLogin();
           show(status, err && err.status === 404 ? t('settings.ncExpired') : errorText(err), 'error');
         });

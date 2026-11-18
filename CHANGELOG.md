@@ -16,6 +16,11 @@
   Nextcloud's OAuth2 app for the login. Revoking the access in Nextcloud ends it within an hour.
 - `LLM_PROVIDER=none`: MCP only, no AI chat (*„entweder KI-API oder MCP“*).
 - New public `GET /v1/meta`; the proxy image stores sign-ins in `/data` (volume).
+- Hardening: wrong app passwords are throttled before they reach Nextcloud (its brute-force protection would block
+  the proxy's IP for everybody); client ID metadata documents are fetched with private addresses refused at
+  connection time and a 64 KB limit; no redirects before the user signed in; registered clients are stored only after
+  the first sign-in; Nextcloud tokens of denied or abandoned sign-ins are revoked.
+- Tested end-to-end against Nextcloud 34 (`dev/nextcloud/`) and Euro-Office 9.3.8.
 
 
 ## 0.2.0 – Arbeitsblatt-Assistent

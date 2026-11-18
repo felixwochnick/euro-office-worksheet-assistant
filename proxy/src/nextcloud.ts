@@ -61,9 +61,11 @@ export class NextcloudClient {
     return !!(this.opts.clientId && this.opts.clientSecret);
   }
 
-  private async call(path: string, init: RequestInit = {}): Promise<Response> {
+  private async call(path: string, init: RequestInit = {}, userAgent?: string): Promise<Response> {
     const headers = new Headers(init.headers);
-    headers.set('user-agent', this.opts.userAgent || 'Arbeitsblatt-Assistent');
+    // Must differ from the OAuth client name: deleting an OAuth client in Nextcloud revokes every token whose
+    // name equals the client name, including Login Flow app passwords (they are named after the User-Agent).
+    headers.set('user-agent', userAgent || this.opts.userAgent || 'Arbeitsblatt-Assistent (Euro-Office plugin)');
     try {
       return await this.fetchImpl(this.internalUrl + path, {
         ...init,
@@ -100,11 +102,19 @@ export class NextcloudClient {
       const name = data['display-name'] ?? data.displayname ?? data.id;
       user = { id: data.id, displayName: String(name) };
     } else if (res.status !== 401 && res.status !== 403) {
+      // 429 = Nextcloud's brute-force protection blocks the proxy's IP (see README, Known limitations).
       throw new NextcloudError(`Nextcloud answered HTTP ${res.status} (cloud/user)`, res.status);
     }
     this.cache.set(key, { user, expires: Date.now() + (user ? POSITIVE_TTL_MS : NEGATIVE_TTL_MS) });
     if (this.cache.size > 5000) this.cache.delete(this.cache.keys().next().value as string);
     return user;
+  }
+
+  /** Cached result for an app password: a user, null (known to be wrong) or undefined (not cached). */
+  cachedUser(auth: { login: string; password: string }): NextcloudUser | null | undefined {
+    const authorization = `Basic ${Buffer.from(`${auth.login}:${auth.password}`).toString('base64')}`;
+    const hit = this.cache.get(crypto.createHash('sha256').update(authorization).digest('hex'));
+    return hit && hit.expires > Date.now() ? hit.user : undefined;
   }
 
   forget(auth: { login: string; password: string }): void {
@@ -114,15 +124,15 @@ export class NextcloudClient {
 
   /** Start Login Flow v2. Returns the URL to open in the browser and the secret poll token. */
   async startLoginFlow(): Promise<{ loginUrl: string; pollToken: string }> {
-    const res = await this.call('/index.php/login/v2', { method: 'POST' });
+    const res = await this.call('/index.php/login/v2', { method: 'POST' }, 'Arbeitsblatt-Assistent (Euro-Office plugin)');
     if (res.status !== 200) throw new NextcloudError(`Login Flow could not be started (HTTP ${res.status})`, res.status);
     const body = (await res.json().catch(() => null)) as { login?: string; poll?: { token?: string } } | null;
     if (!body?.login || !body.poll?.token) throw new NextcloudError('Unexpected answer from Nextcloud (login/v2)');
-    // Nextcloud builds the login URL from the request it received; behind an internal URL, show the public one.
-    let loginUrl = body.login;
-    if (this.internalUrl !== this.url && loginUrl.startsWith(this.internalUrl)) {
-      loginUrl = this.url + loginUrl.slice(this.internalUrl.length);
-    }
+    // Nextcloud builds the login URL from the Host header of our request; with an internal URL the browser could
+    // not open it, so always point it at the public NEXTCLOUD_URL.
+    const i = body.login.indexOf('/login/v2/flow/');
+    if (i < 0) throw new NextcloudError('Unexpected login URL from Nextcloud (login/v2)');
+    const loginUrl = `${this.url}/index.php${body.login.slice(i)}`;
     return { loginUrl, pollToken: body.poll.token };
   }
 
@@ -153,6 +163,28 @@ export class NextcloudClient {
       });
     } catch {
       /* best effort */
+    }
+  }
+
+  /** Revoke a Nextcloud OAuth access token (it is an app token; this removes it from "Devices & sessions"). */
+  async revokeAccessToken(accessToken: string): Promise<void> {
+    try {
+      await this.call('/ocs/v2.php/core/apppassword', {
+        method: 'DELETE',
+        headers: { authorization: `Bearer ${accessToken}`, 'ocs-apirequest': 'true' },
+      });
+    } catch {
+      /* best effort */
+    }
+  }
+
+  /** Revoke the Nextcloud OAuth grant behind a refresh token (refresh, then delete the new access token). */
+  async revokeRefreshToken(refreshToken: string): Promise<void> {
+    try {
+      const t = await this.refresh(refreshToken);
+      await this.revokeAccessToken(t.accessToken);
+    } catch {
+      /* already invalid or Nextcloud unreachable */
     }
   }
 

@@ -12,6 +12,7 @@ import { loadConfig, type Config } from '../src/config.js';
 import { buildServer } from '../src/server.js';
 import { NextcloudClient } from '../src/nextcloud.js';
 import { OAuthServer, redirectUriMatches, validRedirectUri } from '../src/oauth.js';
+import { fetchSmallDocument, isBlockedAddress } from '../src/safe-fetch.js';
 import { AuthStore } from '../src/store.js';
 
 const TOKEN = 'test-token-0123456789';
@@ -513,14 +514,16 @@ test('oauth: redirect URI rules and client ID metadata documents', async () => {
     },
     'https://client.example/wrong-id.json': { client_id: 'https://other.example/x', redirect_uris: ['https://client.example/cb'] },
   };
-  const fetchImpl = (async (url: string) =>
-    docs[url] ? new Response(JSON.stringify(docs[url]), { status: 200 }) : new Response('', { status: 404 })) as unknown as typeof fetch;
+  let fetches = 0;
+  const fetchDocument = async (url: string) => {
+    fetches++;
+    return docs[url] ? JSON.stringify(docs[url]) : null;
+  };
   const server = new OAuthServer({
     publicUrl: 'https://proxy.example',
     nextcloud: new NextcloudClient({ url: 'https://cloud.example', clientId: 'a', clientSecret: 'b' }),
     store: new AuthStore(null),
-    allowPrivateCimd: true,
-    fetchImpl,
+    fetchDocument,
   });
   const app = (await import('fastify')).default();
   server.routes(app);
@@ -535,11 +538,137 @@ test('oauth: redirect URI rules and client ID metadata documents', async () => {
   assert.equal(wrongId.statusCode, 400);
   const wrongRedirect = await app.inject({ method: 'GET', url: q('https://client.example/mcp.json', 'https://client.example/other') });
   assert.equal(wrongRedirect.statusCode, 400);
+  // errors before the sign-in are shown, never redirected (no open redirect)
   const noPkce = await app.inject({
     method: 'GET',
     url: '/oauth/authorize?' + new URLSearchParams({ response_type: 'code', client_id: 'https://client.example/mcp.json', redirect_uri: 'https://client.example/callback' }).toString(),
   });
-  assert.equal(noPkce.statusCode, 302);
-  assert.match(noPkce.headers.location as string, /error=invalid_request/);
+  assert.equal(noPkce.statusCode, 400);
+  assert.equal(noPkce.headers.location, undefined);
+  // failed metadata fetches are cached (no repeated fetching)
+  const before = fetches;
+  await app.inject({ method: 'GET', url: q('https://client.example/missing.json', 'https://client.example/cb') });
+  await app.inject({ method: 'GET', url: q('https://client.example/missing.json', 'https://client.example/cb') });
+  assert.equal(fetches, before + 1);
+  server.close();
   await app.close();
+});
+
+test('safe fetch: private and IPv4-in-IPv6 addresses are refused', async () => {
+  for (const ip of ['127.0.0.1', '10.0.0.5', '169.254.169.254', '192.168.1.1', '::1', '::ffff:7f00:1', '::ffff:127.0.0.1', '64:ff9b::a00:5', '2002:7f00:1::', 'fd00::1', 'fe80::1']) {
+    assert.equal(isBlockedAddress(ip), true, ip);
+  }
+  for (const ip of ['8.8.8.8', '2606:4700:4700::1111']) assert.equal(isBlockedAddress(ip), false, ip);
+  assert.equal(await fetchSmallDocument('https://[::ffff:127.0.0.1]/c'), null);
+  assert.equal(await fetchSmallDocument('http://example.com/c'), null);
+});
+
+test('dynamic client registration: limits, clients are stored only after the first sign-in', async () => {
+  const store = new AuthStore(null);
+  const server = new OAuthServer({
+    publicUrl: 'https://proxy.example',
+    nextcloud: new NextcloudClient({ url: 'https://cloud.example', clientId: 'a', clientSecret: 'b' }),
+    store,
+  });
+  assert.equal(server.register({ redirect_uris: Array(6).fill('https://a.example/cb') }).status, 400);
+  assert.equal(server.register({ redirect_uris: ['https://a.example/' + 'x'.repeat(600)] }).status, 400);
+  const r = server.register({ client_name: 'X', redirect_uris: ['https://a.example/cb'] });
+  assert.equal(r.status, 201);
+  assert.equal(store.state.clients.length, 0);
+  server.close();
+});
+
+test('review fixes: double hello, failed sign-ins, CORS on /mcp, trusted proxies', async () => {
+  const app = await buildServer(cfg());
+  const base = await listen(app);
+  try {
+    // two hello frames on one socket: one session, nothing left after close
+    const ws = new WebSocket(base.replace(/^http/, 'ws') + '/v1/bridge', { origin: ORIGIN });
+    const closed = new Promise<number>((resolve) => ws.on('close', (code) => resolve(code)));
+    await new Promise((r) => ws.on('open', r));
+    const hello = JSON.stringify({ type: 'hello', token: TOKEN, document: { title: 'Doppelt' } });
+    ws.send(hello);
+    ws.send(hello);
+    assert.equal(await closed, 4400);
+    const client = await mcpClient(base, { authorization: `Bearer ${TOKEN}` });
+    const docs = await client.callTool({ name: 'list_open_documents', arguments: {} });
+    assert.equal(docs.isError, true, 'no ghost session');
+
+    // many wrong tokens do not lock out a valid one
+    for (let i = 0; i < 30; i++) {
+      await app.inject({ method: 'POST', url: '/mcp', headers: { authorization: 'Bearer wrong', 'content-type': 'application/json' }, payload: {} });
+    }
+    assert.ok((await client.listTools()).tools.length > 5);
+    await client.close();
+
+    // CORS headers survive the SDK writing the response; WWW-Authenticate is readable
+    const r = await fetch(base + '/mcp', {
+      method: 'POST',
+      headers: { origin: ORIGIN, authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+      body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+    });
+    assert.equal(r.status, 200);
+    assert.equal(r.headers.get('access-control-allow-origin'), ORIGIN);
+    const r401 = await fetch(base + '/mcp', { method: 'POST', headers: { origin: ORIGIN, 'content-type': 'application/json' }, body: '{}' });
+    assert.equal(r401.status, 401);
+    assert.match(r401.headers.get('access-control-expose-headers') || '', /www-authenticate/i);
+  } finally {
+    await app.close();
+  }
+
+  // local mode: only loopback origins may call the unauthenticated MCP endpoint
+  const local = await buildServer(cfg({ AUTH_MODE: 'local', CORS_ORIGINS: 'http://localhost:8090,https://office.example.org' }));
+  try {
+    const call = (origin: string) =>
+      local.inject({ method: 'POST', url: '/mcp', headers: { host: '127.0.0.1:8787', origin, 'content-type': 'application/json' }, payload: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} } });
+    assert.equal((await call('https://office.example.org')).statusCode, 403);
+    assert.notEqual((await call('http://localhost:6274')).statusCode, 403);
+  } finally {
+    await local.close();
+  }
+
+  // TRUST_PROXY with presets: the client IP behind a reverse proxy in a private network
+  const behind = await buildServer(cfg({ TRUST_PROXY: 'loopback,uniquelocal', RATE_LIMIT_MAX: '1' }));
+  try {
+    const get = (ip: string) => behind.inject({ method: 'GET', url: '/v1/meta', headers: { 'x-forwarded-for': ip } });
+    assert.equal((await get('203.0.113.1')).statusCode, 200);
+    assert.equal((await get('203.0.113.2')).statusCode, 200, 'different clients are counted separately');
+    assert.equal((await get('203.0.113.1')).statusCode, 429);
+  } finally {
+    await behind.close();
+  }
+});
+
+test('nextcloud mode: wrong app passwords are throttled before they reach Nextcloud', async () => {
+  const nc = await fakeNextcloud();
+  let ncCalls = 0;
+  const counting = http.createServer((req, res) => {
+    ncCalls++;
+    const proxyReq = http.request(nc.url + req.url, { method: req.method, headers: req.headers }, (p) => {
+      res.writeHead(p.statusCode || 500, p.headers);
+      p.pipe(res);
+    });
+    req.pipe(proxyReq);
+  });
+  await new Promise<void>((r) => counting.listen(0, '127.0.0.1', r));
+  const url = `http://127.0.0.1:${(counting.address() as AddressInfo).port}`;
+  const app = await buildServer(cfg({ AUTH_MODE: 'nextcloud', PROXY_TOKEN: '', NEXTCLOUD_URL: url }), { store: new AuthStore(null) });
+  try {
+    nc.appPasswords.set('lehrer', { user: 'lehrer', password: 'right' });
+    const call = (pw: string) =>
+      app.inject({
+        method: 'POST',
+        url: '/mcp',
+        headers: { authorization: 'Basic ' + Buffer.from(`lehrer:${pw}`).toString('base64'), 'content-type': 'application/json', accept: 'application/json, text/event-stream' },
+        payload: { jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} },
+      });
+    assert.equal((await call('right')).statusCode, 200);
+    for (let i = 0; i < 20; i++) assert.equal((await call('wrong-' + i)).statusCode, 401);
+    assert.ok(ncCalls <= 1 + 5, `at most 5 wrong passwords per login reach Nextcloud (got ${ncCalls - 1})`);
+    assert.equal((await call('right')).statusCode, 200, 'the valid (cached) app password still works');
+  } finally {
+    await app.close();
+    await new Promise((r) => counting.close(r));
+    await nc.close();
+  }
 });

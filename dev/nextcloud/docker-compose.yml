@@ -1,0 +1,42 @@
+# Local Nextcloud for testing the proxy's Nextcloud authentication
+# (app passwords via OCS, Login Flow v2, Nextcloud OAuth2 as upstream IdP).
+# Development only: SQLite, throwaway credentials, plain HTTP.
+#
+#   cd dev/nextcloud
+#   docker compose up -d          # first start installs Nextcloud (takes ~1 min)
+#   ./setup.sh                    # test user + OAuth2 client -> ./oauth-client.env
+#   open http://localhost:8091/   (admin / admin-dev-password-123,
+#                                  lehrer / lehrer-dev-password-123)
+#
+# Reset everything (users, tokens, OAuth clients):
+#   docker compose down -v && docker compose up -d && ./setup.sh
+#
+# occ:  docker compose exec -u www-data nextcloud php occ <command>
+#
+# From other containers (e.g. the proxy) Nextcloud is reachable as
+# http://host.docker.internal:8091 (with extra_hosts host-gateway) - that host
+# name is already listed in the trusted domains below. Note that Login Flow v2
+# builds its browser URL from the Host header of POST /login/v2, so a flow
+# started via host.docker.internal must be opened as http://localhost:8091/...
+name: nextcloud-dev
+
+services:
+  nextcloud:
+    image: nextcloud:${NEXTCLOUD_VERSION:-34-apache}
+    environment:
+      # Auto-install on first start (empty volume) with SQLite.
+      SQLITE_DATABASE: nextcloud
+      NEXTCLOUD_ADMIN_USER: admin
+      NEXTCLOUD_ADMIN_PASSWORD: admin-dev-password-123
+      # Space-separated. A port in the Host header is ignored for the check,
+      # so "localhost" also covers "localhost:8091".
+      NEXTCLOUD_TRUSTED_DOMAINS: "localhost 127.0.0.1 host.docker.internal nextcloud"
+      # Base URL for URLs generated outside of a web request (occ, cron).
+      OVERWRITECLIURL: http://localhost:8091
+    volumes:
+      - nextcloud:/var/www/html
+    ports:
+      - "127.0.0.1:8091:80"
+
+volumes:
+  nextcloud:

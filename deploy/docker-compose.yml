@@ -54,7 +54,8 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       # Only trust X-Forwarded-For from your reverse proxy (IP/CIDR, e.g. 10.0.0.0/8);
       # "true" would let clients spoof their IP and bypass the rate limit.
-      TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Default: trust X-Forwarded-For only from loopback and private networks (a reverse proxy in Docker).
+      TRUST_PROXY: ${TRUST_PROXY:-loopback,uniquelocal}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-30}
     volumes:
       - proxy-data:/data

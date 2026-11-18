@@ -241,7 +241,7 @@ Without Docker: `cd proxy && npm ci && npm run build && node --env-file=.env bui
 | `DATA_DIR` | `data` (image: `/data`) | Sign-ins, registered OAuth clients and grants (`AUTH_MODE=nextcloud`); keep it private |
 | `CORS_ORIGINS` | – | Comma-separated allowlist of browser origins, i.e. the origin that serves the editor (your Euro-Office / Nextcloud domain, e.g. `https://cloud.example.org`). `*` only for testing |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` | `30` / `1 minute` | Requests per IP and window |
-| `TRUST_PROXY` | `false` | IP/CIDR of your reverse proxy (e.g. `172.16.0.0/12`) so the rate limit sees real client IPs. Avoid `true` when the port is reachable directly – clients could spoof `X-Forwarded-For` |
+| `TRUST_PROXY` | `false` (`deploy/`: `loopback,uniquelocal`) | IP/CIDR of your reverse proxy (e.g. `172.16.0.0/12`, or the presets `loopback`, `uniquelocal`) so the rate limits see real client IPs – without it all users behind the reverse proxy share one limit. Avoid `true` when the port is reachable directly – clients could spoof `X-Forwarded-For` |
 | `LLM_PROVIDER` | `mistral` | `mistral`, `openai` (any OpenAI-compatible API), `anthropic`, `mock`, `none` (no chat – MCP only) |
 | `LLM_MODEL` | provider default | e.g. `mistral-large-latest`, `qwen2.5:7b`, `claude-sonnet-5-5` |
 | `LLM_API_KEY` | – | Provider key (alternatively `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) |
@@ -358,6 +358,14 @@ authorization server for MCP clients (metadata discovery, PKCE, dynamic client r
 documents) and uses Nextcloud only for the login: the user signs in at Nextcloud, then confirms on the proxy's own
 page *„<Client> möchte als <Name> auf deine in Euro-Office geöffneten Dokumente zugreifen“*. The access ends at the
 latest one hour after it is revoked in Nextcloud (*Settings → Security → Devices & sessions*).
+
+**App passwords:** create one per assistant in Nextcloud (*Settings → Security → Devices & sessions → Create new
+app password*) – do not use your login password (Nextcloud accepts it unless the admin enforces token
+authentication). Nextcloud's brute-force protection blocks **all** logins from one IP after about 10 failed
+attempts in 30 minutes; for Nextcloud every MCP sign-in comes from the proxy's IP. The proxy therefore stops wrong
+app passwords itself (5 per login and 10 per client IP in 15 minutes) before they reach Nextcloud, and you should put
+the proxy's IP on Nextcloud's brute-force allow list:
+`occ config:app:set bruteForce whitelist_1 --value=<proxy-IP>/32`.
 
 The reverse proxy in front of the proxy must pass **WebSockets** (`/v1/bridge`) and must not buffer responses.
 Serve the proxy at the root of its own (sub)domain for OAuth: clients look for the metadata under
@@ -501,6 +509,20 @@ note names in the message), a task heading ("Aufgabe 2") and "leere Zeile". Use 
 `npm run e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
 `/usr/bin/chromium`).
 
+### Testing with a real Nextcloud (sign-in, MCP, OAuth)
+
+`dev/nextcloud/` starts Nextcloud 34 on `http://localhost:8091` with the users `admin` and `lehrer` and an OAuth
+client; `e2e-nextcloud.mjs` runs the plugin sign-in (Login Flow v2), MCP with app passwords and the complete OAuth
+flow (registration, PKCE, Nextcloud login, consent, refresh, revocation in Nextcloud) against it and the local
+Euro-Office (next section):
+
+```bash
+bash scripts/build.sh && (cd proxy && npm run build)
+(cd dev/eurooffice && docker compose up -d)
+(cd dev/nextcloud && docker compose up -d && ./setup.sh)
+node dev/nextcloud/e2e-nextcloud.mjs
+```
+
 ### Testing in a real Euro-Office editor (without Nextcloud)
 
 `dev/eurooffice/` starts a real Euro-Office Document Server (JWT off – development only) with the built plugin
@@ -584,11 +606,17 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   whole tables); a single table cell or part of a paragraph cannot be changed. Indices come from the outline sent with
   each message – if the document is edited meanwhile, the AI may hit the wrong element. Deletions are therefore
   shown for confirmation.
+- **Nextcloud sign-in (tested with Nextcloud 34.0.6).** Nextcloud's OAuth consent cannot be remembered: every
+  OAuth sign-in shows Nextcloud's *Log in* / *Grant access* pages and then the proxy's own consent page, and adds an
+  entry *Arbeitsblatt-Assistent* under *Devices & sessions* (that is where it is revoked). Revoked app passwords and
+  tokens may keep working for about 10 seconds (Nextcloud caches token checks). Two-factor authentication and SSO
+  logins were not tested. Signing out in the plugin deletes its app password in Nextcloud.
 - **MCP.** The editor must be open with the panel *Arbeitsblatt-Assistent* and *MCP-Zugriff erlauben* switched on –
   the panel executes the changes (closing it disconnects the document). With several open documents the assistant
   works on the most recently used one unless it passes `document_id`. MCP changes are applied without preview. Tested
-  with the MCP TypeScript SDK client (protocol 2026-07-28) and plain 2025-era JSON-RPC requests; hosted assistants
-  (claude.ai, ChatGPT, Le Chat) were not tested against a public installation yet. With `AUTH_MODE=token` every
+  with the MCP TypeScript SDK client (protocol 2026-07-28) and plain 2025-era JSON-RPC requests, OAuth with a scripted
+  client against Nextcloud 34; hosted assistants (claude.ai, ChatGPT, Le Chat) were not tested against a public
+  installation yet. With `AUTH_MODE=token` every
   holder of the token reaches every connected editor.
 - **Security.** The token is stored in the browser and therefore visible to the user of that browser – it protects
   the proxy against strangers, not against your own users. Use the rate limit and provider-side spending limits.

@@ -170,6 +170,6 @@ export function createMcpEndpoint(opts: McpOptions): McpHttpHandler {
       if (!identity) throw new Error('unauthenticated MCP request');
       return buildMcpServer(identity, opts);
     },
-    { legacy: 'stateless', responseMode: 'json' },
+    { legacy: 'stateless' },
   );
 }

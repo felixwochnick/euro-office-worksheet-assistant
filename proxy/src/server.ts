@@ -148,6 +148,8 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
   const bridge = new Bridge({ authenticate: (token) => auth.authenticatePlugin(token), log: app.log });
   app.addHook('onClose', async () => {
     bridge.close();
+    auth.close();
+    oauth?.close();
     store.flush();
   });
 
@@ -167,6 +169,7 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
       origin: (origin: string | undefined, done: (e: Error | null, allow: boolean) => void) => done(null, originAllowed(origin)),
       methods: ['GET', 'POST', 'OPTIONS'],
       allowedHeaders: ['authorization', 'content-type', 'x-proxy-token', 'mcp-protocol-version', 'mcp-session-id'],
+      exposedHeaders: ['www-authenticate', 'mcp-session-id'],
       maxAge: 600,
     });
   });
@@ -259,9 +262,9 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
       reply.log.warn({ err: (err as Error).message }, 'nextcloud sign-in failed');
       return reply.code(502).send({ error: 'nextcloud', message: (err as Error).message });
     };
-    app.post('/v1/auth/login', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (_req, reply) => {
+    app.post('/v1/auth/login', { config: { rateLimit: { max: 10, timeWindow: '1 minute' } } }, async (req, reply) => {
       try {
-        const r = await auth.loginStart();
+        const r = await auth.loginStart(req.ip);
         return { flow_id: r.flowId, login_url: r.loginUrl };
       } catch (err) {
         return authFail(reply, err);
@@ -270,7 +273,8 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
     app.post(
       '/v1/auth/login/poll',
       {
-        config: { rateLimit: { max: 60, timeWindow: '1 minute' } },
+        // Keyed by flow id: several users behind one IP (school network) poll at the same time.
+        config: { rateLimit: { max: 40, timeWindow: '1 minute', keyGenerator: (req: FastifyRequest) => 'poll:' + String((req.body as { flow_id?: string } | undefined)?.flow_id ?? req.ip) } },
         schema: { body: { type: 'object', required: ['flow_id'], properties: { flow_id: { type: 'string', maxLength: 100 } } } },
       },
       async (req, reply) => {
@@ -315,32 +319,20 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
     app.addHook('onClose', async () => endpoint.close());
     if (oauth) oauth.routes(app);
 
-    // Failed MCP sign-ins per IP: wrong app passwords are checked against Nextcloud, whose brute-force
-    // protection would otherwise slow down the proxy's IP for everybody.
-    const failures = new Map<string, { count: number; reset: number }>();
-    const MAX_FAILURES = 20;
+    // Local mode serves MCP without authentication: only native clients (no Origin) and pages on this computer.
+    const LOOPBACK_ORIGIN = /^https?:\/\/(localhost|127\.0\.0\.1|\[::1\])(:\d+)?$/;
+    const mcpOriginAllowed = (origin: string | undefined) =>
+      !origin || (cfg.authMode === 'local' ? LOOPBACK_ORIGIN.test(origin) : originAllowed(origin));
+
     const mcpRoute = async (req: FastifyRequest, reply: FastifyReply) => {
-      if (!originAllowed(req.headers.origin)) return reply.code(403).send({ error: 'forbidden', message: 'Origin not allowed' });
-      const now = Date.now();
-      let f = failures.get(req.ip);
-      if (f && f.reset < now) {
-        failures.delete(req.ip);
-        f = undefined;
-      }
-      if (f && f.count >= MAX_FAILURES) {
-        return reply.code(429).header('retry-after', String(Math.ceil((f.reset - now) / 1000))).send({ error: 'rate_limited', message: 'Too many failed sign-ins' });
-      }
-      const identity = await auth.authenticateMcp(req.headers.authorization).catch((err) => {
+      if (!mcpOriginAllowed(req.headers.origin)) return reply.code(403).send({ error: 'forbidden', message: 'Origin not allowed' });
+      // Failed app passwords are throttled inside authenticateMcp before they reach Nextcloud (brute-force
+      // protection there would block the proxy's IP for everybody); valid credentials are never blocked.
+      const identity = await auth.authenticateMcp(req.headers.authorization, req.ip).catch((err) => {
         req.log.warn({ err: (err as Error).message }, 'mcp authentication failed');
         return null;
       });
       if (!identity) {
-        if (req.headers.authorization) {
-          const entry = f ?? { count: 0, reset: now + 60_000 };
-          entry.count++;
-          failures.set(req.ip, entry);
-          if (failures.size > 10000) failures.delete(failures.keys().next().value as string);
-        }
         const challenge = oauth
           ? oauth.challenge(req.headers.authorization ? 'invalid_token' : undefined)
           : cfg.authMode === 'nextcloud'
@@ -354,6 +346,8 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
         scopes: ['mcp'],
         extra: { identity },
       };
+      // The SDK writes the response itself: keep the headers set so far (CORS) on the raw response.
+      for (const [k, v] of Object.entries(reply.getHeaders())) if (v !== undefined) reply.raw.setHeader(k, v as string | string[]);
       reply.hijack();
       await nodeHandler(req.raw, reply.raw, req.body);
     };

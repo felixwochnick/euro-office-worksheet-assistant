@@ -136,6 +136,7 @@ export class Bridge {
   /** Handle a new WebSocket connection (after the origin check). */
   attach(socket: WebSocket): void {
     let session: EditorSession | null = null;
+    let helloSeen = false;
     const helloTimer = setTimeout(() => fail(4408, 'hello timeout'), HELLO_TIMEOUT_MS);
     const fail = (code: number, message: string) => {
       clearTimeout(helloTimer);
@@ -162,6 +163,9 @@ export class Bridge {
         return;
       }
       if (msg.type !== 'hello') return fail(4400, 'expected hello');
+      // Only one hello per connection (a second one during authentication would create a second session).
+      if (helloSeen) return fail(4400, 'duplicate hello');
+      helloSeen = true;
       clearTimeout(helloTimer);
       let identity: Identity;
       try {
@@ -170,10 +174,10 @@ export class Bridge {
         return fail(4401, (err as Error).message || 'unauthorized');
       }
       if (socket.readyState !== socket.OPEN) return;
+      // Refuse instead of evicting an older editor (evicted editors would reconnect and evict each other).
+      // Dead connections disappear within a minute (ping/pong).
       const own = [...this.sessions.values()].filter((s) => s.userId === identity.userId);
-      if (own.length >= MAX_SESSIONS_PER_USER) {
-        own.sort((a, b) => a.lastActiveAt - b.lastActiveAt)[0].close(4000, 'too many editors');
-      }
+      if (own.length >= MAX_SESSIONS_PER_USER) return fail(4429, `too many open editors (max. ${MAX_SESSIONS_PER_USER})`);
       const doc = (msg.document ?? {}) as { title?: unknown };
       const client = (msg.client ?? {}) as { version?: unknown };
       session = new EditorSession(

@@ -16,19 +16,25 @@
  * ends at the latest one hour after the user revokes it in Nextcloud (Settings → Security → Devices & sessions).
  */
 import crypto from 'node:crypto';
-import dns from 'node:dns/promises';
-import net from 'node:net';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import type { AccessTokenVerifier, Identity } from './auth.js';
 import { NextcloudClient, NextcloudError } from './nextcloud.js';
-import { AuthStore, hashSecret, randomToken, type StoredGrant } from './store.js';
+import { fetchSmallDocument } from './safe-fetch.js';
+import { AuthStore, hashSecret, randomToken, type StoredClient, type StoredGrant } from './store.js';
 
 const ACCESS_TOKEN_TTL_S = 3600;
 const REFRESH_TOKEN_TTL_MS = 60 * 86400_000;
 const PENDING_TTL_MS = 10 * 60_000;
 const CODE_TTL_MS = 2 * 60_000;
 const CIMD_CACHE_MS = 60 * 60_000;
+const CIMD_FAIL_CACHE_MS = 60_000;
+const MAX_CIMD_FETCHES = 10;
+/** Registered clients are kept in memory until the first sign-in, then stored. */
+const MAX_UNCONFIRMED_CLIENTS = 1000;
 const MAX_CLIENTS = 5000;
+const MAX_PENDING_PER_IP = 20;
+const MAX_REDIRECT_URIS = 5;
+const MAX_REDIRECT_URI_LENGTH = 512;
 
 interface ClientInfo {
   client_id: string;
@@ -50,7 +56,9 @@ interface Pending {
   scope: string;
   resource: string;
   expires: number;
+  ip: string;
   user?: { id: string; displayName: string };
+  ncAccessToken?: string;
   ncRefreshToken?: string;
 }
 
@@ -74,9 +82,8 @@ export interface OAuthOptions {
   publicUrl: string;
   nextcloud: NextcloudClient;
   store: AuthStore;
-  /** Allow Client ID Metadata Documents on private/loopback addresses (tests only). */
-  allowPrivateCimd?: boolean;
-  fetchImpl?: typeof fetch;
+  /** Fetch a client ID metadata document (default: https only, private addresses refused, 64 KB). Tests replace it. */
+  fetchDocument?: (url: string) => Promise<string | null>;
 }
 
 // --- helpers --------------------------------------------------------------------
@@ -100,7 +107,7 @@ const FORBIDDEN_SCHEMES = new Set(['javascript:', 'data:', 'file:', 'vbscript:',
 
 /** Allowed redirect URIs: https, http on loopback (native apps, RFC 8252) and private-use schemes. */
 export function validRedirectUri(uri: string): boolean {
-  if (typeof uri !== 'string' || uri.length > 2000) return false;
+  if (typeof uri !== 'string' || uri.length > MAX_REDIRECT_URI_LENGTH) return false;
   let u: URL;
   try {
     u = new URL(uri);
@@ -132,19 +139,6 @@ export function redirectUriMatches(registered: string, given: string): boolean {
   }
 }
 
-function isPrivateAddress(ip: string): boolean {
-  if (net.isIPv4(ip)) {
-    const [a, b] = ip.split('.').map(Number);
-    return (
-      a === 10 || a === 127 || a === 0 || (a === 169 && b === 254) || (a === 172 && b >= 16 && b <= 31) ||
-      (a === 192 && b === 168) || (a === 100 && b >= 64 && b <= 127) || a >= 224
-    );
-  }
-  const v = ip.toLowerCase();
-  if (v.startsWith('::ffff:')) return isPrivateAddress(v.slice(7));
-  return v === '::1' || v === '::' || v.startsWith('fc') || v.startsWith('fd') || v.startsWith('fe80') || v.startsWith('ff');
-}
-
 type Lang = 'de' | 'en';
 function lang(req: FastifyRequest): Lang {
   return /^\s*de\b/i.test(String(req.headers['accept-language'] || 'de')) ? 'de' : 'en';
@@ -153,8 +147,12 @@ function lang(req: FastifyRequest): Lang {
 const TEXT = {
   de: {
     title: 'Zugriff erlauben?',
-    intro: (client: string, user: string) =>
-      `<strong>${client}</strong> möchte als <strong>${user}</strong> auf deine in Euro-Office geöffneten Dokumente zugreifen.`,
+    intro: (who: string, user: string) =>
+      `${who} möchte als <strong>${user}</strong> auf deine in Euro-Office geöffneten Dokumente zugreifen.`,
+    app: (host: string) => `Die Anwendung von <strong>${host}</strong>`,
+    local: 'Eine Anwendung auf deinem Computer',
+    named: (name: string) => `Sie nennt sich „${name}“.`,
+    unverified: 'Der Name wird von der Anwendung selbst angegeben und ist nicht geprüft. Erlaube den Zugriff nur, wenn du die Anmeldung gerade selbst in deinem KI-Assistenten gestartet hast.',
     detail:
       'Die Anwendung kann Dokumente lesen und ändern, solange du sie mit dem Arbeitsblatt-Assistenten geöffnet und „MCP-Zugriff erlauben“ eingeschaltet hast.',
     redirect: 'Weiterleitung nach der Anmeldung an:',
@@ -165,8 +163,12 @@ const TEXT = {
   },
   en: {
     title: 'Allow access?',
-    intro: (client: string, user: string) =>
-      `<strong>${client}</strong> wants to access the documents you have open in Euro-Office as <strong>${user}</strong>.`,
+    intro: (who: string, user: string) =>
+      `${who} wants to access the documents you have open in Euro-Office as <strong>${user}</strong>.`,
+    app: (host: string) => `The application from <strong>${host}</strong>`,
+    local: 'An application on your computer',
+    named: (name: string) => `It calls itself "${name}".`,
+    unverified: 'The name is given by the application itself and is not verified. Only allow the access if you just started the sign-in in your AI assistant yourself.',
     detail:
       'The application can read and change documents while they are open with the worksheet assistant and "MCP access" is switched on.',
     redirect: 'After signing in you will be sent to:',
@@ -222,9 +224,12 @@ export class OAuthServer implements AccessTokenVerifier {
   private readonly secureCookie: boolean;
   private readonly pending = new Map<string, Pending>();
   private readonly codes = new Map<string, AuthCode>();
-  private readonly cimdCache = new Map<string, { client: ClientInfo; expires: number }>();
-  private readonly refreshing = new Map<string, Promise<Record<string, unknown>>>();
-  private readonly fetchImpl: typeof fetch;
+  private readonly cimdCache = new Map<string, { client: ClientInfo | null; expires: number }>();
+  private cimdInFlight = 0;
+  private readonly unconfirmed = new Map<string, StoredClient>();
+  private readonly refreshing = new Map<string, { clientId: string; result: Promise<Record<string, unknown>> }>();
+  private readonly fetchDocument: (url: string) => Promise<string | null>;
+  private readonly timer: NodeJS.Timeout;
 
   constructor(private readonly opts: OAuthOptions) {
     this.issuer = opts.publicUrl;
@@ -234,7 +239,28 @@ export class OAuthServer implements AccessTokenVerifier {
     const u = new URL(opts.publicUrl);
     this.cookiePath = `${u.pathname.replace(/\/+$/, '')}/oauth`;
     this.secureCookie = u.protocol === 'https:';
-    this.fetchImpl = opts.fetchImpl ?? fetch;
+    this.fetchDocument = opts.fetchDocument ?? fetchSmallDocument;
+    this.timer = setInterval(() => this.purge(), 60_000);
+    this.timer.unref?.();
+  }
+
+  close(): void {
+    clearInterval(this.timer);
+  }
+
+  /** Forget expired sign-ins and codes; revoke the Nextcloud tokens that were obtained for them. */
+  purge(now = Date.now()): void {
+    for (const [id, p] of this.pending) {
+      if (p.expires >= now) continue;
+      this.pending.delete(id);
+      if (p.ncAccessToken) void this.opts.nextcloud.revokeAccessToken(p.ncAccessToken);
+    }
+    for (const [key, c] of this.codes) {
+      if (c.expires >= now) continue;
+      this.codes.delete(key);
+      if (!c.used) void this.opts.nextcloud.revokeRefreshToken(c.ncRefreshToken);
+    }
+    for (const [id, c] of this.cimdCache) if (c.expires < now) this.cimdCache.delete(id);
   }
 
   /** The redirect URI to register in Nextcloud (Administration → Security → OAuth 2.0 clients). */
@@ -293,8 +319,25 @@ export class OAuthServer implements AccessTokenVerifier {
   private async resolveClient(clientId: string): Promise<ClientInfo | null> {
     if (!clientId || clientId.length > 500) return null;
     if (clientId.startsWith('https://')) return this.fetchCimd(clientId);
-    const c = this.opts.store.state.clients.find((x) => x.client_id === clientId);
+    const c = this.opts.store.state.clients.find((x) => x.client_id === clientId) ?? this.unconfirmed.get(clientId);
     return c ? { client_id: c.client_id, client_name: c.client_name, redirect_uris: c.redirect_uris, client_uri: c.client_uri, cimd: false } : null;
+  }
+
+  /** A client signed in successfully: store a dynamically registered client permanently. */
+  private confirmClient(clientId: string): void {
+    const now = Date.now();
+    const state = this.opts.store.state;
+    const stored = state.clients.find((c) => c.client_id === clientId);
+    if (stored) {
+      stored.lastUsedAt = now;
+    } else {
+      const c = this.unconfirmed.get(clientId);
+      if (!c) return;
+      this.unconfirmed.delete(clientId);
+      if (state.clients.length >= MAX_CLIENTS) state.clients.sort((a, b) => a.lastUsedAt - b.lastUsedAt).splice(0, Math.ceil(MAX_CLIENTS / 10));
+      state.clients.push({ ...c, lastUsedAt: now });
+    }
+    this.opts.store.save();
   }
 
   /** Client ID Metadata Document: the client_id is an https URL that serves the client's metadata. */
@@ -308,61 +351,56 @@ export class OAuthServer implements AccessTokenVerifier {
       return null;
     }
     if (u.protocol !== 'https:' || u.username || u.password || u.hash || u.pathname === '/' || /\/\.\.?(\/|$)/.test(u.pathname)) return null;
-    if (!this.opts.allowPrivateCimd) {
-      try {
-        const host = u.hostname.replace(/^\[|\]$/g, '');
-        const addrs = net.isIP(host) ? [{ address: host }] : await dns.lookup(host, { all: true });
-        if (!addrs.length || addrs.some((a) => isPrivateAddress(a.address))) return null;
-      } catch {
-        return null;
-      }
+    if (this.cimdInFlight >= MAX_CIMD_FETCHES) return null;
+    this.cimdInFlight++;
+    let client: ClientInfo | null = null;
+    try {
+      client = this.parseCimd(clientId, u, await this.fetchDocument(clientId));
+    } finally {
+      this.cimdInFlight--;
     }
+    // Failures are cached briefly too, so a client_id cannot be used to make the server fetch over and over.
+    this.cimdCache.set(clientId, { client, expires: Date.now() + (client ? CIMD_CACHE_MS : CIMD_FAIL_CACHE_MS) });
+    if (this.cimdCache.size > 1000) this.cimdCache.delete(this.cimdCache.keys().next().value as string);
+    return client;
+  }
+
+  private parseCimd(clientId: string, u: URL, text: string | null): ClientInfo | null {
+    if (!text) return null;
     let doc: Record<string, unknown>;
     try {
-      const res = await this.fetchImpl(clientId, {
-        headers: { accept: 'application/json' },
-        redirect: 'error',
-        signal: AbortSignal.timeout(5000),
-      });
-      if (res.status !== 200) return null;
-      const text = await res.text();
-      if (text.length > 65536) return null;
       doc = JSON.parse(text);
     } catch {
       return null;
     }
     if (!doc || doc.client_id !== clientId || !Array.isArray(doc.redirect_uris)) return null;
-    const uris = (doc.redirect_uris as unknown[]).filter((x): x is string => typeof x === 'string' && validRedirectUri(x));
+    const uris = (doc.redirect_uris as unknown[]).filter((x): x is string => typeof x === 'string' && validRedirectUri(x)).slice(0, 10);
     if (!uris.length) return null;
     const auth = doc.token_endpoint_auth_method;
     if (auth !== undefined && auth !== 'none') return null; // only public clients (PKCE) are supported
-    const client: ClientInfo = {
+    return {
       client_id: clientId,
       client_name: typeof doc.client_name === 'string' && doc.client_name.trim() ? doc.client_name.trim().slice(0, 100) : u.hostname,
       redirect_uris: uris,
       client_uri: typeof doc.client_uri === 'string' ? doc.client_uri.slice(0, 500) : undefined,
       cimd: true,
     };
-    this.cimdCache.set(clientId, { client, expires: Date.now() + CIMD_CACHE_MS });
-    if (this.cimdCache.size > 1000) this.cimdCache.delete(this.cimdCache.keys().next().value as string);
-    return client;
   }
 
   register(body: Record<string, unknown>): { status: number; body: Record<string, unknown> } {
     const uris = body.redirect_uris;
-    if (!Array.isArray(uris) || !uris.length || uris.length > 10 || !uris.every((x) => typeof x === 'string' && validRedirectUri(x))) {
+    if (!Array.isArray(uris) || !uris.length || uris.length > MAX_REDIRECT_URIS || !uris.every((x) => typeof x === 'string' && validRedirectUri(x))) {
       return {
         status: 400,
-        body: { error: 'invalid_redirect_uri', error_description: 'redirect_uris: 1–10 https, http loopback or private-use scheme URIs without fragment' },
+        body: {
+          error: 'invalid_redirect_uri',
+          error_description: `redirect_uris: 1–${MAX_REDIRECT_URIS} https, http loopback or private-use scheme URIs (max. ${MAX_REDIRECT_URI_LENGTH} characters, no fragment)`,
+        },
       };
     }
     const grantTypes = body.grant_types;
     if (Array.isArray(grantTypes) && !grantTypes.includes('authorization_code')) {
       return { status: 400, body: { error: 'invalid_client_metadata', error_description: 'grant_types must include authorization_code' } };
-    }
-    const state = this.opts.store.state;
-    if (state.clients.length >= MAX_CLIENTS) {
-      state.clients.sort((a, b) => a.lastUsedAt - b.lastUsedAt).splice(0, Math.ceil(MAX_CLIENTS / 10));
     }
     const name = typeof body.client_name === 'string' && body.client_name.trim() ? body.client_name.trim().slice(0, 100) : 'MCP-Client';
     const now = Date.now();
@@ -374,8 +412,9 @@ export class OAuthServer implements AccessTokenVerifier {
       createdAt: now,
       lastUsedAt: now,
     };
-    state.clients.push(client);
-    this.opts.store.save();
+    // Kept in memory until the first successful sign-in (registration needs no authentication).
+    if (this.unconfirmed.size >= MAX_UNCONFIRMED_CLIENTS) this.unconfirmed.delete(this.unconfirmed.keys().next().value as string);
+    this.unconfirmed.set(client.client_id, client);
     return {
       status: 201,
       body: {
@@ -410,23 +449,19 @@ export class OAuthServer implements AccessTokenVerifier {
     if (!redirectUri || !client.redirect_uris.some((r) => redirectUriMatches(r, redirectUri!))) {
       return fail('The redirect_uri is not registered for this application.');
     }
-    const back = (error: string, description: string) => {
-      const u = new URL(redirectUri!);
-      u.searchParams.set('error', error);
-      u.searchParams.set('error_description', description);
-      if (q.state) u.searchParams.set('state', q.state);
-      u.searchParams.set('iss', this.issuer);
-      return reply.code(302).header('location', u.toString()).send();
-    };
-    if (q.response_type !== 'code') return back('unsupported_response_type', 'response_type must be code');
+    // Errors before the user signed in are shown here and never redirected: anyone can register a client, so
+    // redirecting would turn this endpoint into an open redirect (RFC 9700 section 4.11.2).
+    if (q.response_type !== 'code') return fail('response_type must be "code".');
     if (!q.code_challenge || q.code_challenge_method !== 'S256' || !/^[A-Za-z0-9_-]{43}$/.test(q.code_challenge)) {
-      return back('invalid_request', 'PKCE with code_challenge_method=S256 is required');
+      return fail('PKCE with code_challenge_method=S256 is required.');
     }
-    if (!this.resourceOk(q.resource)) return back('invalid_target', `resource must be ${this.resource}`);
+    if (!this.resourceOk(q.resource)) return fail(`The resource must be ${this.resource}.`);
 
     const now = Date.now();
-    for (const [id, p] of this.pending) if (p.expires < now) this.pending.delete(id);
-    if (this.pending.size > 2000) return back('temporarily_unavailable', 'too many sign-ins in progress');
+    this.purge(now);
+    let mine = 0;
+    for (const p of this.pending.values()) if (p.ip === req.ip) mine++;
+    if (mine >= MAX_PENDING_PER_IP || this.pending.size > 10000) return fail('Too many sign-ins in progress – please try again in a few minutes.');
     const pending: Pending = {
       id: randomToken(24),
       nonce: randomToken(24),
@@ -438,6 +473,7 @@ export class OAuthServer implements AccessTokenVerifier {
       scope: (q.scope || 'mcp').slice(0, 200),
       resource: this.resource,
       expires: now + PENDING_TTL_MS,
+      ip: req.ip,
     };
     this.pending.set(pending.id, pending);
     return reply
@@ -467,6 +503,8 @@ export class OAuthServer implements AccessTokenVerifier {
   }
 
   private redirectToClient(reply: FastifyReply, p: Pending, params: Record<string, string>): FastifyReply {
+    // Denied or failed: the Nextcloud token obtained for this sign-in is not needed any more.
+    if (params.error && p.ncAccessToken) void this.opts.nextcloud.revokeAccessToken(p.ncAccessToken);
     const u = new URL(p.redirectUri);
     for (const [k, v] of Object.entries(params)) u.searchParams.set(k, v);
     if (p.state) u.searchParams.set('state', p.state);
@@ -487,22 +525,30 @@ export class OAuthServer implements AccessTokenVerifier {
       const user = await this.opts.nextcloud.currentUser({ bearer: tokens.accessToken });
       if (!user || (tokens.userId && user.id !== tokens.userId)) throw new NextcloudError('Nextcloud did not confirm the user');
       p.user = user;
+      p.ncAccessToken = tokens.accessToken;
       p.ncRefreshToken = tokens.refreshToken;
     } catch (err) {
       req.log.warn({ err: (err as Error).message }, 'nextcloud oauth callback failed');
       return this.redirectToClient(reply, p, { error: 'server_error', error_description: 'Sign-in at Nextcloud failed' });
     }
-    let host = p.redirectUri;
+    // Name the application by something it cannot choose freely: the host of its client ID metadata document,
+    // or the host of the redirect URI. Its self-chosen name is shown as secondary, unverified information.
+    let who = t.local;
+    let redirectShown = p.redirectUri;
     try {
-      const u = new URL(p.redirectUri);
-      host = u.protocol === 'https:' || u.protocol === 'http:' ? u.host : u.protocol + '//' + u.host;
+      const r = new URL(p.redirectUri);
+      const loopback = r.protocol === 'http:' || (r.protocol !== 'https:' && !r.host);
+      redirectShown = r.protocol === 'https:' || r.protocol === 'http:' ? r.host : r.protocol + '//' + r.host;
+      if (p.client.cimd) who = t.app(esc(new URL(p.client.client_id).host));
+      else if (!loopback && r.protocol === 'https:') who = t.app(esc(r.host));
     } catch {
-      /* keep */
+      /* keep defaults */
     }
     const body =
-      `<p>${t.intro(esc(p.client.client_name), esc(`${p.user.displayName} (${p.user.id})`))}</p>` +
+      `<p>${t.intro(who, esc(`${p.user.displayName} (${p.user.id})`))}</p>` +
+      `<p>${esc(t.named(p.client.client_name))}${p.client.cimd ? '' : ` ${esc(t.unverified)}`}</p>` +
       `<p>${esc(t.detail)}</p>` +
-      `<p><small>${esc(t.redirect)} <code>${esc(host)}</code>${p.client.cimd ? `<br><code>${esc(p.client.client_id)}</code>` : ''}</small></p>` +
+      `<p><small>${esc(t.redirect)} <code>${esc(redirectShown)}</code>${p.client.cimd ? `<br><code>${esc(p.client.client_id)}</code>` : ''}</small></p>` +
       `<form method="post" action="${esc(this.cookiePath)}/consent">` +
       `<input type="hidden" name="id" value="${esc(p.id)}"><input type="hidden" name="csrf" value="${esc(p.csrf)}">` +
       `<div class="buttons"><button type="submit" name="decision" value="deny">${esc(t.deny)}</button>` +
@@ -534,8 +580,7 @@ export class OAuthServer implements AccessTokenVerifier {
       expires: Date.now() + CODE_TTL_MS,
       used: false,
     });
-    const reg = this.opts.store.state.clients.find((c) => c.client_id === p.client.client_id);
-    if (reg) reg.lastUsedAt = Date.now();
+    if (!p.client.cimd) this.confirmClient(p.client.client_id);
     return this.redirectToClient(reply, p, { code });
   }
 
@@ -559,8 +604,10 @@ export class OAuthServer implements AccessTokenVerifier {
     return { access_token: access, token_type: 'Bearer', expires_in: ACCESS_TOKEN_TTL_S, refresh_token: refresh, scope: grant.scope };
   }
 
-  private revokeGrant(id: string): void {
+  private revokeGrant(id: string, revokeUpstream = true): void {
     const s = this.opts.store.state;
+    const grant = s.grants.find((g) => g.id === id);
+    if (grant && revokeUpstream) void this.opts.nextcloud.revokeRefreshToken(grant.ncRefreshToken);
     s.grants = s.grants.filter((g) => g.id !== id);
     s.accessTokens = s.accessTokens.filter((t) => t.grantId !== id);
     this.opts.store.save();
@@ -616,8 +663,9 @@ export class OAuthServer implements AccessTokenVerifier {
       const inflight = this.refreshing.get(hash);
       if (inflight) {
         // A retried / parallel refresh with the same token gets the same new tokens.
+        if (f.client_id && f.client_id !== inflight.clientId) return oauthError(reply, 400, 'invalid_grant', 'client_id does not match the refresh token');
         try {
-          return reply.send(await inflight);
+          return reply.send(await inflight.result);
         } catch (err) {
           return this.refreshFailed(reply, err);
         }
@@ -630,23 +678,27 @@ export class OAuthServer implements AccessTokenVerifier {
         try {
           nc = await this.opts.nextcloud.refresh(grant.ncRefreshToken);
         } catch (err) {
-          if (err instanceof NextcloudError && err.status && err.status >= 400 && err.status < 500) {
-            this.revokeGrant(grant.id);
+          if (err instanceof NextcloudError && err.status && err.status >= 400 && err.status < 500 && err.status !== 429) {
+            this.revokeGrant(grant.id, false);
             throw Object.assign(new Error('The access was revoked in Nextcloud – please sign in again'), { oauth: 'invalid_grant' });
           }
           throw Object.assign(new Error('Nextcloud is not reachable – try again later'), { oauth: 'temporarily_unavailable' });
         }
+        // Only the refresh token is kept (the refresh proves that the access was not revoked in Nextcloud). The new
+        // access token must not be revoked: that would end the whole Nextcloud grant, refresh token included.
         grant.ncRefreshToken = nc.refreshToken || grant.ncRefreshToken;
+        this.confirmClient(grant.clientId);
         return this.issue(grant);
       })();
-      this.refreshing.set(hash, p);
+      this.refreshing.set(hash, { clientId: grant.clientId, result: p });
       try {
-        return reply.send(await p);
-      } catch (err) {
-        return this.refreshFailed(reply, err);
-      } finally {
+        const result = await p;
         // Keep the result for a short time for parallel retries, then forget it.
         setTimeout(() => this.refreshing.delete(hash), 30_000).unref?.();
+        return reply.send(result);
+      } catch (err) {
+        this.refreshing.delete(hash);
+        return this.refreshFailed(reply, err);
       }
     }
 
