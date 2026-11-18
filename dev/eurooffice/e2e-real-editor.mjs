@@ -156,7 +156,7 @@ try {
   assert.equal(o2.elements.filter((e) => e.list_item).length >= 2, true, 'numbered list');
   assert.equal(o2.elements.filter((e) => e.type === 'table').length >= 2, true, 'table + box');
   assert.ok(o2.total_elements >= countBeforeWs + 13);
-  const full = await plugin.evaluate((i) => window.WorksheetDoc.getElements(i, i + 12), wsIdx);
+  const full = await plugin.evaluate((i) => window.WorksheetDoc.getElements(i, i + 20), wsIdx);
   const tableEl = full.elements.find((e) => e.type === 'table' && e.rows.length === 3);
   assert.deepEqual(tableEl.rows[0], ['Begriff', 'Erklärung']);
   step(`worksheet inserted with insert_blocks (${o2.total_elements - countBeforeWs} elements: headings, list, lines, table, box)`);
@@ -166,6 +166,62 @@ try {
   assert.equal(o2.total_elements, countBeforeWs);
   step('delete_elements removed the worksheet again');
   await shot(page, '3b-worksheet');
+
+  // Designed worksheet (mock model): theme, task headers with badges, cloze + word bank, true/false, matching,
+  // crossword, lineature, box, self-assessment; then check_worksheet with page information.
+  const countBeforeDesign = (await plugin.evaluate(() => window.MusicEditor.getOutline())).total_elements;
+  await plugin.locator('#chat-text').fill('Gestalte ein schönes Arbeitsblatt zum Wasserkreislauf für Klasse 3');
+  await plugin.locator('#chat-send').click();
+  const designMsg = plugin.locator('.msg.assistant', { hasText: /gestaltetes Arbeitsblatt|fehlgeschlagen/ });
+  await designMsg.waitFor({ timeout: 90000 });
+  console.log('   design:', await designMsg.textContent());
+  o2 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+  assert.equal(o2.worksheet && o2.worksheet.theme, 'primary', 'theme stored in the document');
+  const taskEls = o2.elements.filter((e) => e.task);
+  assert.deepEqual(taskEls.map((e) => e.task.number), ['1', '2', '3', '4', '5']);
+  assert.ok(taskEls.every((e) => e.is_heading), 'task headers are headings');
+  assert.ok(o2.elements.some((e) => e.graphic && e.graphic.type === 'crossword'), 'crossword with source');
+  assert.ok(o2.elements.some((e) => e.block === 'true_false'), 'true/false table');
+  const cd = await plugin.evaluate(() => window.WorksheetDoc.checkData());
+  assert.ok(cd.layout && cd.layout.pages >= 1, 'page count');
+  assert.ok(cd.elements.filter((e) => e.page_start >= 1).length === cd.elements.length, 'every element has its page');
+  assert.ok(cd.elements.some((e) => e.line || (e.graphic && e.graphic.type === 'lineature')), 'writing space detected');
+  step(`designed worksheet (${o2.total_elements - countBeforeDesign} elements, ${cd.layout.pages} pages) with tasks, puzzles and graphics`);
+  await shot(page, '3d-designed');
+
+  // Formulas: LaTeX -> native equations (block and inline)
+  const math = await plugin.evaluate(async () => {
+    const prep = await window.WorksheetDoc.prepare([
+      { type: 'formula', latex: '\\frac{a}{b}+\\frac{c}{d}' },
+      { type: 'paragraph', text: 'Rechne \\(\\frac{1}{2}+\\frac{1}{4}\\) und \\(2\\cdot 3\\).' },
+    ], window.MusicSettings.load(), {});
+    return window.WorksheetDoc.editBlocks({ op: 'insert', position: 'end', elements: prep.elements });
+  });
+  assert.equal(math.ok, true, math.error);
+  assert.deepEqual(math.math, { equations: 3, converted: 3 });
+  const mathText = await plugin.evaluate((i) => window.WorksheetDoc.getElements(i, i + 1), math.first_index);
+  assert.ok(!/⟦/.test(mathText.elements.map((e) => e.text).join(' ')), 'no placeholders left');
+  step('formulas inserted as native equations (block + inline): ' + mathText.elements.map((e) => e.text).join(' | '));
+
+  // Page setup: header and footer with page numbers
+  const ps = await plugin.evaluate(() => window.WorksheetDoc.setupPage({ header: { left: 'Grundschule am Park', right: 'Klasse 3' }, page_numbers: true }, window.MusicSettings.load()));
+  assert.equal(ps.ok, true, ps.error);
+  const hdr = await plugin.evaluate(() => window.MusicEditor.callCommand(function () {
+    var s = Api.GetDocument().GetFinalSection();
+    return { header: s.GetHeader('default').GetElement(0).GetText(), footer: s.GetFooter('default').GetElement(0).GetText() };
+  }, {}, false));
+  assert.match(hdr.header, /Grundschule am Park\s+Klasse 3/);
+  assert.match(hdr.footer, /Seite\s*\d*\s*von/); // the page number fields are not part of GetText()
+  step('setup_page: header "' + hdr.header.trim().replace(/\s+/g, ' ') + '", footer "' + hdr.footer.trim() + '"');
+  await shot(page, '3e-page');
+
+  // remove the designed worksheet and the formulas again
+  o2 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+  const designStart = o2.elements.findIndex((e) => /^SACHUNTERRICHT/.test(e.text || ''));
+  assert.ok(designStart >= 0, 'designed worksheet found');
+  await plugin.evaluate(({ from, to }) => window.WorksheetDoc.editBlocks({ op: 'delete', from, to }), { from: designStart, to: designStart + o2.total_elements - countBeforeDesign - 1 });
+  o2 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+  assert.equal(o2.total_elements, countBeforeDesign);
 
   // MCP: the panel connects to the proxy's plugin bridge; an MCP client edits the document through it.
   if (process.env.SKIP_MCP !== '1') {
