@@ -1,13 +1,44 @@
 # Changelog
 
-## 0.4.2 – full-width tables in Google Docs and Pages
+## 0.5.1 – full-width tables in Google Docs and Pages
 
-- **Fix:** tables and info boxes ("Merke") from the assistant were shown extremely narrow in Google Docs and Apple
-  Pages (only as wide as their content, text wrapping after almost every word); Word was fine. They only had a
-  percentage width, while the column grid and the cell widths stayed at defaults. Now every table and box gets the
-  text width of the page (page width minus margins, fallback 16 cm) in twips, a fixed layout, equal column widths
-  in the grid (`w:gridCol`) and in every cell (`w:tcW`). Checked in the exported `.docx` of the real editor.
+- **Fix:** tables, boxes ("Merke") and the other table-based blocks from the assistant were shown extremely narrow in
+  Google Docs and Apple Pages (only as wide as their content, text wrapping after almost every word); Word was fine.
+  They only had a percentage width, while the column grid stayed at 2 cm per column and the cells had no or only
+  percentage widths – which also lost the column widths of tables (e.g. 1:2) outside Word. Now every table gets the
+  text width of the page (page width minus margins, one page column; fallback 16 cm) in twips, a fixed layout and
+  the column widths in the grid (`w:gridCol`) and in every cell (`w:tcW`); tables inside columns get the width of
+  their column. Checked in the exported `.docx` of the real editor.
 
+
+## 0.5.0 – designed worksheets
+
+- **Designs (themes):** *Klassisch* (black and white, toner-saving), *Modern* (blue accent) and *Grundschule* (13 pt,
+  1.5 line spacing, colourful) – fonts, sizes, colours and spacing of everything the assistant inserts come from the
+  theme; the AI only chooses it (`theme` in `insert_blocks`/`replace_elements`/`setup_page`). The theme and language
+  are stored in the document; content added to older documents follows their styles (*document* theme).
+- **New blocks:** title (subject, grade), name line, task header (number badge, symbols for work form and activity,
+  difficulty stars, points, time), cloze with automatic word bank, word bank, multiple choice, true/false, matching
+  (lines or letters), crossword, word search, reading text with line numbers, formula (LaTeX → native equation, also
+  inline as `\( … \)`), number line, coordinate system, chart (column/bar/line/pie, also blank), mind map, QR code,
+  own SVG drawings (sanitised), cut line, self-assessment, hint cards, grade key, columns. Boxes have seven variants
+  with icons; lists can be lettered or check lists; tables get column widths, row heights, answer rows and a header
+  column; writing lines come as German primary lineatures (1–4) and squared paper. `show_answers` creates the
+  solution version of cloze texts, quizzes and puzzles.
+- **Silbenfärbung** (`syllables: true`): syllables alternately blue and red (spoken syllables, with manual breaks `|`).
+- **Page setup** (`setup_page`): paper (A4, A5, Letter), orientation, margins, columns, header with the school name and
+  logo from the new **Hausstil** settings, footer with page numbers.
+- **Quality check** (`check_worksheet`): task numbering, instructions, space for answers, points, solutions, leftover
+  markup, readability (LIX) for the grade and the page layout; the AI runs it after creating a worksheet and fixes
+  errors and warnings. Headings and task headers are kept with the next paragraph (no task header alone at the bottom
+  of a page).
+- **Plugin updates reach the browser:** the Document Server's service worker and HTTP cache kept old plugin files
+  after an update. The panel now detects a newer version on the server, refreshes the cached files and asks to reopen
+  the document. (Updating from 0.4.x needs one manual cache clearing, see README.)
+- The preview in the chat shows the worksheet as it will look (design, symbols, puzzles, graphics), scaled to the panel.
+- The proxy lays out every block before it reaches the editor, so the AI gets precise errors (e.g. crossword words
+  without shared letters, chart data of the wrong length); LaTeX in `\( … \)` is no longer mangled by the line-break
+  repair. The outline shows task headers (`TASK n`), generated graphics with their source and the document's design.
 
 ## 0.4.1 – companion app runs on more Linux systems
 

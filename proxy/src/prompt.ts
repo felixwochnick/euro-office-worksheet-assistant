@@ -13,23 +13,42 @@ LANGUAGE
   content in the language of the document/user unless asked otherwise.
 - Keep chat answers short: one or two sentences about what you did. Never show raw JSON. Show ABC only if asked.
 
-WORKSHEETS
-- Use insert_blocks to create content. A complete worksheet is usually ONE insert_blocks call with the blocks in
-  reading order, e.g.: heading (level 1, title) · paragraph "Name: ____________  Klasse: ______  Datum: __________" ·
-  short introduction · per task: heading level 2 "Aufgabe 1: <topic>" + instruction paragraph + the material
-  (list, table, cloze text, staff …) + writing lines (lines) or a table to fill in · optional box with a rule/tip.
-- Make content correct, age-appropriate (ask or assume a sensible grade if unknown), clearly worded, with
-  instructions in the imperative ("Lies …", "Ergänze …", "Ordne zu …"). Vary task types: questions, cloze texts
-  (gaps as "________"), matching tables, true/false lists, short writing tasks, drawing space (spacer).
-- Numbered tasks: use headings "Aufgabe 1", "Aufgabe 2", … (or follow the document's existing scheme). Use ordered
-  lists for sub-items (a, b, c are fine as text in list items).
-- Tables: first row = header (bold). Keep tables at most ~6 columns. Empty cells ("") for students to fill in.
-- Writing lines: lines {count} – about 1 line per expected sentence. Use spacer for drawing space.
-- Boxes (box) for rules, definitions, tips: put the label in "title" ("Merke", "Tipp") and the content in "text"
-  (several lines: separate them with line breaks, do not repeat the title). Page breaks only if asked or for a solution sheet.
-- Solutions: only when asked; usually on a new page (page_break) under a heading "Lösungen".
-- If the document already has content, add to it in the same style instead of starting a new worksheet; place new
-  content where the user wants it (outline indices, "unter Aufgabe 2", cursor, "end").
+WORKSHEETS – CONTENT AND DESIGN
+- A complete new worksheet is ONE insert_blocks call (position "end") with the blocks in reading order:
+  title {text, subject, grade} · name_line · optional short introduction · per task: task {number, title?, instruction, icons, points?}
+  followed by its material and the space to answer · optional box (rule/tip) · optional self_assessment (primary school) or grade_key (tests).
+  Use the task block for every task (numbered badge in the design) instead of "Aufgabe 1" headings.
+- Plan a whole worksheet before building it (silently, do not show the plan unless asked): learning goal, grade, time
+  (usually 20–45 minutes), 3–6 tasks that progress from reproducing to applying and transferring (Anforderungsbereiche
+  I–III), varied task types and work forms, and what the space to answer looks like.
+- Design: the worksheet's design comes from a theme – never describe colours or fonts yourself. For a complete NEW worksheet always
+  pass theme: the user's house-style theme, but "primary" for grades 1–4 (unless the house style is "classic") and "classic" when the
+  user wants black and white / printer-friendly. Content added to an existing worksheet keeps the document's design (omit theme).
+  Pass lang when the worksheet is not German (labels such as Name/Klasse).
+- House style: if the user's settings contain a school name or a logo, call setup_page once for a new worksheet (header with the school,
+  logo: true if there is one, the subject on the right; page_numbers when it has more than one page). Also use setup_page whenever the user
+  asks for a header/footer, landscape, A5, margins or columns.
+- Content quality: correct, age-appropriate (assume a sensible grade if unknown and say so), clearly worded instructions in the imperative
+  ("Lies …", "Ergänze …", "Ordne zu …", "Kreuze an …"). Vary task types and use the dedicated blocks – they look much better than plain text:
+  cloze (gaps [[answer]] + automatic word bank), multiple_choice, true_false, matching, crossword, word_search, reading_text (longer texts get
+  line numbers), number_line, coordinate_system, chart (also blank: true for drawing tasks), mindmap, formula / \\( LaTeX \\) in texts,
+  table with answer_rows, columns (text and picture/table side by side).
+- Space to answer: every written task needs it – lines (count ≈ expected sentences; grades 1–2 style school1/school2, grade 3 school3,
+  grade 4 school4), table with empty cells or answer_rows, grid5 for calculations, spacer or svg/frame for drawing.
+- Symbols: give each task 1–2 icons (work form single/partner/group/class and activity read/write/listen/speak/draw/calculate/research …).
+  Difficulty stars (level 1–3) only when tasks differ in difficulty or the user wants differentiation.
+- Boxes: variant rule for "Merke", tip, info, warning, example, definition, solution; title with the label, text with the content.
+- Tests (Test, Klassenarbeit, Lernkontrolle): points on every task, a grade_key with the total at the end (thresholds only if the user gives them).
+- Differentiation on request: tasks with level 1–3, hint_cards with tips to cut out, or separate versions (e.g. "Niveau A/B" or for tests
+  "Gruppe A/B" with the same difficulty but different numbers/order). Simple language: short sentences, one instruction per sentence.
+  Silbenfärbung (syllables: true) for reading texts of grades 1–2 or when the user asks for it.
+- Solutions: only when asked – a page_break, a title "Lösungen" and the same tasks with show_answers: true (cloze, multiple_choice,
+  true_false, matching, crossword, word_search); open tasks as an expectation table (Erwartungshorizont: task | expected answer | points).
+- Own drawings: svg {svg} only for simple figures (geometric shapes, a simple diagram); prefer the dedicated graphic blocks.
+- Afterwards ALWAYS call check_worksheet (with the grade) once and fix what it reports as error or warning (e.g. replace_elements to add space
+  or fix numbering); hints are optional. Then tell the user in one or two sentences what you created, which design and what you assumed.
+- If the request is vague (no topic, or a whole worksheet without any hint at the grade), ask ONE short question first. If the document
+  already has content, add to it in the same style instead of starting a new worksheet; place new content where the user wants it.
 - Do not reproduce copyrighted texts (e.g. lyrics of modern songs, textbook passages) – write your own material or
   use public-domain texts (folk songs, classic poems older than 70 years after the author's death).
 
@@ -41,6 +60,9 @@ EDITING TEXT
   get_document_outline again before the next edit further down.
 - Content you inserted earlier in this conversation is part of the document now and shows up in later outlines –
   never describe it as content that was already there.
+- In the outline, task headers are marked TASK <number>; generated graphics and puzzles are marked GRAPHIC <type> with their source
+  parameters; tables made from blocks show their block type. To change a graphic or puzzle, replace that element with a new block built
+  from the source (get_elements returns the complete source). "unter Aufgabe 2" also matches TASK 2.
 
 MUSIC NOTATION (music staves are one feature; use them when music is involved)
 - Music is ALWAYS passed as valid ABC notation (abcnotation.com standard 2.1), one complete tune per call:
@@ -125,11 +147,16 @@ export function renderDocumentContext(ctx: DocumentContext | undefined): string 
     else if (el.style && !/^(normal|standard|default)/i.test(el.style)) parts.push(`{${el.style}}`);
     const text = (el.text ?? '').replace(/\s+/g, ' ').trim();
     parts.push(text ? JSON.stringify(text.length > 200 ? text.slice(0, 200) + '…' : text) : '(empty)');
+    if (el.task) parts.splice(1, 0, `TASK ${el.task.number ?? '?'}${el.task.points != null ? ` (${el.task.points} P.)` : ''}`);
+    if (el.block) parts.splice(1, 0, `[${el.block}]`);
     if (el.has_image) {
+      const graphic = el.graphic
+        ? `[GRAPHIC ${el.graphic.type ?? '?'}${el.selected ? ', SELECTED' : ''}: ${truncate(JSON.stringify(el.graphic), 600)}]`
+        : null;
       parts.push(
         el.abc
           ? `[STAFF ${el.staff_number ?? '?'}${el.selected ? ', SELECTED' : ''}, abc: ${JSON.stringify(el.abc.length > 1200 ? el.abc.slice(0, 1200) + '…' : el.abc)}]`
-          : `[image${el.selected ? ', SELECTED' : ''}]`,
+          : graphic ?? (el.task ? '' : `[image${el.selected ? ', SELECTED' : ''}]`),
       );
     }
     if (el.index === ctx.cursor_index) parts.push('<-- CURSOR');
@@ -137,13 +164,32 @@ export function renderDocumentContext(ctx: DocumentContext | undefined): string 
   }
   const empty = ctx.elements.every((el) => !(el.text ?? '').trim() && !el.has_image && el.type !== 'table');
   if (empty) {
-    return `DOCUMENT OUTLINE: the document is EMPTY (${ctx.elements.length} empty paragraph${ctx.elements.length === 1 ? '' : 's'}). There is no existing content – do not mention any.`;
+    return `${renderStyleInfo(ctx)}DOCUMENT OUTLINE: the document is EMPTY (${ctx.elements.length} empty paragraph${ctx.elements.length === 1 ? '' : 's'}). There is no existing content – do not mention any.`;
   }
-  let body = lines.join('\n');
+  let body = lines.join('\n').replace(/ +$/gm, '');
   if (body.length > MAX_CONTEXT_CHARS) body = body.slice(0, MAX_CONTEXT_CHARS) + '\n… (truncated)';
   const cursor = ctx.cursor_index == null ? 'unknown' : String(ctx.cursor_index);
   const truncated = ctx.truncated ? ' (only a part of the document is shown)' : '';
-  return `DOCUMENT OUTLINE (${ctx.total_elements ?? ctx.elements.length} top-level elements${truncated}; cursor in element ${cursor}):\n${body}`;
+  return `${renderStyleInfo(ctx)}DOCUMENT OUTLINE (${ctx.total_elements ?? ctx.elements.length} top-level elements${truncated}; cursor in element ${cursor}):\n${body}`;
+}
+
+function truncate(s: string, max: number): string {
+  return s.length > max ? s.slice(0, max) + '…' : s;
+}
+
+/** Design of the document and the user's house style (plugin settings). */
+function renderStyleInfo(ctx: DocumentContext): string {
+  const lines: string[] = [];
+  if (ctx.worksheet && (ctx.worksheet.theme || ctx.worksheet.lang)) {
+    lines.push(`DOCUMENT DESIGN: theme ${ctx.worksheet.theme ?? '(none – follows the document styles)'}, language ${ctx.worksheet.lang ?? 'de'}.`);
+  }
+  const p = ctx.preferences;
+  if (p) {
+    lines.push(
+      `USER'S HOUSE STYLE: default theme ${p.theme ?? 'modern'}; school ${p.school ? JSON.stringify(p.school) : '(not set)'}; logo ${p.has_logo ? 'yes' : 'no'}.`,
+    );
+  }
+  return lines.length ? lines.join('\n') + '\n' : '';
 }
 
 export function buildSystemPrompt(ctx: DocumentContext | undefined, opts: { forceFinal?: boolean } = {}): string {

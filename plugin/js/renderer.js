@@ -155,9 +155,29 @@
     });
   }
 
+  /**
+   * Rasterise an SVG string (e.g. from WorksheetSvg) to a PNG data URL at print resolution.
+   * widthMm/heightMm: physical size of the graphic.
+   */
+  function rasterizeSvg(svg, widthMm, heightMm, dpi) {
+    dpi = Math.min(600, Math.max(96, Number(dpi) || 300));
+    var pw = Math.max(1, Math.round(widthMm / 25.4 * dpi));
+    var ph = Math.max(1, Math.round(heightMm / 25.4 * dpi));
+    var src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(svg);
+    return loadImage(src).then(function (img) {
+      var canvas = document.createElement('canvas');
+      canvas.width = pw;
+      canvas.height = ph;
+      // Transparent background: icons and badges also sit on coloured boxes and title bands.
+      canvas.getContext('2d').drawImage(img, 0, 0, pw, ph);
+      return canvas.toDataURL('image/png');
+    });
+  }
+
   window.MusicRenderer = {
     renderSvg: renderSvg,
     renderPng: renderPng,
+    rasterizeSvg: rasterizeSvg,
     cmToPx: cmToPx,
     pxToMm: pxToMm
   };

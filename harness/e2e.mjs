@@ -130,6 +130,55 @@ try {
   assert.ok(!after.some((t) => /^Name: _+  Klasse/.test(t || '')), 'name line deleted');
   console.log('ok - replace_elements and delete_elements (with confirmation)');
 
+  // 1e) designed worksheet: theme, title, tasks with badges/icons/points, cloze + word bank, true/false, matching,
+  //     crossword, lineature, box, self-assessment – then check_worksheet
+  await frame.locator('#chat-text').fill('Gestalte ein schönes Arbeitsblatt zum Wasserkreislauf für Klasse 3');
+  await frame.locator('#chat-send').click();
+  const card2 = frame.locator('.card').filter({ has: frame.locator('.preview-doc') }).last();
+  await card2.locator('button.primary:not([disabled])').waitFor({ timeout: 20000 });
+  assert.match(await card2.locator('.preview-doc').innerText(), /DER WASSERKREISLAUF|Der Wasserkreislauf[\s\S]*Wortspeicher[\s\S]*richtig[\s\S]*Waagerecht/);
+  assert.ok(await card2.locator('.preview-doc img').count() >= 10, 'preview shows badges, icons, puzzle and lineature');
+  if (shot) await page.screenshot({ path: `${shot}-design-preview.png` });
+  await card2.locator('button.primary').click();
+  const designMsg = frame.locator('.msg.assistant', { hasText: 'gestaltetes Arbeitsblatt' });
+  await designMsg.waitFor({ timeout: 20000 });
+  const st = await page.evaluate(() => ({
+    props: window.HarnessMock.state.props,
+    els: window.HarnessMock.state.elements.map((e) => ({ type: e.type, text: e.text, style: e.style, keepNext: e.keepNext, alts: (e.drawings || []).map((d) => d.descr), desc: e.description })),
+  }));
+  assert.equal(st.props.WorksheetTheme, 'primary');
+  const tasks = st.els.filter((e) => e.alts.some((a) => /WSTASK/.test(a || '')));
+  assert.equal(tasks.length, 5, 'five task headers');
+  assert.ok(tasks.every((t) => t.keepNext && t.style === 'Heading 2'), 'task headers are headings kept with the next element');
+  assert.ok(st.els.some((e) => e.alts.some((a) => /WSGRAPHIC \{"type":"crossword"/.test(a || ''))), 'crossword image with its source');
+  assert.ok(st.els.some((e) => e.alts.some((a) => /WSGRAPHIC \{"type":"lineature"/.test(a || ''))), 'lineature image');
+  assert.ok(st.els.some((e) => /"type":"true_false"/.test(e.desc || '')), 'true/false table tagged');
+  assert.ok(st.els.some((e) => e.type === 'paragraph' && /Die _+ erwärmt das Wasser/.test(e.text || '')), 'cloze with gaps');
+  assert.match(await designMsg.innerText(), /Design primary/);
+  if (shot) await page.screenshot({ path: `${shot}-design.png` });
+  console.log('ok - designed worksheet (theme, tasks, puzzles, graphics) + check_worksheet');
+
+  // 1f) page setup with the school name and logo from the settings
+  await frame.locator('.tab[data-tab=settings]').click();
+  await frame.locator('#s-school').fill('Grundschule Musterstadt');
+  const logo = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAABCAYAAAD0In+KAAAAEUlEQVR42mNk+M9Qz8DAwMAAAA4NAgFZB5EeAAAAAElFTkSuQmCC', 'base64');
+  await frame.locator('#s-logo-file').setInputFiles({ name: 'logo.png', mimeType: 'image/png', buffer: logo });
+  await frame.locator('#s-logo-preview:not(.hidden)').waitFor({ timeout: 5000 });
+  await frame.locator('#s-save').click();
+  await frame.locator('.tab[data-tab=chat]').click();
+  await frame.locator('#chat-text').fill('Richte die Seite ein: Kopfzeile mit Logo und Seitenzahlen');
+  await frame.locator('#chat-send').click();
+  await frame.locator('.card button.primary:not([disabled])').last().click({ timeout: 15000 });
+  await frame.locator('.msg.assistant', { hasText: 'Seite eingerichtet' }).waitFor({ timeout: 15000 });
+  const hf = await page.evaluate(() => ({
+    header: window.HarnessMock.state.header.map((p) => ({ text: p.text, images: (p.drawings || []).length })),
+    footer: window.HarnessMock.state.footer.map((p) => p.text),
+  }));
+  assert.match(hf.header.map((h) => h.text).join(' '), /Grundschule Musterstadt\tSachunterricht\tKlasse 3/);
+  assert.equal(hf.header[0].images, 1, 'logo in the header');
+  assert.match(hf.footer.join(' '), /Seite 1 von 1/);
+  console.log('ok - setup_page (header with school and logo, page numbers)');
+
   // 2) manual mode: template after element 0, load + replace selected image
   await frame.locator('.tab[data-tab=manual]').click();
   await frame.locator('#m-template').selectOption('melody');

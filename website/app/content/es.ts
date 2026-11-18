@@ -12,7 +12,7 @@ const es: SiteContent = {
     headline: 'Plugin de IA para Euro-Office – en Nextcloud y en el escritorio',
     title: 'Crea fichas de trabajo con IA – para cualquier asignatura',
     description:
-      'Describe lo que necesitas: Worksheet Assistant (tu asistente para fichas de trabajo) escribe ejercicios, textos con huecos, tablas, líneas para escribir, recuadros informativos y pentagramas directamente en tu documento – con el chat de IA integrado o con tu propio asistente de IA a través de MCP.',
+      'Describe lo que necesitas: Worksheet Assistant (tu asistente para fichas de trabajo) maqueta ejercicios, textos con huecos, crucigramas, tablas, gráficos, fórmulas, líneas para escribir, recuadros informativos y pentagramas con un diseño uniforme, directamente en tu documento – con el chat de IA integrado o con tu propio asistente de IA a través de MCP.',
     install: 'Instalar',
     more: 'Cómo funciona',
     imageAlt:
@@ -24,9 +24,9 @@ const es: SiteContent = {
     description: 'Pensado para docentes y futuros docentes – para fichas, exámenes y material de clase de cualquier asignatura.',
     items: [
       {
-        title: 'Fichas completas desde el chat',
+        title: 'Fichas bien diseñadas desde el chat',
         description:
-          '«Crea una ficha sobre el ciclo del agua para 5.º de primaria»: título, ejercicios, tabla, líneas para escribir y recuadro informativo en un solo paso – primero como vista previa, si quieres.'
+          '«Crea una ficha sobre el ciclo del agua para 3.º de primaria»: título, ejercicios numerados con iconos y puntos, texto con huecos y banco de palabras, crucigrama, gráfico y recuadro informativo – con un diseño (moderno, primaria, clásico) y revisada automáticamente al final.'
       },
       {
         title: 'Edita en lugar de empezar de cero',

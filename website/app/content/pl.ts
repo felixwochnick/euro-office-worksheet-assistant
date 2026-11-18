@@ -12,7 +12,7 @@ const pl: SiteContent = {
     headline: 'Wtyczka AI do Euro-Office – w Nextcloud i na komputerze',
     title: 'Twórz karty pracy z AI – do każdego przedmiotu',
     description:
-      'Opisz, czego potrzebujesz: Worksheet Assistant (asystent kart pracy) wpisze zadania, teksty z lukami, tabele, linie do pisania, ramki informacyjne i pięciolinie prosto do twojego dokumentu – za pomocą wbudowanego czatu AI lub twojego własnego asystenta AI przez MCP.',
+      'Opisz, czego potrzebujesz: Worksheet Assistant (asystent kart pracy) układa zadania, teksty z lukami, krzyżówki, tabele, wykresy, wzory, linie do pisania, ramki informacyjne i pięciolinie w jednolitym projekcie graficznym prosto w twoim dokumencie – za pomocą wbudowanego czatu AI lub twojego własnego asystenta AI przez MCP.',
     install: 'Zainstaluj',
     more: 'Jak to działa',
     imageAlt:
@@ -24,9 +24,9 @@ const pl: SiteContent = {
     description: 'Dla nauczycieli i studentów kierunków nauczycielskich – karty pracy, sprawdziany i materiały dla uczniów z każdego przedmiotu.',
     items: [
       {
-        title: 'Całe karty pracy przez czat',
+        title: 'Estetyczne karty pracy przez czat',
         description:
-          '„Przygotuj kartę pracy o obiegu wody w przyrodzie dla klasy 5”: tytuł, zadania, tabela, linie do pisania i ramka informacyjna w jednym kroku – jeśli chcesz, najpierw jako podgląd.'
+          '„Przygotuj kartę pracy o obiegu wody w przyrodzie dla klasy 3”: tytuł, numerowane zadania z ikonami i punktami, tekst z lukami i bankiem słów, krzyżówka, wykres i ramka informacyjna – w jednym projekcie (nowoczesny, szkoła podstawowa, klasyczny) i na koniec automatycznie sprawdzona.'
       },
       {
         title: 'Poprawiaj zamiast zaczynać od nowa',

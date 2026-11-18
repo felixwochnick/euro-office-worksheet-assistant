@@ -10,6 +10,25 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
 - **Whole worksheets by chat** – e.g. *"Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 5 mit drei
   Aufgaben, einer Tabelle und einem Merkkasten"*. The AI builds it from blocks (tool `insert_blocks`), shows a preview
   and inserts it at the cursor, after a heading/paragraph or at the end.
+- **Designed worksheets** – every worksheet uses one consistent **design** (theme): *Klassisch* (black and white,
+  toner-saving), *Modern* (blue accent) or *Grundschule* (large type, 1.5 line spacing, friendly colours). The AI only
+  picks the theme; fonts, sizes, colours and spacing come from it. Title with subject and grade, name/class/date line,
+  **task headers** with a number badge, work-form/activity symbols, difficulty stars and points, **info boxes** in
+  seven variants (Merke, Tipp, Achtung, Beispiel, Definition, Lösung, Info) with icons.
+- **Task types that look right** – cloze texts with an automatic word bank, multiple choice, true/false tables,
+  matching (dots to connect or letters), **crosswords and word searches** (generated, always valid), reading texts
+  with **line numbers**, **Silbenfärbung** (syllables alternately blue/red), self-assessment with smileys, cut-out
+  hint cards, a points-to-grade table, two- or three-column layouts – each also as a solution version (`show_answers`).
+- **Graphics** – number lines, coordinate systems, column/bar/line/pie charts (also empty for drawing), mind maps,
+  QR codes, simple SVG drawings by the AI, German primary-school **lineatures** (Lineatur 1–4) and squared paper.
+  Formulas are inserted as native, editable equations from LaTeX. Graphics keep their source in the alt text, so the
+  AI can change them later.
+- **Page setup and house style** – paper size, orientation, margins, columns, header with school name and logo
+  (from the settings) and footer with page numbers (tool `setup_page`).
+- **Quality check** – after creating a worksheet the AI runs `check_worksheet`: task numbering, instructions, space
+  for answers, points, solutions, leftover markup, readability for the grade (LIX) and the page layout (tasks split
+  across pages, nearly empty last page) – and fixes what it finds. Headings and task headers are kept with the
+  following content, so no task starts at the bottom of a page.
 - **Edit existing content** – *"Ändere die Anweisung in Aufgabe 1 für Klasse 3"*, *"Füge am Ende eine Lösungsseite
   hinzu"*, *"Lösche Aufgabe 3"* (`get_elements`, `replace_elements`, `delete_elements`; deletions are confirmed).
 - **AI chat in the side panel** – e.g. *"Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein
@@ -53,7 +72,7 @@ service, the proxy.
 
 | Component | What it is | Where it runs | Needed for | Resources |
 |-----------|-----------|---------------|------------|-----------|
-| **Plugin** (`worksheet-assistant/`) | Static files (HTML, JavaScript, icons, abcjs) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: inserting and editing worksheet content, rendering staves, lyrics, manual mode | ≈ 0.8 MB of files, no process |
+| **Plugin** (`worksheet-assistant/`) | Static files (HTML, JavaScript, icons, abcjs, qrcode-generator) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: inserting and editing worksheet content, rendering staves, lyrics, manual mode | ≈ 1.2 MB of files, no process |
 | **Proxy** (`proxy/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy | **Only the AI chat and MCP** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
 | **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat (MCP clients bring their own) | Billed by the provider / your hardware |
 
@@ -80,7 +99,12 @@ note converter and installation guide in German, English, French, Spanish, Itali
 |------|---------|
 | `plugin/` | Plugin source: `config.json`, `index.html`, `css/`, `js/`, icons |
 | `shared/abc-tools.js` | ABC validation/normalisation and German note names → ABC (used by plugin **and** proxy) |
-| `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js` (see `vendor/SOURCES.md`) |
+| `shared/worksheet-layout.js` | Worksheet blocks → document elements (design decisions; used by the plugin and, for validation, by the proxy) |
+| `shared/worksheet-themes.js` | Designs (fonts, sizes, colours) and printed labels in seven languages |
+| `shared/worksheet-generators.js` | Crossword, word search, cloze, matching, grade key (deterministic) |
+| `shared/worksheet-svg.js` | Icons, task badges, lineatures, number lines, coordinate systems, charts, mind maps, QR codes, SVG sanitiser |
+| `shared/german-syllables.js`, `shared/worksheet-check.js` | Syllables for Silbenfärbung; the worksheet quality check |
+| `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js`, `qrcode-generator` (see `vendor/SOURCES.md`) |
 | `proxy/` | LLM proxy (TypeScript), `Dockerfile`, `docker-compose.yml`, `.env.example` |
 | `deploy/` | Example compose: Euro-Office as its own container with the plugin as a volume, plus the proxy |
 | `harness/` | Local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
@@ -89,7 +113,7 @@ note converter and installation guide in German, English, French, Spanish, Itali
 | `.github/workflows/` | CI (tests, build, e2e, Docker), release (packages + proxy image on GHCR), website (GitHub Pages) |
 | `proxy/src/companion/` | Companion app for the desktop editors (plugin installation, local server, settings page, autostart, MCP over stdio); `scripts/build-companion.mjs` builds it as a single executable |
 | `website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
-| `tests/` | Unit tests (ABC validation, German note names) |
+| `tests/` | Unit tests (ABC validation, German note names, worksheet layout, generators, graphics, syllables, check) |
 
 ## Build
 
@@ -97,7 +121,7 @@ Requirements: bash, Node.js ≥ 22 (only for the config check and tests), `zip` 
 
 ```bash
 bash scripts/build.sh                  # uses the pinned copies in vendor/ (checksums are verified)
-bash scripts/build.sh --update-vendor  # re-downloads abcjs and plugins.js/plugins-ui.js, then builds
+bash scripts/build.sh --update-vendor  # re-downloads abcjs, qrcode-generator and plugins.js/plugins-ui.js, then builds
 ```
 
 Result:
@@ -344,6 +368,10 @@ Tab **Einstellungen** (stored in the browser's `localStorage`; falls back to in-
 - default width (cm), resolution (dpi), **Einfügemethode** (see Known limitations), language
 - **Mit Nextcloud anmelden** (only when the proxy runs with `AUTH_MODE=nextcloud`; replaces the token field)
 - **MCP-Zugriff erlauben** – connects this editor to the proxy so MCP clients can work on the document (off by default)
+- **Hausstil** – design for new worksheets (Modern, Grundschule, Klassisch), optionally an own font (e.g. a school
+  handwriting font – it must be installed on the Document Server), the school name and a logo for the page header
+  (the logo is scaled to at most 600 px and stored with the settings). Existing documents keep the design they
+  were made with (stored in the document's custom properties).
 
 ## MCP: Claude, ChatGPT, Le Chat …
 
@@ -425,6 +453,13 @@ Worksheets (any subject):
 - „Mach aus Aufgabe 2 einen Lückentext mit 8 Lücken.“
 - „Füge am Ende eine Lösungsseite hinzu.“
 - „Lösche Aufgabe 3.“
+- „Gestalte ein Arbeitsblatt zu den Wortarten für Klasse 3 mit Lückentext, Zuordnung und Kreuzworträtsel.“
+- „Erstelle einen Test zu Brüchen für Klasse 6 mit Punkten und Notenschlüssel, insgesamt 30 Punkte.“
+- „Mach eine Version in Silbenfärbung für die erste Klasse.“
+- „Füge ein leeres Säulendiagramm (Monate, Regentage) zum Einzeichnen ein.“
+- „Richte die Seite im Querformat ein, mit unserem Schullogo in der Kopfzeile und Seitenzahlen.“
+- „Füge die Lösungen auf einer neuen Seite hinzu.“
+- „Prüfe das Arbeitsblatt.“
 
 Music:
 
@@ -580,6 +615,16 @@ starts again from the original worksheet with a new document key.
 
 ## Known limitations
 
+### Plugin updates and the browser cache
+
+The Document Server serves `sdkjs-plugins/` as "immutable" and its service worker caches these files "cache first"
+per Document Server version. After updating only the plugin, browsers that opened the editor before would keep
+running the old plugin files. From 0.5.0 on, the panel compares its cached `config.json` with the one on the server
+when it starts; after an update it removes the old files from the caches, loads the new ones and asks the user to
+close and reopen the document. **When updating from 0.4.x or older** (which has no such check), each user has to clear
+the site data of the Document Server once (browser settings, or reload with an emptied cache) – or the new version
+appears with the next Document Server update.
+
 ### Tested with Euro-Office 9.3.8
 
 The plugin was tested end-to-end in a real Euro-Office Document Server
@@ -669,5 +714,7 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   license text (the build copies it to `dist/worksheet-assistant/licenses/`) and point to the source.
 - `vendor/abcjs/abcjs-basic-min.js`: [abcjs](https://github.com/paulrosen/abcjs) © Paul Rosen and Gregory Dyke,
   **MIT** (`vendor/abcjs/LICENSE.md`).
+- `vendor/qrcode-generator/qrcode.js`: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)
+  © Kazuhiko Arase, **MIT** (`vendor/qrcode-generator/LICENSE`) – QR codes on worksheets.
 
 Exact versions and checksums: `vendor/SOURCES.md`.

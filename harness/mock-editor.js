@@ -19,6 +19,11 @@
     cursor: 0,
     selectedDrawing: null, // {el, idx}
     options: { failCreateImage: false, legacyApi: false },
+    props: {},             // document custom properties
+    header: [],            // header paragraphs (element objects)
+    footer: [],
+    page: { w: 11906, h: 16838, portrait: true, margins: null, columns: 1 },
+    selection: null,       // { el, text } for Search(...).Select()
     log: []
   };
 
@@ -36,6 +41,10 @@
     ];
     state.cursor = 3;
     state.selectedDrawing = null;
+    state.props = {};
+    state.header = [];
+    state.footer = [];
+    state.page = { w: 11906, h: 16838, portrait: true, margins: null, columns: 1 };
     render();
   }
 
@@ -101,20 +110,36 @@
     var run = { text: t, b: false, i: false, u: false };
     // Like the real editor: a new run inherits the previous run's formatting.
     var prevRun = el.runs && el.runs[el.runs.length - 1];
-    if (prevRun) { run.b = prevRun.b; run.i = prevRun.i; run.u = prevRun.u; }
+    if (prevRun) { run.b = prevRun.b; run.i = prevRun.i; run.u = prevRun.u; run.color = prevRun.color; run.size = prevRun.size; run.font = prevRun.font; }
     (el.runs = el.runs || []).push(run);
     return {
       SetBold: function (v) { run.b = !!v; },
       SetItalic: function (v) { run.i = !!v; },
       SetUnderline: function (v) { run.u = !!v; },
-      SetFontSize: function () {}
+      SetFontSize: function (v) { run.size = v / 2; },
+      SetFontFamily: function (v) { run.font = v; },
+      SetColor: function (r, g, b) { run.color = 'rgb(' + r + ',' + g + ',' + b + ')'; },
+      GetTextPr: function () { return { GetFontFamily: function () { return run.font; }, GetFontSize: function () { return run.size ? run.size * 2 : null; }, GetBold: function () { return run.b; } }; }
     };
   };
   ApiParagraph.prototype.AddLineBreak = function () { this._el.text += '\n'; (this._el.runs = this._el.runs || []).push({ text: '\n' }); };
+  ApiParagraph.prototype.AddTabStop = function () { this._el.text += '\t'; (this._el.runs = this._el.runs || []).push({ text: '\t', tab: true }); };
+  ApiParagraph.prototype.AddPageNumber = function () { this._el.text += '1'; (this._el.runs = this._el.runs || []).push({ text: '1' }); };
+  ApiParagraph.prototype.AddPagesCount = function () { this._el.text += '1'; (this._el.runs = this._el.runs || []).push({ text: '1' }); };
+  ApiParagraph.prototype.GetElement = function (i) { var r = (this._el.runs || [])[i]; return r ? { GetTextPr: function () { return { GetFontFamily: function () { return r.font; }, GetFontSize: function () { return r.size ? r.size * 2 : null; }, GetBold: function () { return r.b; } }; } } : null; };
+  ['SetIndLeft', 'SetIndRight', 'SetIndFirstLine', 'SetSpacingLine', 'SetTabs', 'SetBold'].forEach(function (m) {
+    ApiParagraph.prototype[m] = function (v) { (this._el.pr = this._el.pr || {})[m] = v; return true; };
+  });
+  ApiParagraph.prototype.SetKeepNext = function (v) { this._el.keepNext = !!v; return true; };
+  ApiParagraph.prototype.SetKeepLines = function (v) { this._el.keepLines = !!v; return true; };
+  ApiParagraph.prototype.SetShd = function (t, r, g, b) { this._el.shd = 'rgb(' + r + ',' + g + ',' + b + ')'; return true; };
+  ['Top', 'Left', 'Right'].forEach(function (side) {
+    ApiParagraph.prototype['Set' + side + 'Border'] = function () { (this._el.borders = this._el.borders || {})[side] = true; return true; };
+  });
   ApiParagraph.prototype.SetStyle = function (st) { if (st) this._el.style = st.GetName(); };
   ApiParagraph.prototype.SetNumbering = function (lvl) { this._el.list = lvl && lvl._type; };
   ApiParagraph.prototype.GetNumbering = function () { return this._el.list ? { type: this._el.list } : null; };
-  ApiParagraph.prototype.SetBottomBorder = function () { this._el.line = true; };
+  ApiParagraph.prototype.SetBottomBorder = function () { this._el.line = true; (this._el.borders = this._el.borders || {}).Bottom = true; };
   ApiParagraph.prototype.SetSpacingBefore = function () {};
   ApiParagraph.prototype.SetSpacingAfter = function () {};
   ApiParagraph.prototype.AddPageBreak = function () { this._el.pageBreak = true; };
@@ -137,15 +162,20 @@
     var row = this._el.rows[r];
     return {
       GetCellsCount: function () { return row.length; },
+      SetHeight: function (rule, h) { row.height = h; return true; },
       GetCell: function (c) {
         var cell = row[c];
         return {
-          SetShd: function () { cell.shd = true; },
+          SetShd: function (t, r, g, b) { cell.shd = r != null ? 'rgb(' + r + ',' + g + ',' + b + ')' : true; },
+          SetWidth: function (t, w) { cell.width = w; return true; },
+          SetVerticalAlign: function () { return true; },
           GetContent: function () {
             return {
               GetElementsCount: function () { return cell.paras.length; },
-              GetElement: function (i) { return new ApiParagraph(cell.paras[i]); },
-              Push: function (p) { cell.paras.push(p._el); }
+              GetElement: function (i) { return wrap(cell.paras[i]); },
+              Push: function (p) { cell.paras.push(p._el); },
+              RemoveElement: function (i) { cell.paras.splice(i, 1); return true; },
+              RemoveAllElements: function () { cell.paras = [para('', 'Normal')]; return true; }
             };
           }
         };
@@ -155,18 +185,74 @@
   ApiTable.prototype.GetText = function () {
     return this._el.rows.map(function (r) { return r.map(function (c) { return c.paras.map(function (p) { return p.text; }).join(' '); }).join('\t'); }).join(' ');
   };
-  ['SetWidth', 'SetStyle', 'SetTableBorderTop', 'SetTableBorderBottom', 'SetTableBorderLeft', 'SetTableBorderRight'].forEach(function (m) {
-    ApiTable.prototype[m] = function () { if (m === 'SetTableBorderTop') this._el.box = true; };
+  ['SetWidth', 'SetStyle', 'SetTableBorderTop', 'SetTableBorderBottom', 'SetTableBorderLeft', 'SetTableBorderRight', 'SetTableBorderInsideH',
+    'SetTableBorderInsideV', 'SetTableLayout', 'SetTableCellMarginLeft', 'SetTableCellMarginRight', 'SetTableCellMarginTop',
+    'SetTableCellMarginBottom', 'SetJc'].forEach(function (m) {
+    ApiTable.prototype[m] = function (type) { if (/^SetTableBorder(Top|Left)$/.test(m) && type === 'single') this._el.box = true; return true; };
   });
+  ApiTable.prototype.SetTableDescription = function (d) { this._el.description = d; return true; };
+  ApiTable.prototype.GetTableDescription = function () { return this._el.description || ''; };
 
   function wrap(el) { return el.type === 'table' ? new ApiTable(el) : new ApiParagraph(el); }
 
+  function findText(text) {
+    var out = [];
+    function scan(list) {
+      list.forEach(function (el) {
+        if (el.type === 'table') { el.rows.forEach(function (r) { r.forEach(function (c) { scan(c.paras); }); }); return; }
+        if ((el.text || '').indexOf(text) !== -1) out.push({ Select: function () { state.selection = { el: el, text: text }; return true; } });
+      });
+    }
+    scan(state.elements);
+    return out;
+  }
+
+  function headerContent(list) {
+    return {
+      GetElementsCount: function () { return list.length; },
+      GetElement: function (i) { return new ApiParagraph(list[i]); },
+      Push: function (p) { list.push(p._el); },
+      RemoveElement: function (i) { list.splice(i, 1); return true; },
+      RemoveAllElements: function () { list.splice(0, list.length, para('', 'Normal')); return true; }
+    };
+  }
+
+  function ApiSection() {
+    this.Section = { get PageMargins() { var m = state.page.margins; return m ? { Left: m[0] / 56.7, Top: m[1] / 56.7, Right: m[2] / 56.7, Bottom: m[3] / 56.7 } : { Left: 20, Top: 20, Right: 20, Bottom: 20 }; } };
+  }
+  ApiSection.prototype.GetPageWidth = function () { return state.page.w; };
+  ApiSection.prototype.GetPageHeight = function () { return state.page.h; };
+  ApiSection.prototype.SetPageSize = function (w, h, portrait) { state.page.w = w; state.page.h = h; state.page.portrait = portrait; return true; };
+  ApiSection.prototype.SetPageMargins = function (l, t, r, b) { state.page.margins = [l, t, r, b]; return true; };
+  ApiSection.prototype.SetEqualColumns = function (n) { state.page.columns = n; return true; };
+  ApiSection.prototype.GetHeader = function () { return headerContent(state.header); };
+  ApiSection.prototype.GetFooter = function () { return headerContent(state.footer); };
+
   function ApiDocument() { this.Document = LOGIC_DOC; }
+  ApiDocument.prototype.GetCustomProperties = function () {
+    return { Add: function (k, v) { state.props[k] = v; return true; }, Get: function (k) { return state.props[k]; } };
+  };
+  ApiDocument.prototype.Search = function (text) { return findText(text); };
+  ApiDocument.prototype.AddMathEquation = function (latex) {
+    var sel = state.selection;
+    if (!sel) return false;
+    sel.el.text = sel.el.text.replace(sel.text, '⟨' + latex + '⟩');
+    (sel.el.runs || []).forEach(function (r) { if (r.text && r.text.indexOf(sel.text) !== -1) { r.text = r.text.replace(sel.text, '⟨' + latex + '⟩'); r.math = true; } });
+    state.selection = null;
+    return true;
+  };
+  ApiDocument.prototype.RemoveSelection = function () { state.selection = null; return true; };
+  ApiDocument.prototype.GetFinalSection = function () { return new ApiSection(); };
+  ApiDocument.prototype.GetSections = function () { return [new ApiSection()]; };
+  ApiDocument.prototype.GetPageCount = function () { return 1; };
   ApiDocument.prototype.GetElementsCount = function () { return state.elements.length; };
   ApiDocument.prototype.GetElement = function (i) { var el = state.elements[i]; return el ? wrap(el) : null; };
   ApiDocument.prototype.RemoveElement = function (i) { state.elements.splice(i, 1); return true; };
   ApiDocument.prototype.GetStyle = function (name) { return { GetName: function () { return name; } }; };
-  ApiDocument.prototype.CreateNumbering = function (type) { return { GetLevel: function () { return { _type: type }; } }; };
+  ApiDocument.prototype.CreateNumbering = function (type) {
+    var lvl = { _type: type, SetTemplateType: function (t, sym) { lvl._type = t === 'a)' ? 'letters' : sym === '☐' ? 'checkbox' : type; return true; } };
+    return { GetLevel: function () { return lvl; } };
+  };
   ApiDocument.prototype.AddElement = function (pos, p) {
     state.elements.splice(Math.max(0, Math.min(pos, state.elements.length)), 0, p._el);
     return true;
@@ -287,15 +373,42 @@
     (p.runs || [{ text: p.text }]).forEach(function (r) {
       if (r.text === '\n') { target.appendChild(document.createElement('br')); return; }
       var node = document.createElement(r.b ? 'strong' : r.i ? 'em' : r.u ? 'u' : 'span');
-      node.textContent = r.text;
+      node.textContent = r.tab ? '    ' : r.text;
+      if (r.color) node.style.color = r.color;
+      if (r.size) node.style.fontSize = Math.round(r.size * 1.2) + 'px';
+      if (r.math) node.className = 'math';
       target.appendChild(node);
     });
+    (p.drawings || []).forEach(function (d) {
+      if (target.closest && target.closest('td')) {
+        var img = document.createElement('img');
+        img.src = d.src;
+        img.style.width = d.wMm + 'mm';
+        img.style.verticalAlign = 'middle';
+        target.insertBefore(img, target.firstChild);
+      }
+    });
+  }
+
+  function renderHeaderFooter(list, cls) {
+    if (!list.length || !list.some(function (p) { return p.text || (p.drawings && p.drawings.length); })) return null;
+    var div = document.createElement('div');
+    div.className = cls;
+    list.forEach(function (p) {
+      var line = document.createElement('div');
+      (p.drawings || []).forEach(function (d) { var img = document.createElement('img'); img.src = d.src; img.style.height = '24px'; line.appendChild(img); });
+      renderRuns(line, { runs: p.runs, text: p.text });
+      div.appendChild(line);
+    });
+    return div;
   }
 
   function render() {
     var root = document.getElementById('mock-doc');
     if (!root) return;
     root.innerHTML = '';
+    var hdr = renderHeaderFooter(state.header, 'mock-header');
+    if (hdr) root.appendChild(hdr);
     state.elements.forEach(function (el, i) {
       var div = document.createElement('div');
       div.className = 'el' + (i === state.cursor ? ' cursor' : '') + (/^Heading/.test(el.style) ? ' heading' : '');
@@ -310,7 +423,7 @@
           var tr = document.createElement('tr');
           row.forEach(function (cell) {
             var td = document.createElement('td');
-            if (cell.shd) td.className = 'shd';
+            if (cell.shd) { td.className = 'shd'; if (typeof cell.shd === 'string') td.style.background = cell.shd; }
             cell.paras.forEach(function (p, k) { if (k) td.appendChild(document.createElement('br')); renderRuns(td, p); });
             tr.appendChild(td);
           });
@@ -322,6 +435,7 @@
         if (el.list) text.className = 'list ' + el.list;
         if (el.line) div.className += ' line';
         if (el.pageBreak) div.className += ' page-break';
+        if (el.shd) div.style.background = el.shd;
         if (el.runs && el.runs.length) renderRuns(text, el);
         else text.textContent = el.text || (el.drawings.length || el.line ? '' : '¶');
         div.appendChild(text);
@@ -347,6 +461,8 @@
       });
       root.appendChild(div);
     });
+    var ftr = renderHeaderFooter(state.footer, 'mock-footer');
+    if (ftr) root.appendChild(ftr);
   }
 
   function onMessage(e) {
