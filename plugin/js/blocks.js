@@ -111,6 +111,52 @@
       });
     }
 
+    // --- table widths ------------------------------------------------------------
+    // A table with only a percentage width (tblW type="pct") and automatic cell widths is stretched by Word, but
+    // Google Docs and Apple Pages follow the grid (w:gridCol) and cell widths (w:tcW) and shrink the table to its
+    // content. So every table gets an absolute width in twips, a fixed layout and explicit, equal cell widths.
+    var TEXT_WIDTH_FALLBACK = 9070; // 16 cm: A4 with common margins
+    var textWidthCache = null;
+    function textWidth() {
+      if (textWidthCache) return textWidthCache;
+      var w = 0;
+      try {
+        var sec = doc.GetFinalSection();
+        // Public getters (twips) in newer editor versions ...
+        if (sec.GetPageWidth && sec.GetPageMarginLeft && sec.GetPageMarginRight) {
+          w = sec.GetPageWidth() - sec.GetPageMarginLeft() - sec.GetPageMarginRight();
+        }
+        // ... otherwise the internal section properties (millimetres).
+        if (!(w > 0) && sec.Section && sec.Section.GetPageWidth) {
+          var s = sec.Section;
+          w = Math.round((s.GetPageWidth() - s.GetPageMarginLeft() - s.GetPageMarginRight()) * 1440 / 25.4);
+        }
+      } catch (e) { w = 0; }
+      textWidthCache = w > 1440 && w < 31680 ? Math.round(w) : TEXT_WIDTH_FALLBACK; // 1 in .. 22 in
+      return textWidthCache;
+    }
+    function setTableWidths(table, rowCount, cols) {
+      var total = textWidth();
+      var colW = Math.floor(total / cols);
+      try { table.SetWidth('twips', total); } catch (e) {}
+      try { table.SetTableLayout('fixed'); } catch (e) {}
+      for (var r = 0; r < rowCount; r++) {
+        for (var c = 0; c < cols; c++) {
+          try { table.GetRow(r).GetCell(c).SetWidth('twips', colW); } catch (e) {}
+        }
+      }
+      // The grid (w:tblGrid) is not derived from the cell widths: Api.CreateTable starts with a default grid.
+      // Set it on the underlying table so the exported w:gridCol values match the cell widths.
+      try {
+        var t = table.Table;
+        if (t && t.SetTableGrid) {
+          var grid = [];
+          for (var g = 0; g < cols; g++) grid.push(colW * 25.4 / 1440); // millimetres
+          t.SetTableGrid(grid);
+        }
+      } catch (e) {}
+    }
+
     // --- block -> document elements ---------------------------------------------
     function build(block) {
       var out = [];
@@ -140,7 +186,7 @@
         var rows = block.rows || [];
         var cols = rows.reduce(function (m, r) { return Math.max(m, (r || []).length); }, 1);
         var table = Api.CreateTable(cols, rows.length || 1);
-        try { table.SetWidth('percent', 100); } catch (e) {}
+        setTableWidths(table, rows.length || 1, cols);
         var grid = style('Table Grid');
         if (grid) { try { table.SetStyle(grid); } catch (e) {} } else { borderAll(table, 'single', 4, 0, 0, 0); }
         var header = block.header !== false && rows.length > 1;
@@ -167,7 +213,7 @@
         }
       } else if (t === 'box') {
         var box = Api.CreateTable(1, 1);
-        try { box.SetWidth('percent', 100); } catch (e) {}
+        setTableWidths(box, 1, 1);
         borderAll(box, 'single', 8, 79, 70, 229);
         var bc = box.GetRow(0).GetCell(0);
         try { bc.SetShd('clear', 238, 242, 255, false); } catch (e) {}
