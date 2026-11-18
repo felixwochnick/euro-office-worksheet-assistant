@@ -1,0 +1,21 @@
+{
+  "name": "music-notation-website",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Project website (GitHub Pages) for the Euro-Office music notation plugin",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build --preset github_pages",
+    "preview": "npx serve .output/public",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.156",
+    "@iconify-json/simple-icons": "^1.2.103",
+    "@nuxt/ui": "^4.12.2",
+    "abcjs": "^6.7.2",
+    "nuxt": "^4.6.4",
+    "tailwindcss": "^4.3.5"
+  }
+}
