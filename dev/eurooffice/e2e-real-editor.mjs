@@ -177,7 +177,7 @@ try {
     const mcp = new sdk.Client({ name: 'e2e', version: '1.0.0' });
     await mcp.connect(new sdk.StreamableHTTPClientTransport(new URL(PROXY_URL + '/mcp'), { requestInit: { headers: { authorization: `Bearer ${PROXY_TOKEN}` } } }));
     const docs = await mcp.callTool({ name: 'list_open_documents', arguments: {} });
-    assert.match(docs.content[0].text, /arbeitsblatt\.docx/i);
+    assert.match(docs.content[0].text, /worksheet\.docx/i);
     const outlineText = (await mcp.callTool({ name: 'get_document_outline', arguments: {} })).content[0].text;
     assert.match(outlineText, /Aufgabe 2/);
     const totalBefore = (await plugin.evaluate(() => window.MusicEditor.getOutline())).total_elements;

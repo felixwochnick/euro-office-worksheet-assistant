@@ -82,7 +82,7 @@ export interface McpOptions {
 /** Build the MCP server for one request (stateless) and one authenticated user. */
 export function buildMcpServer(identity: Identity, opts: McpOptions): McpServer {
   const server = new McpServer(
-    { name: 'arbeitsblatt-assistent', title: 'Arbeitsblatt-Assistent (Euro-Office)', version: opts.version },
+    { name: 'worksheet-assistant', title: 'Worksheet Assistant (Euro-Office)', version: opts.version },
     { instructions: MCP_INSTRUCTIONS },
   );
   const { bridge } = opts;

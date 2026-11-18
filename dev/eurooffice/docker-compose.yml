@@ -3,7 +3,7 @@
 #
 #   bash scripts/build.sh
 #   cd dev/eurooffice && docker compose up -d
-#   open http://localhost:8099/          (editor with files/arbeitsblatt.docx)
+#   open http://localhost:8099/          (editor with files/worksheet.docx)
 #
 # For the AI chat also start the proxy (proxy/.env with CORS_ORIGINS=http://localhost:8090).
 services:

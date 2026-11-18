@@ -8,7 +8,7 @@
 #
 # Put a TLS reverse proxy in front of both services (Coolify/Traefik does this for you):
 #   https://office.example.org  -> eurooffice:80
-#   https://notes-proxy.example.org -> music-proxy:8787
+#   https://worksheets.example.org -> worksheet-server:8787
 services:
   eurooffice:
     # Pin a version in production (see the Nextcloud admin manual, "Euro-Office" → "Installing via Docker").
@@ -31,11 +31,11 @@ services:
       # reverse proxy reaches the container via the Docker network (e.g. Coolify).
       - "127.0.0.1:${EUROOFFICE_PUBLISH_PORT:-8090}:80"
 
-  music-proxy:
+  worksheet-server:
     build:
       context: ..
       dockerfile: proxy/Dockerfile
-    image: music-notation-proxy:local
+    image: worksheet-assistant-server:local
     restart: unless-stopped
     environment:
       AUTH_MODE: ${AUTH_MODE:-token}

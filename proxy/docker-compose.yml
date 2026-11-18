@@ -2,11 +2,11 @@
 #   cp .env.example .env   # then edit
 #   docker compose up -d --build
 services:
-  music-proxy:
+  worksheet-server:
     build:
       context: ..
       dockerfile: proxy/Dockerfile
-    image: music-notation-proxy:local
+    image: worksheet-assistant-server:local
     restart: unless-stopped
     env_file:
       - path: .env

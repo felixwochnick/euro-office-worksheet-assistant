@@ -2,7 +2,7 @@
 import type { NavigationMenuItem } from '@nuxt/ui'
 import { de, en, es, fr, it, nl, pl } from '@nuxt/ui/locale'
 
-const REPO = 'https://github.com/felixwochnick/eurooffice-music-notation-plugin'
+const REPO = 'https://github.com/felixwochnick/euro-office-worksheet-assistant'
 const baseURL = useRuntimeConfig().app.baseURL
 const c = useContent()
 const { locale, setLocale } = useI18n()

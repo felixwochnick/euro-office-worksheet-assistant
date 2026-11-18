@@ -222,7 +222,7 @@ const pl: SiteContent = {
       { title: 'Zainstaluj aplikację desktopową', description: 'Zainstaluj Euro-Office lub Nextcloud Office (desktop) dla Windows, macOS lub Linux i uruchom ją jeden raz.' },
       {
         title: 'Uruchom aplikację towarzyszącą',
-        description: 'Pobierz `arbeitsblatt-assistent` dla swojego systemu ze strony Releases, rozpakuj i uruchom. Program zainstaluje wtyczkę i otworzy swoje ustawienia w przeglądarce. macOS: przy pierwszym uruchomieniu prawy przycisk myszy → **Otwórz**; Windows: **Więcej informacji → Uruchom mimo to**.',
+        description: 'Pobierz `worksheet-assistant` dla swojego systemu ze strony Releases, rozpakuj i uruchom. Program zainstaluje wtyczkę i otworzy swoje ustawienia w przeglądarce. macOS: przy pierwszym uruchomieniu prawy przycisk myszy → **Otwórz**; Windows: **Więcej informacji → Uruchom mimo to**.',
         codeLabel: 'Linux / macOS'
       },
       {

@@ -1,5 +1,5 @@
 {
-  "name": "eurooffice-music-notation-plugin",
+  "name": "euro-office-worksheet-assistant",
   "version": "0.4.0",
   "private": true,
   "description": "Euro-Office (ONLYOFFICE) worksheet assistant: panel plugin with AI chat, MCP endpoint and a companion app for the desktop editors.",

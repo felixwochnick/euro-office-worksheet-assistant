@@ -343,7 +343,7 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
           ? oauth.challenge(req.headers.authorization ? 'invalid_token' : undefined)
           : cfg.authMode === 'nextcloud'
             ? 'Basic realm="Nextcloud app password", charset="UTF-8"'
-            : 'Bearer realm="arbeitsblatt-assistent"';
+            : 'Bearer realm="worksheet-assistant"';
         return reply.code(401).header('www-authenticate', challenge).send({ error: 'unauthorized', message: 'Authentication required' });
       }
       (req.raw as unknown as { auth: unknown }).auth = {

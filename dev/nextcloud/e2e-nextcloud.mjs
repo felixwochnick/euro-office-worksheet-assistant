@@ -136,7 +136,7 @@ try {
   const pw = appPassword(USER, 'MCP-Test');
   const basicAuth = 'Basic ' + Buffer.from(`${USER}:${pw}`).toString('base64');
   const c1 = await mcp(basicAuth);
-  assert.match(text(await c1.callTool({ name: 'list_open_documents', arguments: {} })), /Arbeitsblatt\.docx/);
+  assert.match(text(await c1.callTool({ name: 'list_open_documents', arguments: {} })), /Worksheet\.docx/);
   const ins = await c1.callTool({
     name: 'insert_blocks',
     arguments: { position: 'end', blocks: [{ type: 'heading', level: 2, text: 'Per App-Passwort' }, { type: 'lines', count: 2 }] },

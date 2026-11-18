@@ -3,10 +3,10 @@
  * Minimal "document storage" for testing the plugin in a real Euro-Office
  * Document Server without Nextcloud (development only – no auth, JWT off).
  *
- *   GET  /                 editor page (DocsAPI.DocEditor) for files/arbeitsblatt.docx
+ *   GET  /                 editor page (DocsAPI.DocEditor) for files/worksheet.docx
  *        ?pluginsData=1    additionally register the plugin explicitly via editorConfig.plugins
  *   GET  /files/current    the current version of the document (downloaded by the Document Server)
- *   GET  /reset            start again from files/arbeitsblatt.docx with a new document key
+ *   GET  /reset            start again from files/worksheet.docx with a new document key
  *   POST /callback         save callback; saved versions go to dev/eurooffice/out/
  *   GET  /forcesave        ask the Document Server to save now (CommandService)
  *   GET  /saved            JSON list of saved files
@@ -33,7 +33,7 @@ fs.mkdirSync(outDir, { recursive: true });
 // The Document Server caches documents by key, and a key must not be reused
 // after the document was saved (callback status 2) – like a real storage, we
 // switch to the saved version and a new key then.
-const original = path.join(here, 'files', 'arbeitsblatt.docx');
+const original = path.join(here, 'files', 'worksheet.docx');
 let currentFile = original;
 let docKey = newKey();
 const saved = [];
@@ -47,7 +47,7 @@ function page(withPluginsData) {
     document: {
       fileType: 'docx',
       key: docKey,
-      title: 'Arbeitsblatt.docx',
+      title: 'Worksheet.docx',
       url: `${STORAGE_URL}/files/current?key=${docKey}`,
       permissions: { edit: true, download: true },
     },

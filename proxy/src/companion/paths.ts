@@ -10,7 +10,8 @@ import os from 'node:os';
 import path from 'node:path';
 
 export const PLUGIN_GUID = '{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}';
-export const APP_NAME = 'Arbeitsblatt-Assistent';
+/** Name of the configuration folder on Windows and macOS (Linux: worksheet-assistant). */
+export const APP_NAME = 'Worksheet Assistant';
 
 export interface DesktopApp {
   id: 'euro-office' | 'nextcloud-office' | 'desktop-editors';
@@ -74,5 +75,5 @@ export function configDir(e: Env = currentEnv()): string {
   if (e.env.WORKSHEET_ASSISTANT_HOME) return e.env.WORKSHEET_ASSISTANT_HOME;
   if (e.platform === 'win32') return path.win32.join(e.env.APPDATA || path.win32.join(e.home, 'AppData', 'Roaming'), APP_NAME);
   if (e.platform === 'darwin') return path.posix.join(e.home, 'Library', 'Application Support', APP_NAME);
-  return path.posix.join(e.env.XDG_CONFIG_HOME || path.posix.join(e.home, '.config'), 'arbeitsblatt-assistent');
+  return path.posix.join(e.env.XDG_CONFIG_HOME || path.posix.join(e.home, '.config'), 'worksheet-assistant');
 }

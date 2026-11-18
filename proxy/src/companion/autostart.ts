@@ -1,7 +1,7 @@
 /**
  * Start the companion when the user logs in:
- *   Linux   ~/.config/autostart/arbeitsblatt-assistent.desktop (XDG autostart)
- *   macOS   ~/Library/LaunchAgents/de.arbeitsblatt-assistent.companion.plist
+ *   Linux   ~/.config/autostart/worksheet-assistant.desktop (XDG autostart)
+ *   macOS   ~/Library/LaunchAgents/io.github.felixwochnick.worksheet-assistant.plist
  *   Windows HKCU\Software\Microsoft\Windows\CurrentVersion\Run, through a small VBScript that starts the
  *           program without a console window
  */
@@ -11,9 +11,9 @@ import path from 'node:path';
 import * as sea from 'node:sea';
 import { currentEnv, type Env } from './paths.js';
 
-const ID = 'arbeitsblatt-assistent';
-const MAC_LABEL = 'de.arbeitsblatt-assistent.companion';
-const WIN_VALUE = 'Arbeitsblatt-Assistent';
+const ID = 'worksheet-assistant';
+const MAC_LABEL = 'io.github.felixwochnick.worksheet-assistant';
+const WIN_VALUE = 'Worksheet Assistant';
 
 /** The command that starts this program in the background. */
 export function launchCommand(): string[] {
@@ -54,14 +54,14 @@ export function autostartTarget(cmd: string[], configDir: string, e: Env = curre
     const quoted = cmd.map((a) => `""${a}""`).join(' ');
     return {
       file: path.win32.join(configDir, 'autostart.vbs'),
-      content: `' Starts the Arbeitsblatt-Assistent companion without a console window.\r\nCreateObject("WScript.Shell").Run "${quoted}", 0, False\r\n`,
+      content: `' Starts the Worksheet Assistant companion app without a console window.\r\nCreateObject("WScript.Shell").Run "${quoted}", 0, False\r\n`,
     };
   }
   const configHome = e.env.XDG_CONFIG_HOME || path.posix.join(e.home, '.config');
   return {
     file: path.posix.join(configHome, 'autostart', `${ID}.desktop`),
     content:
-      '[Desktop Entry]\nType=Application\nName=Arbeitsblatt-Assistent\n' +
+      '[Desktop Entry]\nType=Application\nName=Worksheet Assistant\n' +
       'Comment=Local server for the worksheet assistant plugin (AI chat and MCP)\n' +
       `Exec=${cmd.map(desktopQuote).join(' ')}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n`,
   };

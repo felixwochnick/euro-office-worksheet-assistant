@@ -1,7 +1,7 @@
 # Release: push a tag like v0.2.0
 #   git tag v0.2.0 && git push origin v0.2.0
 # Creates a GitHub release with the plugin packages and pushes the proxy image to
-# ghcr.io/<owner>/eurooffice-music-notation-proxy:<version> and :latest.
+# ghcr.io/<owner>/euro-office-worksheet-assistant:<version> and :latest.
 name: Release
 
 on:
@@ -67,11 +67,11 @@ jobs:
           push: true
           labels: |
             org.opencontainers.image.source=https://github.com/${{ github.repository }}
-            org.opencontainers.image.description=LLM proxy for the Euro-Office music notation plugin
+            org.opencontainers.image.description=Server of the Euro-Office worksheet assistant (AI chat proxy and MCP endpoint)
             org.opencontainers.image.licenses=MIT
           tags: |
-            ghcr.io/${{ github.repository_owner }}/eurooffice-music-notation-proxy:${{ github.ref_name }}
-            ghcr.io/${{ github.repository_owner }}/eurooffice-music-notation-proxy:latest
+            ghcr.io/${{ github.repository_owner }}/euro-office-worksheet-assistant:${{ github.ref_name }}
+            ghcr.io/${{ github.repository_owner }}/euro-office-worksheet-assistant:latest
 
   # Companion app (desktop editors), attached to the release created above.
   companion:
@@ -101,4 +101,4 @@ jobs:
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/arbeitsblatt-assistent-* --clobber
+        run: gh release upload "$GITHUB_REF_NAME" dist/worksheet-assistant-* --clobber
