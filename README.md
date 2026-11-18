@@ -87,6 +87,7 @@ note converter and installation guide (German).
 | `scripts/build.sh` | Builds `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
 | `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
 | `.github/workflows/` | CI (tests, build, e2e, Docker), release (packages + proxy image on GHCR), website (GitHub Pages) |
+| `proxy/src/companion/` | Companion app for the desktop editors (plugin installation, local server, settings page, autostart, MCP over stdio); `scripts/build-companion.mjs` builds it as a single executable |
 | `website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
 | `tests/` | Unit tests (ABC validation, German note names) |
 
@@ -115,6 +116,7 @@ There are three parts: the **plugin** (in the Euro-Office Document Server), the 
 | **A – Nextcloud AIO + install script with `--watch`** | one command | ✅ (re-installed automatically after every AIO update) | AIO users |
 | B – own Euro-Office container, plugin as volume (`deploy/`) | own Document Server + reverse proxy | ✅ | if you run the Document Server yourself anyway |
 | C – `docker cp` by hand | one command | ❌ (gone after every AIO update) | quick tests |
+| **D – desktop app (Windows, macOS, Linux) + companion app** | download, start | ✅ | working locally with the Euro-Office / Nextcloud Office desktop editors |
 
 Prebuilt packages are attached to each [GitHub release](https://github.com/felixwochnick/eurooffice-music-notation-plugin/releases)
 (`worksheet-assistant.tar.gz`, `.zip`, `.plugin`; up to 0.1.0 `music-notation.*`); the proxy image is `ghcr.io/felixwochnick/eurooffice-music-notation-proxy`.
@@ -216,6 +218,37 @@ docker cp dist/worksheet-assistant nextcloud-aio-eurooffice:/var/www/euro-office
 ```
 
 Reopen the document. The plugin is gone after the next AIO update – use A to avoid that.
+
+### D – desktop app with the companion app (Windows, macOS, Linux)
+
+The desktop editors (Euro-Office, Nextcloud Office) have no plugin manager, and there is no Document Server to put
+a proxy next to. The **companion app** (`arbeitsblatt-assistent`, one executable, no installation of Node.js
+needed) does both on the user's computer:
+
+1. Install and start the desktop app once (it creates its data folder).
+2. Download `arbeitsblatt-assistent-<os>-<arch>.zip` from the
+   [releases](https://github.com/felixwochnick/eurooffice-music-notation-plugin/releases), unpack it and start
+   `arbeitsblatt-assistent` (macOS: right click → *Open* the first time; Windows SmartScreen: *More info → Run
+   anyway* – the program is not signed).
+3. It installs the plugin into the desktop apps it finds, starts a local server on `127.0.0.1:8787` and opens its
+   settings page in the browser: AI provider and API key for the chat (Mistral, OpenAI, Anthropic, Ollama, any
+   OpenAI-compatible API – or none), MCP setup for Claude & co., autostart.
+4. Restart the desktop app, open a document: **Plugins → Arbeitsblatt-Assistent**. The plugin is already connected
+   to the companion (it writes `local-config.js` with the address and a random token into the installed plugin);
+   *MCP-Zugriff erlauben* is on by default.
+
+| | |
+|---|---|
+| Plugin folders | Linux `~/.local/share/{euro-office,nextcloud-office}/desktopeditors/sdkjs-plugins/`, Windows `%LOCALAPPDATA%\{Euro-Office,Nextcloud-Office}\DesktopEditors\data\sdkjs-plugins\`, macOS `~/Library/Application Support/{asc.euro-office.Euro-Office,asc.nextcloud-office.Nextcloud-Office}/data/sdkjs-plugins/`; the plugin folder is named after its GUID `{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}` |
+| Settings | Linux `~/.config/arbeitsblatt-assistent/`, Windows `%APPDATA%\Arbeitsblatt-Assistent\`, macOS `~/Library/Application Support/Arbeitsblatt-Assistent/` (`config.json`, mode 0600 – contains the API key) |
+| Server | `AUTH_MODE=local`: listens on `127.0.0.1` only; the plugin uses the token, MCP needs no sign-in (Host and Origin are checked) |
+| Autostart | Linux XDG autostart, macOS LaunchAgent, Windows `HKCU\…\Run` (started without a console window) |
+| MCP | Streamable HTTP `http://127.0.0.1:8787/mcp`, or `arbeitsblatt-assistent mcp-stdio` for clients that start a command (Claude Desktop: the settings page shows the exact `claude_desktop_config.json` entry) |
+
+Commands: `arbeitsblatt-assistent [--background] [--port n]`, `install-plugin [--force]`, `uninstall`,
+`autostart on|off`, `mcp-stdio`, `status`, `help`. Build it yourself with `bash scripts/build.sh &&
+(cd proxy && npm ci) && npm ci && node scripts/build-companion.mjs` (Node ≥ 25.5; CI builds Linux x64/arm64,
+Windows x64 and macOS arm64/x64).
 
 ## Proxy configuration
 
@@ -334,7 +367,7 @@ the panel's chat and can be undone in the editor (Ctrl+Z).
 |------|--------------------------|----------------------|-----|
 | `token` | `Authorization: Bearer <PROXY_TOKEN>` | the same token | one person / a small team (everyone reaches every open editor) |
 | `nextcloud` | a Nextcloud **app password** (`Authorization: Basic <login:app-password>`) or **OAuth** (sign-in window with your Nextcloud account) | *Mit Nextcloud anmelden* (Nextcloud Login Flow v2 – creates an app password that the proxy keeps) | schools / several users – each user only reaches **their own** open editors |
-| `local` | nothing (listens on `127.0.0.1` only, Host and Origin are checked) | `PROXY_TOKEN` | a single computer (companion app, planned) |
+| `local` | nothing (listens on `127.0.0.1` only, Host and Origin are checked) | `PROXY_TOKEN` | a single computer (companion app, installation D) |
 
 **Set up `AUTH_MODE=nextcloud`:**
 

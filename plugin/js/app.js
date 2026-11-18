@@ -216,7 +216,7 @@
         return;
       }
       if (meta && meta.chat === false) {
-        addChat('error', t('chat.disabled'));
+        addChat('error', meta.settings_url ? t('chat.disabledLocal', { url: meta.settings_url }) : t('chat.disabled'));
         return;
       }
       $('chat-text').value = '';

@@ -56,3 +56,60 @@ jobs:
             dist/worksheet-assistant.tar.gz
             dist/worksheet-assistant.zip
             dist/worksheet-assistant.plugin
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-folder
+          path: dist/worksheet-assistant/
+
+  # Companion app for the desktop editors: single executable per platform (Node.js SEA).
+  companion:
+    needs: test
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          # node --build-sea needs Node >= 25.5
+          node-version: 26
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-folder
+          path: dist/worksheet-assistant
+
+      - name: Build the executable
+        run: |
+          npm ci
+          npm --prefix proxy ci
+          node scripts/build-companion.mjs
+
+      - name: Smoke test
+        run: |
+          exe=dist/companion/arbeitsblatt-assistent
+          [ -f "$exe.exe" ] && exe="$exe.exe"
+          "$exe" version
+          home="$(mktemp -d)"
+          mkdir -p "$home/.local/share/euro-office/desktopeditors"
+          HOME="$home" USERPROFILE="$home" APPDATA="$home/AppData/Roaming" LOCALAPPDATA="$home/AppData/Local" \
+            "$exe" --no-browser --port 8799 > companion.log 2>&1 &
+          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8799/v1/meta && break; sleep 1; done
+          echo
+          curl -fs -X POST http://127.0.0.1:8799/mcp -H 'content-type: application/json' \
+            -H 'accept: application/json, text/event-stream' -H 'mcp-protocol-version: 2025-06-18' \
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"convert_german_notes","arguments":{"notes":"c fis g"}}}' \
+            | grep -q '"tune"'
+          cat companion.log
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: companion-${{ runner.os }}-${{ runner.arch }}
+          path: dist/arbeitsblatt-assistent-*

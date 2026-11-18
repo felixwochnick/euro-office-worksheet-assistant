@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.4.0 – companion app for the desktop editors
+
+- **Companion app** `arbeitsblatt-assistent` (Windows, macOS, Linux; one executable built with Node.js SEA): installs
+  the plugin into the Euro-Office and Nextcloud Office desktop apps, runs the server on `127.0.0.1` (AI chat with
+  the user's own API key, MCP without sign-in) and offers a settings page (provider and key, MCP setup, autostart).
+- The installed plugin connects to the companion automatically (`local-config.js` with address and token); MCP
+  access is on by default there.
+- `arbeitsblatt-assistent mcp-stdio`: MCP over stdin/stdout for Claude Desktop and other clients that start a
+  command; it starts the companion if needed.
+- Release packages `arbeitsblatt-assistent-<os>-<arch>.zip` (Linux x64/arm64, Windows x64, macOS arm64/x64) with
+  the third-party licenses of everything bundled.
+
+
 ## 0.3.0 – MCP endpoint and sign-in with Nextcloud
 
 - **MCP endpoint** (`<PUBLIC_URL>/mcp`, Streamable HTTP, stateless, MCP 2026-07-28 and 2025 clients): AI assistants

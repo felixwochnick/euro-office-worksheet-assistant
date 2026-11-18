@@ -75,8 +75,13 @@ export interface AbcTools {
   emptyStavesAbc(o: { clef?: string; count?: number; measures?: number }): string;
 }
 
-const here = path.dirname(fileURLToPath(import.meta.url));
-const sharedPath = process.env.ABC_TOOLS_PATH ?? path.resolve(here, '../../../shared/abc-tools.js');
+function load(): AbcTools {
+  // Single-file builds (companion app) put the module here before this file is evaluated (see companion/preload.ts).
+  const preloaded = (globalThis as { __WORKSHEET_ABC_TOOLS__?: AbcTools }).__WORKSHEET_ABC_TOOLS__;
+  if (preloaded) return preloaded;
+  const here = path.dirname(fileURLToPath(import.meta.url));
+  const sharedPath = process.env.ABC_TOOLS_PATH ?? path.resolve(here, '../../../shared/abc-tools.js');
+  return createRequire(import.meta.url)(sharedPath) as AbcTools;
+}
 
-const require = createRequire(import.meta.url);
-export const abcTools: AbcTools = require(sharedPath) as AbcTools;
+export const abcTools: AbcTools = load();

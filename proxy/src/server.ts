@@ -110,6 +110,10 @@ export interface ServerDeps {
   provider?: LLMProvider;
   store?: AuthStore;
   auth?: AuthService;
+  /** Extra routes (the companion app's settings page). */
+  extend?: (app: FastifyInstance) => void | Promise<void>;
+  /** Shown to users when the chat is switched off (e.g. the companion's settings page). */
+  settingsUrl?: string;
 }
 
 declare module 'fastify' {
@@ -211,6 +215,7 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
     version: VERSION,
     auth_mode: cfg.authMode,
     chat: provider.name !== 'none',
+    settings_url: deps.settingsUrl ?? null,
     mcp: cfg.mcpEnabled
       ? {
           url: cfg.publicUrl ? `${cfg.publicUrl}/mcp` : null,
@@ -366,6 +371,7 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
     });
   }
 
+  if (deps.extend) await deps.extend(app);
   return app;
 }
 
@@ -390,7 +396,9 @@ async function main() {
   await app.listen({ host: cfg.host, port: cfg.port });
 }
 
-if (process.argv[1] && fileURLToPath(import.meta.url) === process.argv[1]) {
+// Started directly (not imported, not bundled into the companion app).
+const self = typeof import.meta.url === 'string' ? fileURLToPath(import.meta.url) : '';
+if (self && process.argv[1] === self) {
   main().catch((err) => {
     console.error(err);
     process.exit(1);
