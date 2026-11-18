@@ -114,6 +114,8 @@ export interface ServerDeps {
   extend?: (app: FastifyInstance) => void | Promise<void>;
   /** Shown to users when the chat is switched off (e.g. the companion's settings page). */
   settingsUrl?: string;
+  /** Where the log goes (default stdout; the companion's app mode keeps stdout for its handshake with the app). */
+  logStream?: { write(msg: string): void };
 }
 
 declare module 'fastify' {
@@ -125,7 +127,11 @@ declare module 'fastify' {
 export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<FastifyInstance> {
   const provider = deps.provider ?? createProvider(cfg);
   const app = Fastify({
-    logger: { level: cfg.logLevel, redact: ['req.headers.authorization', 'req.headers.cookie'] },
+    logger: {
+      level: cfg.logLevel,
+      redact: ['req.headers.authorization', 'req.headers.cookie'],
+      ...(deps.logStream ? { stream: deps.logStream } : {}),
+    },
     bodyLimit: cfg.bodyLimit,
     trustProxy: cfg.trustProxy,
   });

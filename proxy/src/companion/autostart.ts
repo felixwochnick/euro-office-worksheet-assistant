@@ -15,11 +15,22 @@ const ID = 'worksheet-assistant';
 const MAC_LABEL = 'io.github.felixwochnick.worksheet-assistant';
 const WIN_VALUE = 'Worksheet Assistant';
 
-/** The command that starts this program in the background. */
-export function launchCommand(): string[] {
+/**
+ * The command that starts this program in the background. Inside the desktop app (Tauri), which runs this program
+ * as a hidden child process, WORKSHEET_ASSISTANT_APP names the app's executable: autostart and mcp-stdio then start
+ * the app (hidden in the tray), which starts this program itself.
+ */
+export function launchCommand(e: Env = currentEnv()): string[] {
   const background = '--background';
+  const app = e.env.WORKSHEET_ASSISTANT_APP?.trim();
+  if (app) return [app, background];
   if (sea.isSea()) return [process.execPath, background];
   return [process.execPath, path.resolve(process.argv[1] || ''), background];
+}
+
+/** The command MCP clients such as Claude Desktop run for MCP over stdin/stdout. */
+export function stdioCommand(e: Env = currentEnv()): string[] {
+  return launchCommand(e).slice(0, -1).concat('mcp-stdio');
 }
 
 function xmlEscape(s: string): string {
@@ -68,7 +79,7 @@ export function autostartTarget(cmd: string[], configDir: string, e: Env = curre
 }
 
 export function autostartEnabled(configDir: string, e: Env = currentEnv()): boolean {
-  const t = autostartTarget(launchCommand(), configDir, e);
+  const t = autostartTarget(launchCommand(e), configDir, e);
   if (e.platform === 'win32') {
     try {
       const out = execFileSync('reg', ['query', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', WIN_VALUE], { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] });
@@ -81,7 +92,7 @@ export function autostartEnabled(configDir: string, e: Env = currentEnv()): bool
 }
 
 export function setAutostart(enabled: boolean, configDir: string, e: Env = currentEnv()): void {
-  const t = autostartTarget(launchCommand(), configDir, e);
+  const t = autostartTarget(launchCommand(e), configDir, e);
   if (!enabled) {
     fs.rmSync(t.file, { force: true });
     if (e.platform === 'win32') {
@@ -98,4 +109,20 @@ export function setAutostart(enabled: boolean, configDir: string, e: Env = curre
   if (e.platform === 'win32') {
     execFileSync('reg', ['add', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', WIN_VALUE, '/t', 'REG_SZ', '/d', `wscript.exe "${t.file}"`, '/f'], { stdio: 'ignore' });
   }
+}
+
+/**
+ * An enabled autostart entry that starts another program (e.g. the standalone executable in ~/Downloads from before
+ * the desktop app) is rewritten to start this one. Returns whether the entry was rewritten.
+ */
+export function repairAutostart(configDir: string, e: Env = currentEnv()): boolean {
+  if (!autostartEnabled(configDir, e)) return false;
+  const t = autostartTarget(launchCommand(e), configDir, e);
+  try {
+    if (fs.readFileSync(t.file, 'utf8') === t.content) return false;
+  } catch {
+    /* unreadable: write it again */
+  }
+  setAutostart(true, configDir, e);
+  return true;
 }

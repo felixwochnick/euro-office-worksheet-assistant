@@ -7,7 +7,8 @@ import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { buildServer } from '../server.js';
 import { VERSION } from '../version.js';
-import { autostartEnabled, launchCommand, setAutostart } from './autostart.js';
+import { autostartEnabled, setAutostart, stdioCommand } from './autostart.js';
+import { claudeAction, ClaudeError, claudeStatus, type ClaudeContext, type Probe, type Runner } from './claude.js';
 import { installedInfo, installPlugin, loadPluginFiles, pluginDir, pluginVersion, type PluginFiles } from './install.js';
 import { configDir as defaultConfigDir, desktopApps, detectedApps, type DesktopApp, type Env, currentEnv } from './paths.js';
 import {
@@ -30,6 +31,21 @@ export interface CompanionOptions {
   /** Override the port from the settings (tests). */
   port?: number;
   onQuit?: () => void;
+  /**
+   * Secret of the settings API (at least 16 characters). Default: a random one per process, which only the
+   * settings page knows; the desktop app chooses its own so that its window can call the API.
+   */
+  secret?: string;
+  /** Running inside the desktop app (`--app`): reported in state(). */
+  app?: boolean;
+  /** Called whenever the server listens: after start() and after every restart with new settings. */
+  onListening?: () => void;
+  /** Restarting with new settings failed: the server is down. */
+  onRestartError?: (err: Error) => void;
+  /** Where the server log goes (default stdout). */
+  logStream?: { write(msg: string): void };
+  /** Claude Desktop / Claude Code integration: tests replace the file lookups and the `claude` command. */
+  claude?: { probe?: Probe; run?: Runner };
 }
 
 const LOOPBACK_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
@@ -43,10 +59,13 @@ export class Companion {
   chatError = '';
   private app: FastifyInstance | null = null;
   private files: PluginFiles | null = null;
-  private readonly secret = crypto.randomBytes(24).toString('base64url');
+  private readonly secret: string;
   private restarting: Promise<void> | null = null;
+  /** Claude actions run one after another (they rewrite the same files). */
+  private claudeQueue: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly opts: CompanionOptions = {}) {
+    this.secret = opts.secret && opts.secret.length >= 16 ? opts.secret : crypto.randomBytes(24).toString('base64url');
     this.env = opts.env ?? currentEnv();
     this.configDir = opts.configDir ?? defaultConfigDir(this.env);
     const { settings, created } = loadSettings(this.configDir);
@@ -120,8 +139,16 @@ export class Companion {
     this.app = await buildServer(cfg, {
       settingsUrl: `${this.url}/`,
       extend: (app) => this.routes(app),
+      logStream: this.opts.logStream,
     });
-    await this.app.listen({ host: '127.0.0.1', port: this.settings.port });
+    try {
+      await this.app.listen({ host: '127.0.0.1', port: this.settings.port });
+    } catch (err) {
+      await this.app.close().catch(() => {});
+      this.app = null;
+      throw err;
+    }
+    this.opts.onListening?.();
   }
 
   async stop(): Promise<void> {
@@ -161,9 +188,14 @@ export class Companion {
       providers: Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label, model: p.model, needs_key: p.needsKey, base_url: p.baseUrl })),
       chat_error: this.chatError,
       autostart: autostartEnabled(this.configDir, this.env),
-      stdio_command: launchCommand().slice(0, -1).concat('mcp-stdio'),
+      stdio_command: stdioCommand(this.env),
       platform: this.env.platform,
+      app: !!this.opts.app,
     };
+  }
+
+  claudeContext(): ClaudeContext {
+    return { stdio: stdioCommand(this.env), mcpUrl: `${this.url}/mcp`, env: this.env, ...this.opts.claude };
   }
 
   /** Validate and store new AI settings; returns an error message or null. */
@@ -211,7 +243,14 @@ export class Companion {
       const error = this.updateSettings((req.body ?? {}) as Record<string, unknown>);
       if (error) return reply.code(400).send({ ok: false, error });
       // Answer first, then restart the server with the new settings.
-      setTimeout(() => void this.restart(), 50);
+      setTimeout(
+        () =>
+          void this.restart().catch((err: Error) => {
+            if (this.opts.onRestartError) this.opts.onRestartError(err);
+            else process.stderr.write(`Neustart fehlgeschlagen: ${err.message}\n`);
+          }),
+        50,
+      );
       return { ok: true };
     });
     app.post('/companion/api/install', { preHandler: guard }, async (req, reply) => {
@@ -233,6 +272,21 @@ export class Companion {
     app.post('/companion/api/quit', { preHandler: guard }, async () => {
       setTimeout(() => this.opts.onQuit?.(), 100);
       return { ok: true };
+    });
+    app.get('/companion/api/claude', { preHandler: guard }, async () => claudeStatus(this.claudeContext()));
+    app.post('/companion/api/claude', { preHandler: guard }, async (req, reply) => {
+      const { client, action } = (req.body ?? {}) as { client?: unknown; action?: unknown };
+      if ((client !== 'desktop' && client !== 'code') || (action !== 'add' && action !== 'remove')) {
+        return reply.code(400).send({ ok: false, error: 'Ungültige Anfrage (client: desktop|code, action: add|remove).' });
+      }
+      const run = this.claudeQueue.then(() => claudeAction(this.claudeContext(), client, action));
+      this.claudeQueue = run.catch(() => {});
+      try {
+        return { ok: true, status: await run };
+      } catch (err) {
+        const known = err instanceof ClaudeError;
+        return reply.code(known ? err.statusCode : 500).send({ ok: false, error: known ? err.message : `Unerwarteter Fehler: ${(err as Error).message}` });
+      }
     });
   }
 
