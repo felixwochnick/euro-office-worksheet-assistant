@@ -1,13 +1,13 @@
 # Release: push a tag like v0.2.0
 #   git tag v0.2.0 && git push origin v0.2.0
-# Creates a GitHub release with the plugin packages and the desktop app's installers and pushes the proxy image
+# Creates a GitHub release with the plugin packages and the desktop app's installers and pushes the server image
 # to ghcr.io/<owner>/euro-office-worksheet-assistant:<version> and :latest.
 #
 # The release stays a draft until every installer is attached, then it is published (the desktop app's update
 # check reads releases/latest).
 #
 # Updates of the desktop app (optional, once): create a key pair with
-#   npx --prefix desktop tauri signer generate -w ~/.tauri/worksheet-assistant.key
+#   npm ci && npx tauri signer generate -w ~/.tauri/worksheet-assistant.key
 # and store the private key as secret TAURI_SIGNING_PRIVATE_KEY (and its password as
 # TAURI_SIGNING_PRIVATE_KEY_PASSWORD), the public key as variable TAURI_UPDATER_PUBKEY
 # (Settings → Secrets and variables → Actions). Without them the app only points to the download page.
@@ -30,19 +30,20 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
       - name: Version matches the tag
         run: |
           v="${GITHUB_REF_NAME#v}"
-          for f in package.json proxy/package.json desktop/package.json plugin/config.json; do
+          for f in package.json packages/shared/package.json apps/plugin/package.json apps/plugin/src/config.json \
+            apps/server/package.json apps/desktop/package.json; do
             got="$(node -p "require('./$f').version")"
             [ "$got" = "$v" ] || { echo "::error::$f has version $got, tag is $GITHUB_REF_NAME"; exit 1; }
           done
 
       - name: Test
         run: |
-          npm ci
-          npm --prefix proxy ci
+          npm ci --include-workspace-root -w @worksheet-assistant/shared -w @worksheet-assistant/server
           npm test
 
       - name: Build plugin
@@ -75,11 +76,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Proxy image (amd64 + arm64)
+      - name: Server image (amd64 + arm64)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: proxy/Dockerfile
+          file: apps/server/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           labels: |
@@ -112,10 +113,11 @@ jobs:
         with:
           # Node 24 LTS: its Linux build does not need libatomic (Node >= 25 does)
           node-version: 24
+          cache: npm
       - uses: dtolnay/rust-toolchain@stable
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: desktop/src-tauri -> target
+          workspaces: apps/desktop/src-tauri -> target
       - name: Linux libraries
         if: runner.os == 'Linux'
         run: |
@@ -131,9 +133,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           WORKSHEET_ASSISTANT_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
         run: |
-          npm ci
-          npm --prefix proxy ci
-          npm --prefix desktop ci
+          npm ci --include-workspace-root -w @worksheet-assistant/server -w @worksheet-assistant/desktop
           node scripts/build-desktop.mjs --target ${{ matrix.target }}
           node scripts/collect-desktop.mjs ${{ matrix.target }}
       - name: Upload to the release

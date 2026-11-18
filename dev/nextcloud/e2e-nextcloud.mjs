@@ -9,7 +9,7 @@
  *   - signing out in the plugin deletes its app password in Nextcloud
  *
  * Prerequisites:
- *   bash scripts/build.sh && (cd proxy && npm run build)
+ *   bash scripts/build.sh && npm run build:server
  *   (cd dev/eurooffice && docker compose up -d)
  *   (cd dev/nextcloud && docker compose up -d && ./setup.sh)
  *   node dev/nextcloud/e2e-nextcloud.mjs [screenshot-dir]
@@ -51,7 +51,7 @@ const clientEnv = Object.fromEntries(fs.readFileSync(clientFile, 'utf8').trim().
 
 // --- proxy ------------------------------------------------------------------------------------------------
 const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), 'wa-e2e-'));
-const proxy = spawn(process.execPath, [path.join(root, 'proxy/build/src/server.js')], {
+const proxy = spawn(process.execPath, [path.join(root, 'apps/server/build/src/server.js')], {
   env: {
     ...process.env,
     AUTH_MODE: 'nextcloud',
@@ -72,7 +72,7 @@ for (let i = 0; i < 50; i++) {
   await new Promise((r) => setTimeout(r, 200));
 }
 
-const sdk = await import(pathToFileURL(path.join(root, 'proxy/node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
+const sdk = await import(pathToFileURL(path.join(root, 'node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
 async function mcp(authorization) {
   const client = new sdk.Client({ name: 'e2e-nextcloud', version: '1.0.0' });
   await client.connect(new sdk.StreamableHTTPClientTransport(new URL(PROXY + '/mcp'), { requestInit: { headers: { authorization } } }));

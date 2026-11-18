@@ -17,13 +17,13 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: npm
 
+      # npm workspaces: build tools (root), packages/shared and apps/server – not the desktop app or the website
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix proxy ci
+        run: npm ci --include-workspace-root -w @worksheet-assistant/shared -w @worksheet-assistant/server
 
-      - name: Unit tests (shared ABC helpers + proxy)
+      - name: Unit tests (packages/shared + apps/server)
         run: npm test
 
       - name: Build plugin
@@ -40,14 +40,14 @@ jobs:
           CHROMIUM_PATH: /usr/bin/google-chrome
           PROXY_URL: http://localhost:8788
         run: |
-          (cd proxy && LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 \
+          (cd apps/server && LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 \
             CORS_ORIGINS=http://localhost:8080 PORT=8788 LOG_LEVEL=warn node build/src/server.js &)
           node scripts/serve.mjs 8080 &
-          for i in $(seq 1 30); do curl -fs http://localhost:8788/healthz && curl -fs -o /dev/null http://localhost:8080/harness/ && break; sleep 1; done
-          node harness/e2e.mjs
+          for i in $(seq 1 30); do curl -fs http://localhost:8788/healthz && curl -fs -o /dev/null http://localhost:8080/apps/plugin/harness/ && break; sleep 1; done
+          npm run e2e
 
-      - name: Proxy Docker image builds
-        run: docker build -f proxy/Dockerfile -t worksheet-assistant-server:ci .
+      - name: Server Docker image builds
+        run: docker build -f apps/server/Dockerfile -t worksheet-assistant-server:ci .
 
       - uses: actions/upload-artifact@v4
         with:
@@ -85,6 +85,7 @@ jobs:
         with:
           # Node 24 LTS: its Linux build does not need libatomic (Node >= 25 does)
           node-version: 24
+          cache: npm
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -92,7 +93,7 @@ jobs:
 
       - uses: Swatinem/rust-cache@v2
         with:
-          workspaces: desktop/src-tauri -> target
+          workspaces: apps/desktop/src-tauri -> target
 
       - name: Linux libraries
         if: runner.os == 'Linux'
@@ -107,14 +108,12 @@ jobs:
 
       - name: Build
         run: |
-          npm ci
-          npm --prefix proxy ci
-          npm --prefix desktop ci
+          npm ci --include-workspace-root -w @worksheet-assistant/server -w @worksheet-assistant/desktop
           node scripts/build-desktop.mjs --target ${{ matrix.target }} -- --debug
 
       - name: Rust checks
         if: matrix.target == 'x86_64-unknown-linux-gnu'
-        working-directory: desktop/src-tauri
+        working-directory: apps/desktop/src-tauri
         run: |
           cargo fmt --check
           cargo clippy --all-targets -- -D warnings
@@ -122,10 +121,10 @@ jobs:
 
       - name: Smoke test (server program in app mode, MCP)
         run: |
-          exe=desktop/src-tauri/binaries/worksheet-assistant-${{ matrix.target }}
+          exe=apps/desktop/src-tauri/binaries/worksheet-assistant-${{ matrix.target }}
           [ -f "$exe.exe" ] && exe="$exe.exe"
           # macOS: the copy inside the app bundle, signed by the bundler with the hardened runtime (JIT entitlements)
-          app="desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/macos/Arbeitsblatt-Assistent.app"
+          app="apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/macos/Arbeitsblatt-Assistent.app"
           if [ -d "$app" ]; then exe="$app/Contents/MacOS/worksheet-assistant"; codesign -dv --entitlements - "$exe" 2>&1 | tail -n 12; fi
           "$exe" version
           home="$(mktemp -d)"
@@ -149,13 +148,13 @@ jobs:
 
       - name: Server program runs on a minimal Linux (no extra libraries)
         if: runner.os == 'Linux'
-        run: docker run --rm -v "$PWD/desktop/src-tauri/binaries:/wa:ro" ubuntu:22.04 /wa/worksheet-assistant-${{ matrix.target }} version
+        run: docker run --rm -v "$PWD/apps/desktop/src-tauri/binaries:/wa:ro" ubuntu:22.04 /wa/worksheet-assistant-${{ matrix.target }} version
 
       - uses: actions/upload-artifact@v4
         with:
           name: desktop-${{ matrix.target }}
           path: |
-            desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/dmg/*.dmg
-            desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/nsis/*.exe
-            desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/deb/*.deb
-            desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/appimage/*.AppImage
+            apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/appimage/*.AppImage

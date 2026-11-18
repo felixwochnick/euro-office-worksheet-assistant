@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Build the desktop app (Tauri + Nuxt UI, desktop/) with the companion as its server program.
+ * Build the desktop app (Tauri + Nuxt UI, apps/desktop/) with the companion as its server program.
  *
  *   node scripts/build-desktop.mjs                 # plugin → companion executable → installers
  *   node scripts/build-desktop.mjs --stub          # only placeholders for the server program and its licenses,
@@ -14,7 +14,7 @@
  * update bundles are created and signed and the public key goes into the app's configuration, which turns its
  * self-updates on (release workflow).
  *
- * Result: desktop/src-tauri/target/<target>/release/bundle/ (dmg + app, nsis, deb + appimage).
+ * Result: apps/desktop/src-tauri/target/<target>/release/bundle/ (dmg + app, nsis, deb + appimage).
  */
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
@@ -22,7 +22,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const desktop = path.join(root, 'desktop');
+const desktop = path.join(root, 'apps', 'desktop');
 const tauriDir = path.join(desktop, 'src-tauri');
 const argv = process.argv.slice(2);
 const dashdash = argv.indexOf('--');
@@ -59,6 +59,12 @@ if (stub) {
   process.exit(0);
 }
 
+// npm workspaces: one install at the repository root covers the server, the app and the build tools.
+if (!fs.existsSync(path.join(root, 'node_modules', '@tauri-apps', 'cli'))) {
+  console.log('==> npm ci');
+  run('npm', ['ci']);
+}
+
 if (!fs.existsSync(path.join(root, 'dist', 'worksheet-assistant', 'config.json'))) {
   console.log('==> Plugin');
   run('bash', ['scripts/build.sh']);
@@ -82,7 +88,6 @@ fs.writeFileSync(
 fs.cpSync(path.join(root, 'dist', 'worksheet-assistant', 'licenses'), path.join(resources, 'licenses'), { recursive: true });
 
 console.log('==> Desktop app');
-if (!fs.existsSync(path.join(desktop, 'node_modules'))) run('npm', ['ci'], { cwd: desktop });
 const pubkey = (process.env.WORKSHEET_ASSISTANT_UPDATER_PUBKEY || '').trim();
 const signed = !!(process.env.TAURI_SIGNING_PRIVATE_KEY && pubkey);
 console.log(signed ? '    with signed update bundles' : '    without update bundles (TAURI_SIGNING_PRIVATE_KEY / WORKSHEET_ASSISTANT_UPDATER_PUBKEY not set)');

@@ -5,7 +5,7 @@
  * Prerequisites:
  *   bash scripts/build.sh
  *   (cd dev/eurooffice && docker compose up -d)      # Document Server + test storage
- *   (cd proxy && docker compose up -d)               # .env: LLM_PROVIDER=mock,
+ *   (cd apps/server && docker compose up -d)         # .env: LLM_PROVIDER=mock,
  *                                                    #   PROXY_TOKEN=dev-token-change-me-0123,
  *                                                    #   CORS_ORIGINS=http://localhost:8090
  *   npm install                                      # playwright-core (root)
@@ -229,7 +229,7 @@ try {
     await plugin.locator('#s-mcp').check();
     await plugin.locator('#s-mcp-status.ok').waitFor({ timeout: 15000 });
     step('MCP bridge connected: ' + (await plugin.locator('#s-mcp-status').textContent()));
-    const sdk = await import(pathToFileURL(path.join(here, '../../proxy/node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
+    const sdk = await import(pathToFileURL(path.join(here, '../../node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
     const mcp = new sdk.Client({ name: 'e2e', version: '1.0.0' });
     await mcp.connect(new sdk.StreamableHTTPClientTransport(new URL(PROXY_URL + '/mcp'), { requestInit: { headers: { authorization: `Bearer ${PROXY_TOKEN}` } } }));
     const docs = await mcp.callTool({ name: 'list_open_documents', arguments: {} });

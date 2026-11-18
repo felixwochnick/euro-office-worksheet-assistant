@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * Screenshots for the website (website/public/img/), taken in the real Euro-Office editor.
+ * Screenshots for the website (apps/website/public/img/), taken in the real Euro-Office editor.
  *
  *   (cd dev/eurooffice && docker compose up -d)   # editor + storage
  *   a proxy with a real model, e.g. Mistral:      # PROXY_URL / PROXY_TOKEN, CORS_ORIGINS=http://localhost:8090
@@ -13,7 +13,7 @@
  *
  * ONLY=music takes only the music tab screenshot (no model needed).
  * ONLY=companion takes only the desktop app screenshot (no editor needed; build it first with
- * `npm --prefix desktop run generate`).
+ * `npm run generate -w @worksheet-assistant/desktop`).
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -31,9 +31,9 @@ fs.mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-sandbox'] });
 
-/** The desktop app's window: its built UI (desktop/.output/public) with the simulated backend, everything set up. */
+/** The desktop app's window: its built UI (apps/desktop/.output/public) with the simulated backend, everything set up. */
 async function desktopAppShot() {
-  const dist = path.join(root, 'desktop/.output/public');
+  const dist = path.join(root, 'apps/desktop/.output/public');
   const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json' };
   const page2 = await browser.newPage({ viewport: { width: 980, height: 700 }, deviceScaleFactor: 2, colorScheme: 'light' });
   await page2.route('http://app.local/**', (route) => {
@@ -122,7 +122,7 @@ try {
   await plugin.locator('.tab[data-tab=settings]').click();
   await plugin.locator('#s-mcp').check();
   await plugin.locator('#s-mcp-status.ok').waitFor({ timeout: 15000 });
-  const sdk = await import(pathToFileURL(path.join(root, 'proxy/node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
+  const sdk = await import(pathToFileURL(path.join(root, 'node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
   const mcp = new sdk.Client({ name: 'screenshots', version: '1' });
   await mcp.connect(new sdk.StreamableHTTPClientTransport(new URL(PROXY_URL + '/mcp'), { requestInit: { headers: { authorization: `Bearer ${PROXY_TOKEN}` } } }));
   await mcp.callTool({ name: 'get_document_outline', arguments: {} });
