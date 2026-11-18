@@ -101,6 +101,11 @@ for (const dir of [...packages.values()].sort()) {
   const text = licFile ? fs.readFileSync(path.join(dir, licFile), 'utf8').trim() : `License: ${pkg.license ?? 'see package'}`;
   notices.push(`${pkg.name} ${pkg.version} (${pkg.license ?? '?'})\n${'-'.repeat(60)}\n${text}\n`);
 }
+// Vendored (not from npm) and bundled through shared/worksheet-svg.js: the QR code library.
+notices.push(
+  `qrcode-generator (MIT) – vendor/qrcode-generator\n${'-'.repeat(60)}\n` +
+    fs.readFileSync(path.join(root, 'vendor', 'qrcode-generator', 'LICENSE'), 'utf8').trim() + '\n',
+);
 const nodeLicense = [path.join(path.dirname(process.execPath), '..', 'LICENSE'), '/usr/share/licenses/nodejs/LICENSE', '/usr/share/doc/nodejs/LICENSE']
   .find((f) => fs.existsSync(f));
 notices.push(

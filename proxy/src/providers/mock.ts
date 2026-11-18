@@ -116,6 +116,75 @@ export class MockProvider implements LLMProvider {
     const digits = /notenwert|ganze|halbe|viertel/i.test(userText) ? 'duration' : /oktav|gestrichen/i.test(userText) ? 'octave' : 'auto';
     const list = extractNoteList(userText);
 
+    // W0) "Gestalte ein Arbeitsblatt …" -> designed worksheet (theme, tasks, puzzles), then check_worksheet
+    const designed = /(gestalt|design|schön)/i.test(userText) && /(arbeitsblatt|worksheet)/i.test(userText);
+    if (designed) {
+      if (done('insert_blocks').length === 0) {
+        const blocks = [
+          { type: 'title', text: 'Der Wasserkreislauf', subject: 'Sachunterricht', grade: 'Klasse 3' },
+          { type: 'name_line' },
+          { type: 'task', number: '1', instruction: 'Lies den Text und ergänze die Lücken.', icons: ['single', 'read'], points: 4 },
+          { type: 'cloze', text: 'Die [[Sonne]] erwärmt das Wasser. Es [[verdunstet]] und steigt auf. Oben bilden sich [[Wolken]]. Dann fällt [[Regen]].' },
+          { type: 'task', number: '2', instruction: 'Kreuze an: richtig oder falsch?', icons: ['single', 'write'], points: 3 },
+          {
+            type: 'true_false',
+            statements: [
+              { text: 'Wasser verdunstet bei Wärme.', correct: true },
+              { text: 'Wolken bestehen aus Sand.', correct: false },
+              { text: 'Regen fällt aus den Wolken.', correct: true },
+            ],
+          },
+          { type: 'task', number: '3', instruction: 'Verbinde, was zusammengehört.', icons: ['partner'], points: 3 },
+          {
+            type: 'matching',
+            pairs: [
+              { left: 'Verdunstung', right: 'Wasser wird zu Dampf' },
+              { left: 'Kondensation', right: 'Dampf wird zu Tröpfchen' },
+              { left: 'Niederschlag', right: 'Regen oder Schnee' },
+            ],
+          },
+          { type: 'task', number: '4', title: 'Rätsel', instruction: 'Löse das Kreuzworträtsel.', icons: ['single'], points: 4 },
+          {
+            type: 'crossword',
+            entries: [
+              { answer: 'Wolke', clue: 'Sie schwebt am Himmel.' },
+              { answer: 'Regen', clue: 'Er fällt aus den Wolken.' },
+              { answer: 'Sonne', clue: 'Sie wärmt das Wasser.' },
+              { answer: 'Meer', clue: 'Viel salziges Wasser.' },
+            ],
+          },
+          { type: 'task', number: '5', instruction: 'Schreibe in zwei Sätzen, warum es regnet.', icons: ['write'], points: 2 },
+          { type: 'lines', count: 3, style: 'school3' },
+          { type: 'box', variant: 'rule', title: 'Merke', text: 'Das Wasser wandert immer im Kreis: Verdunstung, Wolken, Regen.' },
+          { type: 'self_assessment', statements: ['Ich kann den Wasserkreislauf erklären.', 'Ich kenne die Fachwörter.'] },
+        ];
+        return { content: '', tool_calls: [{ id: nextId(), name: 'insert_blocks', arguments: { position: 'end', theme: 'primary', blocks } }] };
+      }
+      const res = parseResult(done('insert_blocks')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Einfügen fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      if (res.inserted === false) return { content: 'Mock-Modus: Arbeitsblatt verworfen.', tool_calls: [] };
+      if (done('check_worksheet').length === 0) {
+        return { content: '', tool_calls: [{ id: nextId(), name: 'check_worksheet', arguments: { grade: 3 } }] };
+      }
+      const check = parseResult(done('check_worksheet')[0]);
+      return {
+        content: `Fertig (Mock-Modus): gestaltetes Arbeitsblatt (Design ${res.theme ?? '?'}) mit ${res.count} Elementen; Prüfung: ${check.summary ?? '?'}`,
+        tool_calls: [],
+      };
+    }
+
+    // W0b) "Richte die Seite ein …" -> setup_page (header with school and logo, page numbers)
+    if (/(seite einrichten|richte die seite|kopfzeile|page setup)/i.test(userText)) {
+      if (done('setup_page').length === 0) {
+        return {
+          content: '',
+          tool_calls: [{ id: nextId(), name: 'setup_page', arguments: { header: { center: 'Sachunterricht', right: 'Klasse 3' }, page_numbers: true, logo: true } }],
+        };
+      }
+      const res = parseResult(done('setup_page')[0]);
+      return { content: res.ok ? 'Fertig (Mock-Modus): Seite eingerichtet.' : `Mock-Modus: Seite einrichten fehlgeschlagen: ${res.error ?? '?'}`, tool_calls: [] };
+    }
+
     // W1) "Erstelle ein Arbeitsblatt zu <Thema>" -> one insert_blocks call at the end
     const worksheet = /(erstell|mach|create)/i.test(userText) && /(arbeitsblatt|worksheet)/i.test(userText);
     if (worksheet) {

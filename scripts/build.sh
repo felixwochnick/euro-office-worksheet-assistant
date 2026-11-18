@@ -2,8 +2,8 @@
 # Build the Euro-Office plugin.
 #
 #   scripts/build.sh                  build dist/worksheet-assistant/ and dist/worksheet-assistant.plugin
-#   scripts/build.sh --update-vendor  re-download abcjs and the ONLYOFFICE v1 SDK files into vendor/
-#                                     (versions below), then build
+#   scripts/build.sh --update-vendor  re-download abcjs, qrcode-generator and the ONLYOFFICE v1 SDK files
+#                                     into vendor/ (versions below), then build
 #
 # Output:
 #   dist/worksheet-assistant/          plugin folder – copy into .../documentserver/sdkjs-plugins/
@@ -20,6 +20,7 @@ OUT="$ROOT/dist/$NAME"
 VENDOR="$ROOT/vendor"
 
 ABCJS_VERSION="${ABCJS_VERSION:-6.7.2}"
+QRCODE_VERSION="${QRCODE_VERSION:-2.0.4}"
 # Pinned commit of https://github.com/ONLYOFFICE/onlyoffice.github.io (sdkjs-plugins/v1)
 ONLYOFFICE_REF="${ONLYOFFICE_REF:-94927418d89373a647b99100a40cc57d08da44e2}"
 
@@ -28,14 +29,24 @@ update_vendor() {
   local tmp
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
-  mkdir -p "$VENDOR/onlyoffice" "$VENDOR/abcjs"
+  mkdir -p "$VENDOR/onlyoffice" "$VENDOR/abcjs" "$VENDOR/qrcode-generator"
   local base="https://raw.githubusercontent.com/ONLYOFFICE/onlyoffice.github.io/$ONLYOFFICE_REF"
   curl -fsSL -o "$VENDOR/onlyoffice/plugins.js" "$base/sdkjs-plugins/v1/plugins.js"
   curl -fsSL -o "$VENDOR/onlyoffice/plugins-ui.js" "$base/sdkjs-plugins/v1/plugins-ui.js"
   curl -fsSL -o "$VENDOR/onlyoffice/LICENSE" "$base/LICENSE"
   (cd "$tmp" && npm pack "abcjs@$ABCJS_VERSION" --silent >/dev/null && tar xzf "abcjs-$ABCJS_VERSION.tgz")
   cp "$tmp/package/dist/abcjs-basic-min.js" "$tmp/package/dist/abcjs-basic-min.js.LICENSE" "$tmp/package/LICENSE.md" "$VENDOR/abcjs/"
-  (cd "$VENDOR" && sha256sum onlyoffice/plugins.js onlyoffice/plugins-ui.js abcjs/abcjs-basic-min.js > SHA256SUMS)
+  # qrcode-generator: the npm package ships no LICENSE file – take it from the
+  # GitHub repository at the commit the npm release was built from (gitHead).
+  mkdir -p "$tmp/qrcode"
+  (cd "$tmp/qrcode" && npm pack "qrcode-generator@$QRCODE_VERSION" --silent >/dev/null && tar xzf "qrcode-generator-$QRCODE_VERSION.tgz")
+  cp "$tmp/qrcode/package/dist/qrcode.js" "$VENDOR/qrcode-generator/qrcode.js"
+  local qrcode_ref
+  qrcode_ref="$(npm view "qrcode-generator@$QRCODE_VERSION" gitHead)"
+  curl -fsSL -o "$VENDOR/qrcode-generator/LICENSE" \
+    "https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/$qrcode_ref/LICENSE"
+  (cd "$VENDOR" && sha256sum onlyoffice/plugins.js onlyoffice/plugins-ui.js abcjs/abcjs-basic-min.js \
+    qrcode-generator/qrcode.js > SHA256SUMS)
   echo "    Updated vendor/SHA256SUMS – also update the table in vendor/SOURCES.md:"
   cat "$VENDOR/SHA256SUMS"
 }
@@ -64,7 +75,8 @@ find "$OUT" -mindepth 1 -delete
 rm -f "$ROOT/dist/$NAME.plugin" "$ROOT/dist/$NAME.tar.gz" "$ROOT/dist/$NAME.zip"
 mkdir -p "$OUT/vendor" "$OUT/licenses"
 cp -R "$ROOT/plugin/." "$OUT/"
-cp "$ROOT/shared/abc-tools.js" "$OUT/js/abc-tools.js"
+# Shared modules (also used by the proxy): ABC helpers, worksheet layout, themes, generators, graphics, check.
+cp "$ROOT"/shared/*.js "$OUT/js/"
 if [[ -n "${PLUGIN_VERSION:-}" ]]; then
   node -e '
     const fs = require("fs"); const f = process.argv[1];
@@ -74,8 +86,10 @@ if [[ -n "${PLUGIN_VERSION:-}" ]]; then
 fi
 cp "$VENDOR/onlyoffice/plugins.js" "$VENDOR/onlyoffice/plugins-ui.js" "$OUT/vendor/"
 cp "$VENDOR/abcjs/abcjs-basic-min.js" "$OUT/vendor/"
+cp "$VENDOR/qrcode-generator/qrcode.js" "$OUT/vendor/qrcode.js"
 cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE-worksheet-assistant.txt"
 cp "$VENDOR/abcjs/LICENSE.md" "$OUT/licenses/LICENSE-abcjs.txt"
+cp "$VENDOR/qrcode-generator/LICENSE" "$OUT/licenses/LICENSE-qrcode-generator.txt"
 cp "$VENDOR/onlyoffice/LICENSE" "$OUT/licenses/LICENSE-onlyoffice-plugin-sdk-AGPL-3.0.txt"
 cp "$VENDOR/SOURCES.md" "$OUT/licenses/THIRD-PARTY.md"
 

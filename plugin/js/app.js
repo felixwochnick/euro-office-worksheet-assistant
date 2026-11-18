@@ -150,7 +150,8 @@
       title.className = 'title';
       var replacing = call.name === 'replace_staff' || call.name === 'replace_elements';
       var deleting = call.name === 'delete_elements';
-      title.textContent = t(deleting ? 'preview.titleDelete' : replacing ? 'preview.titleReplace' : 'preview.title') + ' – ' + toolLabel(call);
+      var applying = call.name === 'setup_page';
+      title.textContent = t(deleting ? 'preview.titleDelete' : replacing ? 'preview.titleReplace' : applying ? 'preview.titleSetup' : 'preview.title') + ' – ' + toolLabel(call);
       var preview = document.createElement('div');
       preview.className = rendered.element ? 'preview-doc' : 'preview';
       if (rendered.element) {
@@ -166,7 +167,7 @@
       row.className = 'row';
       var yes = document.createElement('button');
       yes.className = 'primary';
-      yes.textContent = t(deleting ? 'preview.delete' : replacing ? 'preview.replace' : 'preview.insert');
+      yes.textContent = t(deleting ? 'preview.delete' : replacing ? 'preview.replace' : applying ? 'preview.apply' : 'preview.insert');
       if (deleting) yes.className = 'danger';
       var no = document.createElement('button');
       no.className = 'secondary';
@@ -203,6 +204,8 @@
     else if (call.name === 'get_document_outline') status = '✓';
     else if (call.name === 'insert_blocks' || call.name === 'replace_elements') status = t('tool.blocksAt', { count: result.count, from: result.first_index, to: result.last_index });
     else if (call.name === 'delete_elements') status = t('tool.deletedRange', { count: result.removed_count });
+    else if (call.name === 'setup_page') status = result.changed === false ? t('tool.rejected') : t('tool.pageDone');
+    else if (call.name === 'check_worksheet') status = t(result.passed ? 'tool.checkOk' : 'tool.checkIssues', { count: (result.issues || []).length });
     else if (call.name === 'get_elements') status = t('tool.read');
     else if (result.replaced) status = t('tool.replacedAt', { index: result.index });
     else if (result.index != null) status = t('tool.insertedAt', { index: result.index });
@@ -286,6 +289,12 @@
       addChat('assistant', t('chat.welcome'));
     });
     addChat('assistant', t('chat.welcome'));
+    // A plugin update hidden by the Document Server's service worker cache (see update-check.js).
+    if (window.WorksheetUpdate) {
+      window.WorksheetUpdate.check().then(function (r) {
+        if (r && r.updated) addChat('error', t('update.reopen', { from: r.from || '?', to: r.to }));
+      });
+    }
   }
 
   // ---------------------------------------------------------------------------
@@ -478,7 +487,42 @@
     $('s-method').value = settings.insertMethod;
     $('s-lang').value = settings.language;
     $('s-mcp').checked = settings.mcpEnabled;
+    $('s-theme').value = settings.theme;
+    $('s-school').value = settings.school;
+    $('s-font').value = settings.font;
+    showLogo(settings.logo);
     updateAuthUi();
+  }
+
+  var pendingLogo = null; // null = unchanged, '' = removed, data URL = new logo
+
+  function showLogo(dataUrl) {
+    var img = $('s-logo-preview');
+    img.classList.toggle('hidden', !dataUrl);
+    $('s-logo-remove').classList.toggle('hidden', !dataUrl);
+    if (dataUrl) img.src = dataUrl; else img.removeAttribute('src');
+  }
+
+  /** Read a logo file and scale it to at most 600 px (PNG), so it fits into the settings storage. */
+  function readLogo(file) {
+    return new Promise(function (resolve, reject) {
+      var reader = new FileReader();
+      reader.onload = function () {
+        var img = new Image();
+        img.onload = function () {
+          var scale = Math.min(1, 600 / Math.max(img.naturalWidth || 1, img.naturalHeight || 1));
+          var canvas = document.createElement('canvas');
+          canvas.width = Math.max(1, Math.round((img.naturalWidth || 300) * scale));
+          canvas.height = Math.max(1, Math.round((img.naturalHeight || 300) * scale));
+          canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+          resolve(canvas.toDataURL('image/png'));
+        };
+        img.onerror = function () { reject(new Error('image')); };
+        img.src = reader.result;
+      };
+      reader.onerror = function () { reject(new Error('file')); };
+      reader.readAsDataURL(file);
+    });
   }
 
   function readSettingsForm() {
@@ -490,7 +534,11 @@
       dpi: Number($('s-dpi').value),
       insertMethod: $('s-method').value,
       language: $('s-lang').value,
-      mcpEnabled: $('s-mcp').checked
+      mcpEnabled: $('s-mcp').checked,
+      theme: $('s-theme').value,
+      school: $('s-school').value,
+      font: $('s-font').value,
+      logo: pendingLogo === null ? settings.logo : pendingLogo
     };
   }
 
@@ -623,9 +671,18 @@
     fillSettings();
     // The origin the plugin runs on (= the Document Server's) – needed for the proxy's CORS_ORIGINS.
     $('s-origin').textContent = window.location.origin;
+    $('s-logo-file').addEventListener('change', function () {
+      var file = this.files && this.files[0];
+      if (!file) return;
+      readLogo(file).then(function (dataUrl) { pendingLogo = dataUrl; showLogo(dataUrl); }, function () {
+        show($('s-status'), t('settings.logoError'), 'error');
+      });
+    });
+    $('s-logo-remove').addEventListener('click', function () { pendingLogo = ''; $('s-logo-file').value = ''; showLogo(''); });
     $('s-save').addEventListener('click', function () {
       var langBefore = settings.language;
       settings = Settings.save(readSettingsForm());
+      pendingLogo = null;
       fillSettings();
       $('chat-auto').checked = settings.autoInsert;
       $('m-width').value = settings.widthCm;

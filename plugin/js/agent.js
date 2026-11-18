@@ -117,6 +117,11 @@
     return json.slice(0, MAX_TOOL_RESULT_CHARS);
   }
 
+  /** The user's house style (settings) as the AI sees it. */
+  function preferences(settings) {
+    return { theme: settings.theme || 'modern', school: settings.school || '', has_logo: !!settings.logo };
+  }
+
   /**
    * @param {object} hooks
    *   getSettings(): settings
@@ -172,6 +177,7 @@
       if (signal.aborted) throw new ProxyError('aborted', '');
       if (++rounds > MAX_CLIENT_ROUNDS) throw new ProxyError('maxRounds', '');
       return window.MusicEditor.getOutline().catch(function () { return null; }).then(function (ctx) {
+        if (ctx) ctx.preferences = preferences(self.hooks.getSettings());
         return request(self.hooks.getSettings(), '/v1/chat', { messages: compactHistory(msgs), document_context: ctx || undefined }, signal);
       }).then(function (resp) {
         if (!current()) throw new ProxyError('aborted', '');
@@ -214,10 +220,17 @@
     var settings = this.hooks.getSettings();
 
     if (call.name === 'get_document_outline') {
-      return window.MusicEditor.getOutline().then(function (o) { return { ok: true, outline: o }; });
+      return window.MusicEditor.getOutline().then(function (o) { o.preferences = preferences(settings); return { ok: true, outline: o }; });
     }
 
     if (call.name === 'replace_staff') return this.replaceStaff(call, signal);
+    if (call.name === 'setup_page') return this.setupPage(call, signal);
+    if (call.name === 'check_worksheet') {
+      return window.WorksheetDoc.checkData().then(function (data) {
+        var r = window.WorksheetCheck.check({ elements: data.elements, layout: data.layout }, { grade: args.grade, max_pages: args.max_pages });
+        return { ok: true, passed: r.ok, summary: r.summary, stats: r.stats, tasks: r.tasks, issues: r.issues.slice(0, 40) };
+      });
+    }
     if (call.name === 'insert_blocks' || call.name === 'replace_elements') return this.editBlocks(call, signal);
     if (call.name === 'delete_elements') return this.deleteElements(call, signal);
     if (call.name === 'get_elements') {
@@ -261,30 +274,89 @@
     });
   };
 
-  /** insert_blocks / replace_elements: worksheet content (headings, lists, tables, lines, staves …). */
+  /** Layout elements for the editor command: images without their SVG source (only the raster is needed). */
+  function forEditor(elements) {
+    return (elements || []).map(function (e) {
+      if (e.t === 'table') {
+        var t = {};
+        Object.keys(e).forEach(function (k) { t[k] = e[k]; });
+        t.rows = e.rows.map(function (row) {
+          return { height: row.height, cells: row.cells.map(function (c) {
+            var cc = {};
+            Object.keys(c).forEach(function (k) { cc[k] = c[k]; });
+            cc.content = forEditor(c.content);
+            return cc;
+          }) };
+        });
+        return t;
+      }
+      var p = {};
+      Object.keys(e).forEach(function (k) { p[k] = e[k]; });
+      p.runs = (e.runs || []).map(function (r) {
+        if (!r.image) return r;
+        var im = r.image;
+        return { image: { dataUrl: im.dataUrl, wEmu: im.wEmu, hEmu: im.hEmu, alt: im.alt, title: im.title, kind: im.kind } };
+      });
+      return p;
+    });
+  }
+
+  /** insert_blocks / replace_elements: worksheet content (title, tasks, tables, puzzles, graphics, staves …). */
   ChatAgent.prototype.editBlocks = function (call, signal) {
     var self = this;
     var args = call.arguments || {};
     var settings = this.hooks.getSettings();
     var replacing = call.name === 'replace_elements';
-    return window.WorksheetDoc.prepareImages(args.blocks, settings).then(function (blocks) {
+    return window.WorksheetDoc.prepare(args.blocks, settings, { theme: args.theme, lang: args.lang }).then(function (prep) {
       if (signal && signal.aborted) return { ok: false, error: 'aborted by user' };
       var confirm = settings.autoInsert
         ? Promise.resolve(true)
-        : self.hooks.confirmInsert(call, { element: window.WorksheetDoc.renderPreview(blocks) }, null, signal);
+        : self.hooks.confirmInsert(call, { element: window.WorksheetDoc.renderPreview(prep.elements, { textWidthMm: prep.textWidthMm }) }, null, signal);
       return confirm.then(function (accepted) {
         if (signal && signal.aborted) return { ok: false, error: 'aborted by user' };
         if (!accepted) return replacing ? { ok: true, replaced: false, reason: 'The user discarded the preview.' } : { ok: true, inserted: false, reason: 'The user discarded the preview.' };
         var req = replacing
-          ? { op: 'replace', from: args.from, to: args.to, blocks: blocks }
-          : { op: 'insert', position: args.position, blocks: blocks };
+          ? { op: 'replace', from: args.from, to: args.to, elements: forEditor(prep.elements) }
+          : { op: 'insert', position: args.position, elements: forEditor(prep.elements) };
+        if (prep.storeTheme) req.theme = prep.storeTheme;
+        if (prep.storeLang) req.lang = prep.storeLang;
         return window.WorksheetDoc.editBlocks(req).then(function (r) {
           if (!r.ok) return { ok: false, error: r.error };
-          var out = { ok: true, count: r.count, first_index: r.first_index, last_index: r.last_index };
+          var out = { ok: true, count: r.count, first_index: r.first_index, last_index: r.last_index, theme: prep.theme };
           if (replacing) { out.replaced = true; out.removed = r.removed; } else { out.inserted = true; }
+          var warnings = (prep.warnings || []).concat(r.warnings || []);
+          if (warnings.length) out.warnings = warnings.slice(0, 8);
+          if (r.math && r.math.converted < r.math.equations) out.math_note = (r.math.equations - r.math.converted) + ' formula(s) could not be converted – check the LaTeX.';
           out.note = 'Indices of later elements have shifted. Call get_document_outline before further edits further down.';
           return out;
         });
+      });
+    });
+  };
+
+  /** setup_page: paper, orientation, margins, columns, header/footer, theme. */
+  ChatAgent.prototype.setupPage = function (call, signal) {
+    var self = this;
+    var args = call.arguments || {};
+    var settings = this.hooks.getSettings();
+    var list = document.createElement('ul');
+    list.className = 'delete-list';
+    Object.keys(args).forEach(function (k) {
+      var li = document.createElement('li');
+      var v = args[k];
+      li.textContent = k + ': ' + (typeof v === 'object' ? Object.keys(v).map(function (x) { return x + ' = ' + v[x]; }).join(', ') : String(v));
+      list.appendChild(li);
+    });
+    var confirm = settings.autoInsert ? Promise.resolve(true) : self.hooks.confirmInsert(call, { element: list }, null, signal);
+    return confirm.then(function (accepted) {
+      if (signal && signal.aborted) return { ok: false, error: 'aborted by user' };
+      if (!accepted) return { ok: true, changed: false, reason: 'The user declined the page setup.' };
+      return window.WorksheetDoc.setupPage(args, settings).then(function (r) {
+        if (!r || !r.ok) return { ok: false, error: (r && r.error) || 'page setup failed' };
+        var out = { ok: true, changed: r.changed };
+        if (args.logo && !settings.logo) out.note = 'No logo is configured in the plugin settings – the header has no logo.';
+        if (r.warnings && r.warnings.length) out.warnings = r.warnings.slice(0, 5);
+        return out;
       });
     });
   };

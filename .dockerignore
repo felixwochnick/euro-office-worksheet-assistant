@@ -5,6 +5,7 @@ dist
 .claude
 proxy/.env
 vendor
+!vendor/qrcode-generator
 plugin
 harness
 deploy

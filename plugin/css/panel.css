@@ -118,3 +118,17 @@ button.danger { background: #c0392b; border-color: #c0392b; color: #fff; }
 #s-mcp-status.bad { color: #c62828; }
 .msg.mcp { border-left: 3px solid var(--accent); }
 .msg a { color: inherit; text-decoration: underline; word-break: break-all; }
+
+/* House style settings */
+.style-box { border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px 8px; margin: 8px 0; }
+.style-box legend { font-weight: 600; padding: 0 4px; }
+.logo-preview { max-height: 32px; max-width: 90px; border: 1px solid var(--border); background: #fff; }
+
+/* Worksheet preview: the page text width at real size, zoomed to the panel */
+.blocks-preview { width: 100%; overflow: hidden; }
+.blocks-preview .page { transform-origin: 0 0; background: #fff; }
+.blocks-preview .page p { margin: 0; }
+.blocks-preview .page table { margin: 0; }
+.blocks-preview .page td { text-align: left; }
+.blocks-preview .page img { display: inline; max-width: none; }
+.preview-doc .blocks-preview .page-break { color: #888; text-align: center; font-size: 10pt; margin: 6pt 0; border-top: 1px dashed #bbb; }

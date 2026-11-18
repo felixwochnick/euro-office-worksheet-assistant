@@ -12,7 +12,7 @@ const it: SiteContent = {
     headline: 'Plugin IA per Euro-Office – in Nextcloud e sul desktop',
     title: 'Crea schede didattiche con l’IA – per ogni materia',
     description:
-      'Descrivi ciò che ti serve: Worksheet Assistant (l’assistente per le schede didattiche) scrive esercizi, testi da completare, tabelle, righe per scrivere, riquadri informativi e pentagrammi direttamente nel tuo documento – con la chat IA integrata o con il tuo assistente IA tramite MCP.',
+      'Descrivi ciò che ti serve: Worksheet Assistant (l’assistente per le schede didattiche) impagina esercizi, testi da completare, cruciverba, tabelle, grafici, formule, righe per scrivere, riquadri informativi e pentagrammi con un design uniforme, direttamente nel tuo documento – con la chat IA integrata o con il tuo assistente IA tramite MCP.',
     install: 'Installa',
     more: 'Come funziona',
     imageAlt:
@@ -24,9 +24,9 @@ const it: SiteContent = {
     description: 'Pensato per insegnanti e futuri insegnanti – per schede, verifiche e dispense in ogni materia.',
     items: [
       {
-        title: 'Schede complete via chat',
+        title: 'Schede curate nel design via chat',
         description:
-          '«Crea una scheda sul ciclo dell’acqua per la classe quinta»: titolo, esercizi, tabella, righe per scrivere e riquadro informativo in un solo passaggio – se vuoi, prima in anteprima.'
+          '«Crea una scheda sul ciclo dell’acqua per la classe terza»: titolo, esercizi numerati con icone e punti, testo da completare con banca di parole, cruciverba, grafico e riquadro informativo – in un design (moderno, scuola primaria, classico) e poi verificata automaticamente.'
       },
       {
         title: 'Modifica invece di ricominciare',

@@ -12,7 +12,7 @@ const de: SiteContent = {
     headline: 'KI-Plugin für Euro-Office – in Nextcloud und auf dem Desktop',
     title: 'Arbeitsblätter mit KI erstellen – für jedes Fach',
     description:
-      'Beschreibe, was du brauchst: Der Arbeitsblatt-Assistent schreibt Aufgaben, Lückentexte, Tabellen, Schreiblinien, Merkkästen und Notenzeilen direkt in dein Dokument – mit dem eingebauten KI-Chat oder mit deinem eigenen KI-Assistenten über MCP.',
+      'Beschreibe, was du brauchst: Der Arbeitsblatt-Assistent gestaltet Aufgaben, Lückentexte, Rätsel, Tabellen, Diagramme, Formeln, Lineaturen, Merkkästen und Notenzeilen in einem einheitlichen Design direkt in deinem Dokument – mit dem eingebauten KI-Chat oder mit deinem eigenen KI-Assistenten über MCP.',
     install: 'Installieren',
     more: 'So funktioniert’s',
     imageAlt:
@@ -24,9 +24,9 @@ const de: SiteContent = {
     description: 'Gebaut für Lehrkräfte und Lehramtsstudierende – für Arbeitsblätter, Tests und Handouts in jedem Fach.',
     items: [
       {
-        title: 'Ganze Arbeitsblätter per Chat',
+        title: 'Gestaltete Arbeitsblätter per Chat',
         description:
-          '„Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 5“: Überschrift, Aufgaben, Tabelle, Schreiblinien und Merkkasten in einem Schritt – auf Wunsch erst als Vorschau.'
+          '„Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 3“: Titel, nummerierte Aufgaben mit Symbolen und Punkten, Lückentext mit Wortspeicher, Kreuzworträtsel, Diagramm und Merkkasten – in einem Design (Modern, Grundschule, Klassisch) und danach automatisch geprüft.'
       },
       {
         title: 'Ändern statt neu anfangen',

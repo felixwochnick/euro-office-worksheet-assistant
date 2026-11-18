@@ -89,7 +89,7 @@
     this.ws = ws;
     this.setStatus('connecting');
     ws.onopen = function () {
-      ws.send(JSON.stringify({ type: 'hello', token: s.token, document: { title: documentTitle() }, client: { version: '0.4.1' } }));
+      ws.send(JSON.stringify({ type: 'hello', token: s.token, document: { title: documentTitle() }, client: { version: '0.5.0' } }));
     };
     ws.onmessage = function (ev) {
       var msg;

@@ -102,7 +102,9 @@ async function onCallback(body) {
     fs.writeFileSync(file, buf);
     saved.push({ file, status: data.status, bytes: buf.length, at: new Date().toISOString() });
     console.log(`saved ${file} (${buf.length} bytes)`);
-    if (data.status === 2) {
+    // Only the current session switches the document: a late "closed" callback of an earlier
+    // session (e.g. after /reset) must not replace the key of the editor that is open now.
+    if (data.status === 2 && (!data.key || data.key === docKey)) {
       currentFile = file;
       docKey = newKey();
       console.log(`editing session closed – next key ${docKey}`);

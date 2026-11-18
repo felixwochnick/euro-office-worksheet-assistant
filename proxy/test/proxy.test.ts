@@ -227,6 +227,59 @@ test('tools: insert_blocks / replace / delete validation', () => {
   assert.deepEqual(checkClientToolCall({ id: 'g1', name: 'get_elements', arguments: { from: 1 } }).args, { from: 1, to: 1 });
 });
 
+test('tools: designed worksheet blocks are validated and laid out once', () => {
+  const ok = checkClientToolCall({
+    id: 'n1',
+    name: 'insert_blocks',
+    arguments: {
+      position: 'end',
+      theme: 'primary',
+      lang: 'de',
+      blocks: [
+        { type: 'title', text: 'Tiere', grade: 'Klasse 2', unknown_key: 1 },
+        { type: 'task', number: 1, instruction: 'Löse das Rätsel.', points: 4, icons: ['single'] },
+        { type: 'crossword', entries: [{ answer: 'Hund', clue: 'bellt' }, { answer: 'Huhn', clue: 'gackert' }] },
+        { type: 'cloze', text: 'Der [[Hund]] bellt.\\nNeue Zeile' },
+        { type: 'formula', latex: '\\neq' },
+        { type: 'paragraph', text: 'Rechne \\(a \\neq b\\).\\nDann weiter.', syllables: true },
+        { type: 'lines', count: 2, style: 'school2' },
+        { type: 'columns', columns: [[{ type: 'paragraph', text: 'links' }], [{ type: 'staff', abc: VALID_ABC }]] },
+      ],
+    },
+  });
+  assert.equal(ok.ok, true, ok.error);
+  const b = ok.args.blocks as any[];
+  assert.equal(ok.args.theme, 'primary');
+  assert.equal(ok.args.lang, 'de');
+  assert.equal(b[0].unknown_key, undefined);
+  assert.equal(b[1].number, '1');
+  assert.equal(b[3].text, 'Der [[Hund]] bellt.\nNeue Zeile');
+  assert.equal(b[4].latex, '\\neq'); // LaTeX is never unescaped
+  assert.equal(b[5].text, 'Rechne \\(a \\neq b\\).\nDann weiter.');
+  assert.equal(b[5].syllables, true);
+  assert.equal(b[6].style, 'school2');
+  assert.equal(b[7].columns[1][0].abc, VALID_ABC);
+
+  const err = (blocks: unknown[], extra: Record<string, unknown> = {}) =>
+    checkClientToolCall({ id: 'n2', name: 'insert_blocks', arguments: { position: 'end', blocks, ...extra } }).error ?? '';
+  assert.match(err([{ type: 'crossword', entries: [{ answer: 'ABC', clue: 'x' }, { answer: 'XYZ', clue: 'y' }] }]), /blocks\[0\] \(crossword\): .*could not be placed/);
+  assert.match(err([{ type: 'chart', chart_type: 'column', labels: ['a', 'b'], series: [{ values: [1] }] }]), /blocks\[0\] \(chart\)/);
+  assert.match(err([{ type: 'cloze', text: 'ohne Lücken' }]), /\[\[answer\]\]/);
+  assert.match(err([{ type: 'lines', count: 2, style: 'wavy' }]), /"style" must be one of/);
+  assert.match(err([{ type: 'task' }]), /task needs "instruction"/);
+  assert.match(err([{ type: 'columns', columns: [[{ type: 'columns', columns: [[], []] }], []] }]), /cannot be nested/);
+  assert.match(err([{ type: 'paragraph', text: 'x' }], { theme: 'pink' }), /"theme" must be one of/);
+  assert.match(err([{ type: 'qr_code' }]), /qr_code needs "url"/);
+
+  const page = checkClientToolCall({ id: 's1', name: 'setup_page', arguments: { paper: 'A5', orientation: 'landscape', header: { left: 'Schule', bogus: 1 }, page_numbers: true, theme: 'classic' } });
+  assert.equal(page.ok, true, page.error);
+  assert.deepEqual(page.args, { theme: 'classic', paper: 'A5', orientation: 'landscape', header: { left: 'Schule' }, page_numbers: true });
+  assert.equal(checkClientToolCall({ id: 's2', name: 'setup_page', arguments: { paper: 'A3' } }).ok, false);
+  assert.equal(checkClientToolCall({ id: 's3', name: 'setup_page', arguments: {} }).ok, false);
+  assert.deepEqual(checkClientToolCall({ id: 'c1', name: 'check_worksheet', arguments: { grade: 3 } }).args, { grade: 3 });
+  assert.equal(checkClientToolCall({ id: 'c2', name: 'check_worksheet', arguments: { grade: 20 } }).ok, false);
+});
+
 test('agent: mock creates a worksheet with insert_blocks', async () => {
   const provider = new MockProvider();
   const messages: ChatMessage[] = [{ role: 'user', content: 'Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 5' }];

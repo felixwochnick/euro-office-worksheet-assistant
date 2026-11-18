@@ -106,6 +106,25 @@
       return null;
     }
 
+    function marker(text, m) {
+      var k = text ? String(text).indexOf(m) : -1;
+      if (k === -1) return null;
+      try { return JSON.parse(String(text).slice(k + m.length)); } catch (e) { return null; }
+    }
+    // Source of a generated graphic, shortened for the outline (get_elements returns it in full).
+    function shortGraphic(g) {
+      var out = {};
+      Object.keys(g).forEach(function (k) {
+        var v = JSON.stringify(g[k]);
+        out[k] = v && v.length > 300 ? (typeof g[k] === 'string' ? g[k].slice(0, 120) + '…' : '…') : g[k];
+      });
+      return out;
+    }
+    try {
+      var props = doc.GetCustomProperties();
+      res.worksheet = { theme: props.Get('WorksheetTheme') || null, lang: props.Get('WorksheetLanguage') || null };
+    } catch (e) {}
+
     // --- cursor position (top-level element index) ---
     try {
       if (doc.GetCurrentParagraph) {
@@ -154,6 +173,8 @@
       var type = el.GetClassType ? el.GetClassType() : 'unknown';
       var staffAbc = null;
       var imageCount = 0;
+      var taskInfo = null;
+      var graphicInfo = null;
       if (type === 'paragraph') {
         try {
           var drawings = el.GetAllDrawingObjects ? el.GetAllDrawingObjects() : [];
@@ -161,6 +182,8 @@
           for (var d = 0; d < imageCount; d++) {
             var desc = describe(drawings[d]);
             if (desc && /^\s*X:\s*\d+/.test(desc)) { staffAbc = desc; break; }
+            if (!taskInfo) taskInfo = marker(desc, 'WSTASK ');
+            if (!graphicInfo) graphicInfo = marker(desc, 'WSGRAPHIC ');
           }
         } catch (e) {}
       }
@@ -187,8 +210,11 @@
         }
         if (i === selectedIndex) item.selected = true;
         try { if (el.GetNumbering && el.GetNumbering()) item.list_item = true; } catch (e) {}
+        if (taskInfo) item.task = taskInfo;
+        if (graphicInfo) item.graphic = shortGraphic(graphicInfo);
       } else if (type === 'table') {
         try { item.rows = el.GetRowsCount(); item.cols = el.GetRow(0).GetCellsCount(); } catch (e) {}
+        try { var bl = marker(el.GetTableDescription ? el.GetTableDescription() : '', 'WSBLOCK '); if (bl) item.block = bl.type + (bl.variant ? ':' + bl.variant : ''); } catch (e) {}
       }
       res.elements.push(item);
     }

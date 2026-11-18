@@ -80,10 +80,20 @@ export interface DocumentContext {
     /** Table size. */
     rows?: number;
     cols?: number;
+    /** Task header inserted by the assistant (task block). */
+    task?: { number?: string; title?: string; points?: number | null; level?: number | null };
+    /** Source of a generated graphic or puzzle (alt text of the image). */
+    graphic?: { type?: string; [key: string]: unknown };
+    /** Block type of a table inserted by the assistant (e.g. "box:rule", "true_false"). */
+    block?: string;
   }>;
   cursor_index?: number | null;
   total_elements?: number;
   truncated?: boolean;
+  /** Design stored in the document (custom properties). */
+  worksheet?: { theme?: string | null; lang?: string | null };
+  /** The user's house style from the plugin settings. */
+  preferences?: { theme?: string; school?: string; has_logo?: boolean };
 }
 
 export class ProviderError extends Error {
