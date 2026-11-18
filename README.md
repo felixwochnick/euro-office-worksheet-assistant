@@ -56,6 +56,9 @@ The plugin itself needs **no server of its own**. Only the AI chat needs a small
   staff ABC); the proxy forwards them to the configured model provider – choose the provider accordingly (e.g. an EU
   provider such as Mistral, or a local model via Ollama).
 
+**Website:** https://felixwochnick.github.io/eurooffice-music-notation-plugin/ – overview, live demo of the German
+note converter and installation guide (German).
+
 ## Repository layout
 
 | Path | Content |
@@ -68,7 +71,8 @@ The plugin itself needs **no server of its own**. Only the AI chat needs a small
 | `harness/` | Local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
 | `scripts/build.sh` | Builds `dist/music-notation/`, `.plugin`, `.tar.gz` and `.zip` |
 | `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
-| `.github/workflows/` | CI (tests, build, e2e, Docker) and release (packages + proxy image on GHCR) |
+| `.github/workflows/` | CI (tests, build, e2e, Docker), release (packages + proxy image on GHCR), website (GitHub Pages) |
+| `website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
 | `tests/` | Unit tests (ABC validation, German note names) |
 
 ## Build
@@ -351,6 +355,18 @@ npm install                 # root: playwright-core for the e2e test (no browser
 (cd proxy && npm install)
 npm test                    # unit tests (shared ABC helpers) + proxy tests (agent loop, providers, server)
 ```
+
+### Website
+
+```bash
+cd website && npm install
+npm run dev                                              # http://localhost:3000
+NUXT_APP_BASE_URL=/eurooffice-music-notation-plugin/ npm run build   # static site in .output/public
+```
+
+The live demo imports `shared/abc-tools.js` directly, so it always uses the same converter as the plugin. The site is
+deployed by `.github/workflows/pages.yml` on pushes to `main` (one-time setup: *Settings → Pages → Source: GitHub
+Actions*). The screenshots in `website/public/img/` were taken in a real Euro-Office 9.3.8 with Mistral.
 
 ### Local test harness (no Euro-Office needed)
 

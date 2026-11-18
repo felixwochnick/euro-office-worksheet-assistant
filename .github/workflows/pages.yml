@@ -1,0 +1,62 @@
+# Project website (website/, Nuxt + Nuxt UI) on GitHub Pages.
+# Builds on pull requests (check only) and deploys on pushes to main.
+# One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
+name: Website
+
+on:
+  push:
+    branches: [main]
+    paths: ["website/**", "shared/abc-tools.js", ".github/workflows/pages.yml"]
+  pull_request:
+    paths: ["website/**", "shared/abc-tools.js", ".github/workflows/pages.yml"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: website
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: website/package-lock.json
+
+      - run: npm ci
+
+      - name: Build (static, github_pages preset)
+        run: npm run build
+        env:
+          NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: website/.output/public
+
+  deploy:
+    if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

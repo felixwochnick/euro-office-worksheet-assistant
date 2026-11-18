@@ -3,3 +3,7 @@ dist/
 .env
 *.log
 .claude/
+.nuxt/
+.output/
+.data/
+website/dist
