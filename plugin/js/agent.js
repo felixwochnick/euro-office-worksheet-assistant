@@ -56,6 +56,7 @@
         try { data = text ? JSON.parse(text) : null; } catch (e) { data = null; }
         if (res.status === 401) throw new ProxyError('auth', '', 401);
         if (res.status === 429) throw new ProxyError('rateLimit', '', 429);
+        if (data && data.error === 'llm_busy') throw new ProxyError('busy', data.message || '', res.status);
         if (!res.ok) throw new ProxyError('server', (data && (data.message || data.error)) || ('HTTP ' + res.status), res.status);
         return data;
       });

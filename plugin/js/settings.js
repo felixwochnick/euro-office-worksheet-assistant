@@ -23,6 +23,12 @@
 
   var memory = null;
   var persistent = true;
+  // Written by the companion app into local-config.js (desktop app): its local server and token.
+  var LOCAL = window.WORKSHEET_LOCAL && window.WORKSHEET_LOCAL.proxyUrl ? window.WORKSHEET_LOCAL : null;
+
+  function isLoopback(url) {
+    return /^https?:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/i.test(url || '');
+  }
 
   function load() {
     var stored = null;
@@ -38,6 +44,14 @@
     Object.keys(DEFAULTS).forEach(function (k) {
       if (src[k] !== undefined && typeof src[k] === typeof DEFAULTS[k]) s[k] = src[k];
     });
+    if (LOCAL) {
+      // Companion app: use it unless the user chose another (non-local) server; MCP is on by default.
+      if (!s.proxyUrl || isLoopback(s.proxyUrl)) {
+        s.proxyUrl = LOCAL.proxyUrl;
+        s.token = LOCAL.token;
+      }
+      if (src.mcpEnabled === undefined) s.mcpEnabled = true;
+    }
     return s;
   }
 
@@ -63,6 +77,7 @@
     DEFAULTS: DEFAULTS,
     load: load,
     save: save,
-    isPersistent: function () { return persistent; }
+    isPersistent: function () { return persistent; },
+    local: function () { return LOCAL; }
   };
 })(window);

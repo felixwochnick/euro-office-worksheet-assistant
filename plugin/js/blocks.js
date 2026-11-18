@@ -20,6 +20,11 @@
 (function (window) {
   'use strict';
 
+  // Inline markup. "__text__" (underline) must not touch further underscores: cloze gaps are written as
+  // "________", and the text between two gaps must not become underlined.
+  var INLINE_SPLIT = /(\*\*[^*]+\*\*|(?<!_)__(?=[^_\s])[^_]*[^_\s]__(?!_)|\*[^*\s][^*]*\*)/;
+  var UNDERLINE = /^__[^_\s]([^_]*[^_\s])?__$/;
+
   var EMU_PER_MM = 36000;
 
   /* eslint-disable no-undef */
@@ -31,6 +36,9 @@
    * Staff blocks arrive with a prepared image: block.image = { dataUrl, wEmu, hEmu, alt }.
    */
   function cmdEditBlocks() {
+    // Runs inside the editor (callCommand serialises this function): no access to variables outside it.
+    var INLINE_SPLIT = /(\*\*[^*]+\*\*|(?<!_)__(?=[^_\s])[^_]*[^_\s]__(?!_)|\*[^*\s][^*]*\*)/;
+    var UNDERLINE = /^__[^_\s]([^_]*[^_\s])?__$/;
     var req = Asc.scope.req;
     var doc = Api.GetDocument();
     var count = doc.GetElementsCount();
@@ -65,13 +73,13 @@
       var prev = { b: false, i: false, u: false };
       for (var li = 0; li < lines.length; li++) {
         if (li > 0) { try { par.AddLineBreak(); } catch (e) {} }
-        var parts = lines[li].split(/(\*\*[^*]+\*\*|__[^_\s][^_]*__|\*[^*\s][^*]*\*)/);
+        var parts = lines[li].split(INLINE_SPLIT);
         for (var k = 0; k < parts.length; k++) {
           var part = parts[k];
           if (!part) continue;
           var f = { b: false, i: false, u: false };
           if (/^\*\*[^*]+\*\*$/.test(part)) { f.b = true; part = part.slice(2, -2); }
-          else if (/^__[^_\s][^_]*__$/.test(part)) { f.u = true; part = part.slice(2, -2); }
+          else if (UNDERLINE.test(part)) { f.u = true; part = part.slice(2, -2); }
           else if (/^\*[^*\s][^*]*\*$/.test(part)) { f.i = true; part = part.slice(1, -1); }
           var run = par.AddText(part);
           try {
@@ -403,11 +411,11 @@
   function appendInline(el, text) {
     String(text == null ? '' : text).split('\n').forEach(function (line, li) {
       if (li > 0) el.appendChild(document.createElement('br'));
-      line.split(/(\*\*[^*]+\*\*|__[^_\s][^_]*__|\*[^*\s][^*]*\*)/).forEach(function (part) {
+      line.split(INLINE_SPLIT).forEach(function (part) {
         if (!part) return;
         var node;
         if (/^\*\*[^*]+\*\*$/.test(part)) { node = document.createElement('strong'); node.textContent = part.slice(2, -2); }
-        else if (/^__[^_\s][^_]*__$/.test(part)) { node = document.createElement('u'); node.textContent = part.slice(2, -2); }
+        else if (UNDERLINE.test(part)) { node = document.createElement('u'); node.textContent = part.slice(2, -2); }
         else if (/^\*[^*\s][^*]*\*$/.test(part)) { node = document.createElement('em'); node.textContent = part.slice(1, -1); }
         else node = document.createTextNode(part);
         el.appendChild(node);

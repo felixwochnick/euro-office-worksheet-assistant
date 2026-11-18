@@ -1,8 +1,8 @@
 {
   "name": "eurooffice-music-notation-plugin",
-  "version": "0.1.0",
+  "version": "0.4.0",
   "private": true,
-  "description": "Euro-Office (ONLYOFFICE) panel plugin to insert music staves via ABC notation, with an AI chat.",
+  "description": "Euro-Office (ONLYOFFICE) worksheet assistant: panel plugin with AI chat, MCP endpoint and a companion app for the desktop editors.",
   "license": "MIT",
   "scripts": {
     "build": "bash scripts/build.sh",
@@ -10,9 +10,11 @@
     "test:shared": "node --test tests/*.test.js",
     "harness": "bash scripts/build.sh && node scripts/serve.mjs",
     "e2e": "node harness/e2e.mjs",
-    "e2e:real": "node dev/eurooffice/e2e-real-editor.mjs"
+    "e2e:real": "node dev/eurooffice/e2e-real-editor.mjs",
+    "build:companion": "node scripts/build-companion.mjs"
   },
   "devDependencies": {
+    "esbuild": "^0.28.2",
     "playwright-core": "^1.65.1"
   }
 }

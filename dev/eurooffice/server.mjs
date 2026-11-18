@@ -57,7 +57,7 @@ function page(withPluginsData) {
       lang: 'de',
       mode: 'edit',
       user: { id: 'teacher-1', name: 'Lehramtsstudentin' },
-      customization: { forcesave: true, compactHeader: false },
+      customization: { forcesave: true, compactHeader: false, features: { featuresTips: false } },
       ...(withPluginsData ? { plugins: { pluginsData: [`${DS_URL}/sdkjs-plugins/worksheet-assistant/config.json`] } } : {}),
     },
     width: '100%',

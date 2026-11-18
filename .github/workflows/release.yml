@@ -45,6 +45,11 @@ jobs:
             dist/worksheet-assistant.tar.gz dist/worksheet-assistant.zip dist/worksheet-assistant.plugin scripts/install-aio.sh \
             --title "$GITHUB_REF_NAME" "${notes[@]}"
 
+      - uses: actions/upload-artifact@v4
+        with:
+          name: plugin-folder
+          path: dist/worksheet-assistant/
+
       - uses: docker/setup-qemu-action@v3
       - uses: docker/setup-buildx-action@v3
       - uses: docker/login-action@v3
@@ -67,3 +72,33 @@ jobs:
           tags: |
             ghcr.io/${{ github.repository_owner }}/eurooffice-music-notation-proxy:${{ github.ref_name }}
             ghcr.io/${{ github.repository_owner }}/eurooffice-music-notation-proxy:latest
+
+  # Companion app (desktop editors), attached to the release created above.
+  companion:
+    needs: release
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 26
+      - uses: actions/download-artifact@v4
+        with:
+          name: plugin-folder
+          path: dist/worksheet-assistant
+      - name: Build
+        run: |
+          npm ci
+          npm --prefix proxy ci
+          node scripts/build-companion.mjs
+      - name: Upload to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release upload "$GITHUB_REF_NAME" dist/arbeitsblatt-assistent-* --clobber

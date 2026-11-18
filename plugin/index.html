@@ -110,9 +110,10 @@
       </div>
       <div id="s-nc-status" class="message hidden"></div>
     </div>
+    <small class="hint hidden" id="s-companion" data-i18n="settings.companion"></small>
     <label class="field" id="s-token-field"><span data-i18n="settings.token">Zugangs-Token</span>
       <input id="s-token" type="password" autocomplete="off"></label>
-    <small class="hint"><span data-i18n="settings.originHint">Im Proxy unter CORS_ORIGINS eintragen:</span> <code id="s-origin"></code></small>
+    <small class="hint" id="s-origin-hint"><span data-i18n="settings.originHint">Im Proxy unter CORS_ORIGINS eintragen:</span> <code id="s-origin"></code></small>
     <label class="check"><input id="s-auto" type="checkbox"> <span data-i18n="settings.autoInsert">automatisch einfügen</span></label>
     <div class="mcp-box">
       <label class="check"><input id="s-mcp" type="checkbox"> <span data-i18n="settings.mcp">MCP-Zugriff erlauben</span></label>
@@ -146,11 +147,12 @@
       <button id="s-test" class="secondary" data-i18n="settings.test">Verbindung testen</button>
     </div>
     <div id="s-status" class="message hidden"></div>
-    <p class="about">Arbeitsblatt-Assistent 0.3.0 · MIT · abcjs (MIT) · ONLYOFFICE plugin SDK (AGPL-3.0)</p>
+    <p class="about">Arbeitsblatt-Assistent 0.4.0 · MIT · abcjs (MIT) · ONLYOFFICE plugin SDK (AGPL-3.0)</p>
   </section>
 
   <script src="js/abc-tools.js"></script>
   <script src="js/i18n.js"></script>
+  <script src="local-config.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/renderer.js"></script>
   <script src="js/editor.js"></script>

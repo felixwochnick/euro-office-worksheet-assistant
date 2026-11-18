@@ -107,6 +107,12 @@ try {
   // bold run followed by plain text must not stay bold
   const bold = await page.evaluate((i) => window.HarnessMock.state.elements[i].runs.map((r) => (r.b ? '*' : '') + r.text).join('|'), ws + 3);
   assert.equal(bold, 'Lies den Text über |*Wasserkreislauf| und beantworte die Fragen.');
+  // cloze gaps "________" stay plain; only __Wichtig__ is underlined
+  const cloze = await page.evaluate(() => {
+    const el = window.HarnessMock.state.elements.find((e) => (e.text || '').startsWith('Ergänze'));
+    return el.runs.map((r) => (r.u ? '_' : '') + r.text).join('|');
+  });
+  assert.equal(cloze, 'Ergänze: Es ________ und dann ________. |_Wichtig|: genau lesen.');
   console.log('ok - worksheet via insert_blocks (headings, list, lines, table, box)');
 
   await frame.locator('#chat-text').fill(`Ersetze Element ${ws + 3} durch: Lies den Text **genau**.`);
