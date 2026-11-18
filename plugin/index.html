@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Noten-Assistent</title>
+  <!-- Plugin SDK (bundled copies, see vendor/SOURCES.md – AGPL-3.0) -->
+  <script src="vendor/plugins.js"></script>
+  <script src="vendor/plugins-ui.js"></script>
+  <!-- abcjs (MIT) -->
+  <script src="vendor/abcjs-basic-min.js"></script>
+  <link rel="stylesheet" href="css/panel.css">
+</head>
+<body>
+  <nav class="tabs" role="tablist">
+    <button class="tab active" role="tab" data-tab="chat" data-i18n="tab.chat">KI-Chat</button>
+    <button class="tab" role="tab" data-tab="manual" data-i18n="tab.manual">Manuell</button>
+    <button class="tab" role="tab" data-tab="settings" data-i18n="tab.settings">Einstellungen</button>
+  </nav>
+
+  <!-- ===================== Chat ===================== -->
+  <section id="view-chat" class="view active" role="tabpanel">
+    <div id="chat-log" class="chat-log" aria-live="polite"></div>
+    <div id="chat-loading" class="loading hidden"><span class="dots"><i></i><i></i><i></i></span><span data-i18n="chat.thinking">Denke nach …</span>
+      <button id="chat-stop" class="link" data-i18n="chat.stop">Stopp</button></div>
+    <div class="chat-input">
+      <textarea id="chat-text" rows="3" data-i18n-placeholder="chat.placeholder"></textarea>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="chat-auto"> <span data-i18n="chat.autoInsert">Automatisch einfügen</span></label>
+        <span class="spacer"></span>
+        <button id="chat-new" class="secondary" data-i18n="chat.new">Neuer Chat</button>
+        <button id="chat-send" class="primary" data-i18n="chat.send">Senden</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ===================== Manual ===================== -->
+  <section id="view-manual" class="view" role="tabpanel">
+    <label class="field"><span data-i18n="manual.template">Vorlage</span>
+      <select id="m-template">
+        <option value="" data-i18n="manual.template.none">– Vorlage wählen –</option>
+        <option value="emptyTreble" data-i18n="manual.template.emptyTreble">Leere Zeile, Violinschlüssel</option>
+        <option value="emptyBass" data-i18n="manual.template.emptyBass">Leere Zeile, Bassschlüssel</option>
+        <option value="melody" data-i18n="manual.template.melody">Beispielmelodie</option>
+        <option value="scale" data-i18n="manual.template.scale">C-Dur-Tonleiter</option>
+        <option value="bassScale" data-i18n="manual.template.bassScale">C-Dur-Tonleiter, Bassschlüssel</option>
+      </select>
+    </label>
+
+    <div class="field">
+      <span data-i18n="manual.german">Tonnamen (deutsch) → ABC</span>
+      <div class="row">
+        <input id="m-german" type="text" data-i18n-placeholder="manual.germanPlaceholder">
+        <select id="m-clef" aria-label="clef">
+          <option value="treble" data-i18n="manual.clef.treble">Violinschlüssel</option>
+          <option value="bass" data-i18n="manual.clef.bass">Bassschlüssel</option>
+        </select>
+        <button id="m-convert" class="secondary" data-i18n="manual.convert">Umrechnen</button>
+      </div>
+    </div>
+
+    <label class="field"><span data-i18n="manual.abc">ABC-Notation</span>
+      <textarea id="m-abc" rows="7" spellcheck="false" class="mono"></textarea>
+    </label>
+    <div id="m-errors" class="message error hidden"></div>
+
+    <div class="row">
+      <label class="field small"><span data-i18n="manual.width">Breite (cm)</span>
+        <input id="m-width" type="number" min="3" max="19" step="0.5" value="16"></label>
+      <label class="field grow"><span data-i18n="manual.position">Position</span>
+        <select id="m-position"><option value="cursor" data-i18n="manual.position.cursor">An der Cursorposition</option></select></label>
+      <button id="m-outline" class="icon" data-i18n-title="manual.reloadOutline" title="Gliederung neu laden">↻</button>
+    </div>
+
+    <div class="field"><span data-i18n="manual.preview">Vorschau</span>
+      <div id="m-preview" class="preview"></div></div>
+
+    <div class="row wrap">
+      <button id="m-insert" class="primary" data-i18n="manual.insert">Einfügen</button>
+      <button id="m-load" class="secondary" data-i18n="manual.loadSelected">Markiertes Notenbild laden</button>
+      <button id="m-replace" class="secondary" data-i18n="manual.replaceSelected">Markiertes Bild ersetzen</button>
+    </div>
+    <div id="m-status" class="message hidden"></div>
+  </section>
+
+  <!-- ===================== Settings ===================== -->
+  <section id="view-settings" class="view" role="tabpanel">
+    <label class="field"><span data-i18n="settings.proxyUrl">Proxy-URL</span>
+      <input id="s-url" type="url" placeholder="https://notes-proxy.example.org" autocomplete="off"></label>
+    <label class="field"><span data-i18n="settings.token">Zugangs-Token</span>
+      <input id="s-token" type="password" autocomplete="off"></label>
+    <label class="check"><input id="s-auto" type="checkbox"> <span data-i18n="settings.autoInsert">automatisch einfügen</span></label>
+    <div class="row">
+      <label class="field small"><span data-i18n="settings.width">Standardbreite (cm)</span>
+        <input id="s-width" type="number" min="3" max="19" step="0.5"></label>
+      <label class="field small"><span data-i18n="settings.dpi">Auflösung (dpi)</span>
+        <input id="s-dpi" type="number" min="96" max="600" step="1"></label>
+    </div>
+    <label class="field"><span data-i18n="settings.method">Einfügemethode</span>
+      <select id="s-method">
+        <option value="auto" data-i18n="settings.method.auto">Automatisch</option>
+        <option value="api" data-i18n="settings.method.api">Builder-API</option>
+        <option value="imageData" data-i18n="settings.method.imageData">PutImageDataToSelection</option>
+        <option value="html" data-i18n="settings.method.html">PasteHtml</option>
+      </select>
+      <small class="hint" data-i18n="settings.methodHint"></small>
+    </label>
+    <label class="field"><span data-i18n="settings.language">Sprache</span>
+      <select id="s-lang">
+        <option value="de">Deutsch</option>
+        <option value="en">English</option>
+        <option value="auto">Auto (Editor)</option>
+      </select></label>
+    <div class="row">
+      <button id="s-save" class="primary" data-i18n="settings.save">Speichern</button>
+      <button id="s-test" class="secondary" data-i18n="settings.test">Verbindung testen</button>
+    </div>
+    <div id="s-status" class="message hidden"></div>
+    <p class="about">Noten-Assistent 0.1.0 · MIT · abcjs (MIT) · ONLYOFFICE plugin SDK (AGPL-3.0)</p>
+  </section>
+
+  <script src="js/abc-tools.js"></script>
+  <script src="js/i18n.js"></script>
+  <script src="js/settings.js"></script>
+  <script src="js/renderer.js"></script>
+  <script src="js/editor.js"></script>
+  <script src="js/agent.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

@@ -1,0 +1,33 @@
+{
+  "name": "Noten-Assistent",
+  "nameLocale": {
+    "de": "Noten-Assistent",
+    "en": "Music Notation Assistant"
+  },
+  "guid": "asc.{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}",
+  "version": "0.1.0",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "Insert music staves (ABC notation) into worksheets – manually or by chatting with an AI.",
+      "descriptionLocale": {
+        "de": "Notenzeilen (ABC-Notation) in Arbeitsblätter einfügen – manuell oder im Chat mit einer KI.",
+        "en": "Insert music staves (ABC notation) into worksheets – manually or by chatting with an AI."
+      },
+      "url": "index.html",
+      "icons": ["resources/img/icon.png", "resources/img/icon@2x.png"],
+      "isViewer": false,
+      "EditorsSupport": ["word"],
+      "type": "panel",
+      "isVisual": true,
+      "isModal": false,
+      "isInsideMode": true,
+      "isSystem": false,
+      "initDataType": "none",
+      "initData": "",
+      "isUpdateOleOnResize": false,
+      "buttons": [],
+      "size": [380, 640]
+    }
+  ]
+}
