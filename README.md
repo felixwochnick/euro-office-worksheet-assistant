@@ -1,8 +1,17 @@
-# Euro-Office Music Notation Plugin ("Noten-Assistent")
+# Euro-Office Worksheet Assistant ("Arbeitsblatt-Assistent")
 
-A panel plugin for the **Euro-Office** web editor (a fork of ONLYOFFICE Docs, same plugin API) that inserts
-music staves into text documents – for example worksheets for music lessons.
+A panel plugin for the **Euro-Office** editor (a fork of ONLYOFFICE Docs, same plugin API) that creates and edits
+**worksheets with AI** – for any subject: headings, instructions, cloze texts, lists, tables, writing lines, info
+boxes, page breaks and **music staves** (ABC notation, rendered as printable images).
 
+> Formerly "Noten-Assistent" (0.1, music staves only). The plugin keeps its GUID; `install-aio.sh` removes the old
+> `music-notation` folder.
+
+- **Whole worksheets by chat** – e.g. *"Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 5 mit drei
+  Aufgaben, einer Tabelle und einem Merkkasten"*. The AI builds it from blocks (tool `insert_blocks`), shows a preview
+  and inserts it at the cursor, after a heading/paragraph or at the end.
+- **Edit existing content** – *"Ändere die Anweisung in Aufgabe 1 für Klasse 3"*, *"Füge am Ende eine Lösungsseite
+  hinzu"*, *"Lösche Aufgabe 3"* (`get_elements`, `replace_elements`, `delete_elements`; deletions are confirmed).
 - **AI chat in the side panel** – e.g. *"Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein
   und darunter eine leere Zeile zum Nachschreiben"*. The AI sees the document outline and the cursor position and
   calls tools that the plugin executes locally in the editor.
@@ -38,11 +47,11 @@ The plugin itself needs **no server of its own**. Only the AI chat needs a small
 
 | Component | What it is | Where it runs | Needed for | Resources |
 |-----------|-----------|---------------|------------|-----------|
-| **Plugin** (`music-notation/`) | Static files (HTML, JavaScript, icons, abcjs) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: rendering, inserting, editing staves, lyrics, manual mode | ≈ 0.8 MB of files, no process |
+| **Plugin** (`worksheet-assistant/`) | Static files (HTML, JavaScript, icons, abcjs) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: inserting and editing worksheet content, rendering staves, lyrics, manual mode | ≈ 0.8 MB of files, no process |
 | **Proxy** (`proxy/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy | **Only the AI chat** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
 | **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat | Billed by the provider / your hardware |
 
-- **Without the proxy** the plugin works completely in the *Manuell* tab (ABC editor, templates, German note names,
+- **Without the proxy** the music features work in the *Noten* tab (ABC editor, templates, German note names,
   lyrics, load/replace staves). The chat tab then asks for a proxy URL.
 - **Why a proxy at all?**
   - It keeps the API key on the server. In the browser it would be readable by every user and could be used at
@@ -69,7 +78,7 @@ note converter and installation guide (German).
 | `proxy/` | LLM proxy (TypeScript), `Dockerfile`, `docker-compose.yml`, `.env.example` |
 | `deploy/` | Example compose: Euro-Office as its own container with the plugin as a volume, plus the proxy |
 | `harness/` | Local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
-| `scripts/build.sh` | Builds `dist/music-notation/`, `.plugin`, `.tar.gz` and `.zip` |
+| `scripts/build.sh` | Builds `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
 | `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
 | `.github/workflows/` | CI (tests, build, e2e, Docker), release (packages + proxy image on GHCR), website (GitHub Pages) |
 | `website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
@@ -86,9 +95,9 @@ bash scripts/build.sh --update-vendor  # re-downloads abcjs and plugins.js/plugi
 
 Result:
 
-- `dist/music-notation/` – the plugin folder (copy this into `sdkjs-plugins/`)
-- `dist/music-notation.plugin` – the same as ZIP with `config.json` at the root (for editors with a plugin manager)
-- `dist/music-notation.tar.gz` / `.zip` – archives with the `music-notation/` folder (for `install-aio.sh --archive`)
+- `dist/worksheet-assistant/` – the plugin folder (copy this into `sdkjs-plugins/`)
+- `dist/worksheet-assistant.plugin` – the same as ZIP with `config.json` at the root (for editors with a plugin manager)
+- `dist/worksheet-assistant.tar.gz` / `.zip` – archives with the `worksheet-assistant/` folder (for `install-aio.sh --archive`)
 
 ## Installation
 
@@ -102,9 +111,9 @@ There are three parts: the **plugin** (in the Euro-Office Document Server), the 
 | C – `docker cp` by hand | one command | ❌ (gone after every AIO update) | quick tests |
 
 Prebuilt packages are attached to each [GitHub release](https://github.com/felixwochnick/eurooffice-music-notation-plugin/releases)
-(`music-notation.tar.gz`, `.zip`, `.plugin`); the proxy image is `ghcr.io/felixwochnick/eurooffice-music-notation-proxy`.
+(`worksheet-assistant.tar.gz`, `.zip`, `.plugin`; up to 0.1.0 `music-notation.*`); the proxy image is `ghcr.io/felixwochnick/eurooffice-music-notation-proxy`.
 Releases are created by pushing a tag (`git tag v0.1.0 && git push origin v0.1.0`, see `.github/workflows/release.yml`).
-Until the first release exists, build locally with `bash scripts/build.sh` and use `--source dist/music-notation`.
+Until the first release exists, build locally with `bash scripts/build.sh` and use `--source dist/worksheet-assistant`.
 
 ### A – Nextcloud AIO (recommended)
 
@@ -121,16 +130,16 @@ curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-nota
 
 # or from a checkout / local build
 bash scripts/build.sh
-sudo scripts/install-aio.sh --source dist/music-notation --watch
+sudo scripts/install-aio.sh --source dist/worksheet-assistant --watch
 ```
 
 The script copies the plugin into the running container, checks that the Document Server lists it, stores a copy
-in `/opt/eurooffice-plugins/` and – with `--watch` – installs the systemd service `eurooffice-music-notation`, which
+in `/opt/eurooffice-plugins/` and – with `--watch` – installs the systemd service `eurooffice-worksheet-assistant`, which
 waits for the container to start (`docker events`) and copies the plugin in again. AIO updates therefore need no
-manual step. Then reopen the document in Nextcloud: *Plugins* → **Noten-Assistent**. No container restart is needed.
+manual step. Then reopen the document in Nextcloud: *Plugins* → **Arbeitsblatt-Assistent**. No container restart is needed.
 
 ```bash
-systemctl status eurooffice-music-notation       # watcher
+systemctl status eurooffice-worksheet-assistant       # watcher
 sudo scripts/install-aio.sh --print-unit         # show the unit before installing
 sudo scripts/install-aio.sh --version v0.2.0 --watch   # update to another release
 sudo scripts/install-aio.sh --uninstall          # remove plugin and service
@@ -155,7 +164,7 @@ docker compose -f compose.release.yml up -d
 (From a checkout: `cd proxy && docker compose up -d --build`. If pulling the image fails with "denied", set the
 package `eurooffice-music-notation-proxy` to *public* once under GitHub → Packages → Package settings.)
 
-**3. Settings** – in the editor: *Plugins* → *Noten-Assistent* → *Einstellungen*: enter the proxy URL and the token.
+**3. Settings** – in the editor: *Plugins* → *Arbeitsblatt-Assistent* → *Einstellungen*: enter the proxy URL and the token.
 Below the token field the plugin shows **the origin to add to `CORS_ORIGINS`** (the address of the Document Server
 as seen by the browser). Add it to the proxy's `.env`, restart the proxy (`docker compose … up -d`) and click
 *Verbindung testen*. The settings are stored per browser (`localStorage`).
@@ -175,8 +184,8 @@ docker compose up -d
 `deploy/docker-compose.yml` starts
 
 - `eurooffice` – image `ghcr.io/euro-office/documentserver` (pin `EUROOFFICE_VERSION` in production) with
-  JWT enabled, data/log volumes and `dist/music-notation` mounted read-only into
-  `/var/www/euro-office/documentserver/sdkjs-plugins/music-notation`,
+  JWT enabled, data/log volumes and `dist/worksheet-assistant` mounted read-only into
+  `/var/www/euro-office/documentserver/sdkjs-plugins/worksheet-assistant`,
 - `music-proxy` – the LLM proxy (see below).
 
 Both ports are published on `127.0.0.1` only; remove the `ports:` entries when the reverse proxy reaches the
@@ -190,14 +199,14 @@ Euro-Office/ONLYOFFICE connector settings (*Administration settings → Office*)
 `JWT_SECRET`.
 
 In Coolify you can use the compose file as a "Docker Compose" resource; set `PLUGIN_DIR` to an absolute host path
-(e.g. `/opt/eurooffice-plugins/music-notation`) and copy `dist/music-notation` there. Updating the plugin = replacing
+(e.g. `/opt/eurooffice-plugins/worksheet-assistant`) and copy `dist/worksheet-assistant` there. Updating the plugin = replacing
 that folder and reloading the editor – no container rebuild needed.
 
 ### C – manual copy (quick test)
 
 ```bash
 bash scripts/build.sh
-docker cp dist/music-notation nextcloud-aio-eurooffice:/var/www/euro-office/documentserver/sdkjs-plugins/
+docker cp dist/worksheet-assistant nextcloud-aio-eurooffice:/var/www/euro-office/documentserver/sdkjs-plugins/
 ```
 
 Reopen the document. The plugin is gone after the next AIO update – use A to avoid that.
@@ -254,6 +263,10 @@ Tools offered to the model (JSON Schema in `proxy/src/tools.ts`):
 
 | Tool | Executed by | Purpose |
 |------|-------------|---------|
+| `insert_blocks({position, blocks})` | plugin | worksheet content: `heading`, `paragraph`, `list`, `table`, `lines` (writing lines), `box` (info box), `staff`, `empty_staves`, `page_break`, `spacer`; text supports `**bold**`, `*italic*`, `__underline__`; position also `"start"` / `"end"` |
+| `replace_elements({from, to, blocks})` | plugin | replace the top-level elements from..to with new blocks |
+| `delete_elements({from, to})` | plugin | delete elements (the user confirms unless *Automatisch einfügen* is on) |
+| `get_elements({from, to})` | plugin | full content of elements (texts, table cells, staff ABC) |
 | `insert_staff({abc, width_cm, position})` | plugin | render ABC and insert it as an image; `position` = `"cursor"` \| `{after_heading}` \| `{after_paragraph_index}` |
 | `insert_empty_staves({clef, count, measures, width_cm, position})` | plugin | empty staves made of invisible rests (`x`) |
 | `replace_staff({index, abc, width_cm})` | plugin | change an existing staff in place (keeps its width); the outline numbers staves ("Notenzeile 1, 2, …") and marks a selected one |
@@ -273,6 +286,16 @@ Tab **Einstellungen** (stored in the browser's `localStorage`; falls back to in-
 - default width (cm), resolution (dpi), **Einfügemethode** (see Known limitations), language
 
 ## Example prompts for teachers
+
+Worksheets (any subject):
+
+- „Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 5 mit drei abwechslungsreichen Aufgaben, einer Tabelle und einem Merkkasten.“
+- „Ändere in Aufgabe 1 die Anweisung so, dass sie für Klasse 3 verständlich ist.“
+- „Mach aus Aufgabe 2 einen Lückentext mit 8 Lücken.“
+- „Füge am Ende eine Lösungsseite hinzu.“
+- „Lösche Aufgabe 3.“
+
+Music:
 
 - „Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein und darunter eine leere Zeile zum Nachschreiben.“
 - „Setze an die Cursorposition die C-Dur-Tonleiter aufwärts in Vierteln, 4/4-Takt.“
@@ -399,7 +422,7 @@ generated by `make-worksheet.py`), the editor page and the save callback (saved 
 ```bash
 bash scripts/build.sh
 (cd dev/eurooffice && docker compose up -d)   # first start takes ~40 s (font generation); image ~4 GB
-open http://localhost:8099/                   # Plugins → Noten-Assistent
+open http://localhost:8099/                   # Plugins → Arbeitsblatt-Assistent
 # for the chat: proxy with CORS_ORIGINS=http://localhost:8090 (origin of the plugin iframe)
 node dev/eurooffice/e2e-real-editor.mjs       # automated test incl. saving and inspecting the .docx
 ```
@@ -424,6 +447,7 @@ The plugin was tested end-to-end in a real Euro-Office Document Server
 | `GetCurrentParagraph`, `GetSelectedDrawings`, `GetParentParagraph` | ✅ available |
 | Load + replace a selected staff | ✅ |
 | Fallbacks `PutImageDataToSelection`, `PasteHtml` | ✅ both work, incl. alt text |
+| Worksheet blocks (headings, lists, tables, writing lines, info boxes, page breaks) | ✅ incl. replace / delete of element ranges |
 
 Other versions may differ. Every call that is not guaranteed has a **primary path plus fallbacks**:
 
@@ -463,6 +487,15 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   disable *Automatisch einfügen*). Small local models often fail at tool calling. Melodies "from memory" (e.g.
   „Alle meine Entchen“) are not reliable – in tests Mistral produced the right melody once and a variant once; give
   the notes (or use the manual template) when exactness matters.
+- **Worksheet formatting.** Headings use the document's styles `Heading 1`–`3` (documents without these styles get
+  bold, larger paragraphs instead – an untested fallback); tables use `Table Grid` with a shaded header row; writing lines are paragraphs with a
+  bottom border; info boxes are one-cell tables. Fonts and colours follow the document. Lists get their own
+  numbering (`1.` or bullets) – the builder API cannot continue an existing list. Images other than staves (photos,
+  diagrams) and formulas are not generated.
+- **Editing by element index.** `replace_elements` / `delete_elements` work on top-level elements (paragraphs and
+  whole tables); a single table cell or part of a paragraph cannot be changed. Indices come from the outline sent with
+  each message – if the document is edited meanwhile, the AI may hit the wrong element. Deletions are therefore
+  shown for confirmation.
 - **Security.** The token is stored in the browser and therefore visible to the user of that browser – it protects
   the proxy against strangers, not against your own users. Use the rate limit and provider-side spending limits.
 
@@ -473,7 +506,7 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   [ONLYOFFICE/onlyoffice.github.io](https://github.com/ONLYOFFICE/onlyoffice.github.io/tree/master/sdkjs-plugins/v1),
   licensed under **AGPL-3.0** (`vendor/onlyoffice/LICENSE`). They are bundled unmodified as separate files and are
   *not* covered by the MIT license. If you distribute the built plugin, you distribute these AGPL files too – keep the
-  license text (the build copies it to `dist/music-notation/licenses/`) and point to the source.
+  license text (the build copies it to `dist/worksheet-assistant/licenses/`) and point to the source.
 - `vendor/abcjs/abcjs-basic-min.js`: [abcjs](https://github.com/paulrosen/abcjs) © Paul Rosen and Gregory Dyke,
   **MIT** (`vendor/abcjs/LICENSE.md`).
 

@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.2.0 – Arbeitsblatt-Assistent
+
+- **Renamed** to "Arbeitsblatt-Assistent" / "Worksheet Assistant": an AI assistant for worksheets of any subject;
+  music staves are one feature. Same GUID; the plugin folder is now `worksheet-assistant` (the install script removes
+  the old `music-notation` folder and service).
+- **Worksheet blocks** (`insert_blocks`): headings, paragraphs with **bold**/*italic*/__underline__, numbered and
+  bulleted lists, tables with a header row, writing lines, info boxes, staves, empty staves, page breaks, spacers –
+  a whole worksheet in one step, with a preview in the chat.
+- **Editing**: `get_elements`, `replace_elements`, `delete_elements` (deletions are confirmed in the chat).
+- Outline shows list items and table sizes; an empty document is reported as empty.
+- New system prompt for worksheets (structure, age-appropriate wording, solutions on request, no copyrighted texts);
+  the AI answers in the user's language.
+- Fixes found in the real editor: inherited bold formatting, bold heading styles overridden, adjacent tables
+  merging, table cell texts with a trailing tab.
+- Tested in Euro-Office 9.3.8 with Mistral: a one-page worksheet (3 tasks, tables, info box) in ~25 s, rewording a
+  task for another grade, adding a solution page.
+
+
 ## 0.1.0 – first release
 
 ### Plugin („Noten-Assistent“)
