@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /*
  * Build the companion app as a single executable for the current platform (Node.js single executable
- * application, Node >= 25.5 for --build-sea).
+ * application). Use an official Node 24 LTS build: newer official Linux builds need libatomic.so.1, distribution
+ * builds link system libraries – both would not run everywhere.
  *
  *   bash scripts/build.sh            # plugin (dist/worksheet-assistant/)
  *   (cd proxy && npm ci)             # server dependencies
@@ -34,8 +35,16 @@ const hasZip = (() => {
 const archive = path.join(root, 'dist', `worksheet-assistant-${os}-${process.arch}.${process.platform === 'win32' || hasZip ? 'zip' : 'tar.gz'}`);
 
 const [major, minor] = process.versions.node.split('.').map(Number);
-if (major < 25 || (major === 25 && minor < 5)) {
-  console.error(`Node ${process.versions.node}: building the executable needs Node >= 25.5 (node --build-sea).`);
+if (major < 22) {
+  console.error(`Node ${process.versions.node}: building the executable needs Node >= 22 (Node 24 LTS recommended).`);
+  process.exit(1);
+}
+// The official Linux builds of Node >= 25 need libatomic.so.1, which many systems do not have; Node 24 does not.
+if (process.platform === 'linux' && major >= 25 && !process.argv.includes('--allow-libatomic')) {
+  console.error(
+    `Node ${process.versions.node} (Linux) links libatomic.so.1 – the executable would not start on systems without it.\n` +
+      'Build with Node 24 LTS, or pass --allow-libatomic.',
+  );
   process.exit(1);
 }
 // The executable is this Node binary plus the bundle. Distribution builds of Node (Arch, Fedora, Homebrew …)
@@ -118,18 +127,26 @@ fs.writeFileSync(assets, JSON.stringify(files));
 console.log('==> Building the single executable');
 const exe = path.join(out, exeName);
 const seaConfig = path.join(out, 'sea-config.json');
-fs.writeFileSync(
-  seaConfig,
-  JSON.stringify({
-    main: bundle,
-    output: exe,
-    disableExperimentalSEAWarning: true,
-    useCodeCache: false,
-    useSnapshot: false,
-    assets: { 'plugin.json': assets },
-  }),
-);
-execFileSync(process.execPath, ['--build-sea', seaConfig], { stdio: 'inherit' });
+const seaOptions = { main: bundle, disableExperimentalSEAWarning: true, useCodeCache: false, useSnapshot: false, assets: { 'plugin.json': assets } };
+if (major > 25 || (major === 25 && minor >= 5)) {
+  // Node >= 25.5 builds the executable in one step.
+  fs.writeFileSync(seaConfig, JSON.stringify({ ...seaOptions, output: exe }));
+  execFileSync(process.execPath, ['--build-sea', seaConfig], { stdio: 'inherit' });
+} else {
+  // Node 22/24: prepare the blob, inject it into a copy of this node binary with postject.
+  const blob = path.join(out, 'sea-prep.blob');
+  fs.writeFileSync(seaConfig, JSON.stringify({ ...seaOptions, output: blob }));
+  execFileSync(process.execPath, ['--experimental-sea-config', seaConfig], { stdio: 'inherit' });
+  fs.copyFileSync(process.execPath, exe);
+  fs.chmodSync(exe, 0o755);
+  if (process.platform === 'darwin') execFileSync('codesign', ['--remove-signature', exe], { stdio: 'inherit' });
+  const postject = path.join(root, 'node_modules', 'postject', 'dist', 'cli.js');
+  execFileSync(
+    process.execPath,
+    [postject, exe, 'NODE_SEA_BLOB', blob, '--sentinel-fuse', 'NODE_SEA_FUSE_fce680ab2cc467b6e072b8b5df1996b2', ...(process.platform === 'darwin' ? ['--macho-segment-name', 'NODE_SEA'] : [])],
+    { stdio: 'inherit' },
+  );
+}
 if (process.platform === 'darwin') execFileSync('codesign', ['--sign', '-', '--force', exe], { stdio: 'inherit' });
 
 console.log('==> Archive');
