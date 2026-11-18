@@ -25,9 +25,12 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
   panel, edited and replaced.
 - **Change existing staves by chat** – „Bitte ändere Zeile 2: statt bc #c“ or „in der markierten Zeile …“: the AI
   edits the ABC of that staff and replaces it in place (tool `replace_staff`).
-- **Small LLM proxy** (Node/TypeScript, Fastify) that keeps the API key on the server, solves CORS and runs the
-  tool-calling agent loop. Providers: **Mistral** (default), any **OpenAI-compatible** API (e.g. Ollama),
-  **Anthropic**, plus a deterministic **mock** for tests and demos.
+- **MCP endpoint** – *either* the built-in AI chat *or* your own AI assistant: Claude, ChatGPT, Le Chat or any
+  other MCP client can read and edit the document that is open in Euro-Office (same tools as the chat). Sign-in
+  with a Nextcloud app password or OAuth via Nextcloud; on a single computer without sign-in.
+- **Small server** (`proxy/`, Node/TypeScript, Fastify) that keeps the API key on the server, solves CORS, runs the
+  tool-calling agent loop and serves the MCP endpoint. Providers: **Mistral** (default), any **OpenAI-compatible**
+  API (e.g. Ollama), **Anthropic**, a deterministic **mock** for tests and demos – or **none** (MCP only).
 
 The UI language is German (i18n-ready, English included).
 
@@ -38,18 +41,21 @@ The UI language is German (i18n-ready, English included).
 │  plugin panel (iframe)                       │        │ token  │  ABC validation        │──► Mistral /
 │   chat · manual ABC · settings ──────────────┼────────┼──────► │  convert_german_notes  │    OpenAI-compatible /
 │   abcjs → SVG → canvas → PNG (300 dpi)       │        │ CORS   │  agent loop (max N)    │    Anthropic / mock
-└──────────────────────────────────────────────┘────────┘        └────────────────────────┘
+│   MCP bridge  ◄──────── WebSocket ───────────┼────────┼─────── │  GET /v1/bridge        │
+└──────────────────────────────────────────────┘────────┘        │  POST /mcp  ◄──────────┼── Claude / ChatGPT /
+                                                                 └────────────────────────┘   Le Chat (MCP clients)
 ```
 
 ## What runs where
 
-The plugin itself needs **no server of its own**. Only the AI chat needs a small additional service, the proxy.
+The plugin itself needs **no server of its own**. Only the AI chat and the MCP endpoint need a small additional
+service, the proxy.
 
 | Component | What it is | Where it runs | Needed for | Resources |
 |-----------|-----------|---------------|------------|-----------|
 | **Plugin** (`worksheet-assistant/`) | Static files (HTML, JavaScript, icons, abcjs) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: inserting and editing worksheet content, rendering staves, lyrics, manual mode | ≈ 0.8 MB of files, no process |
-| **Proxy** (`proxy/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy | **Only the AI chat** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
-| **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat | Billed by the provider / your hardware |
+| **Proxy** (`proxy/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy | **Only the AI chat and MCP** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
+| **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat (MCP clients bring their own) | Billed by the provider / your hardware |
 
 - **Without the proxy** the music features work in the *Noten* tab (ABC editor, templates, German note names,
   lyrics, load/replace staves). The chat tab then asks for a proxy URL.
@@ -226,11 +232,17 @@ Without Docker: `cd proxy && npm ci && npm run build && node --env-file=.env bui
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
-| `PROXY_TOKEN` | – (required) | Shared secret, min. 16 characters. The plugin sends it as `Authorization: Bearer …`. `openssl rand -hex 24` |
+| `AUTH_MODE` | `token` | `token`: one shared `PROXY_TOKEN` for the plugin and MCP clients · `nextcloud`: every Nextcloud user signs in (plugin: *Mit Nextcloud anmelden*; MCP: app password or OAuth) · `local`: one computer, listens on `127.0.0.1` only, MCP without sign-in |
+| `PROXY_TOKEN` | – (required for `token`/`local`) | Shared secret, min. 16 characters. The plugin sends it as `Authorization: Bearer …`. `openssl rand -hex 24` |
+| `PUBLIC_URL` | – | External URL of the proxy, e.g. `https://worksheet.example.org`. Shown in the plugin as MCP address (`<PUBLIC_URL>/mcp`); required for OAuth |
+| `NEXTCLOUD_URL` | – | `AUTH_MODE=nextcloud`: your Nextcloud, e.g. `https://cloud.example.org` (`NEXTCLOUD_INTERNAL_URL` if the proxy reaches it under another URL) |
+| `NEXTCLOUD_OAUTH_CLIENT_ID` / `_SECRET` | – | OAuth sign-in for MCP clients (see [MCP](#mcp-claude-chatgpt-le-chat-)) |
+| `MCP_ENABLED` | `true` | `false` switches the MCP endpoint and the plugin bridge off |
+| `DATA_DIR` | `data` (image: `/data`) | Sign-ins, registered OAuth clients and grants (`AUTH_MODE=nextcloud`); keep it private |
 | `CORS_ORIGINS` | – | Comma-separated allowlist of browser origins, i.e. the origin that serves the editor (your Euro-Office / Nextcloud domain, e.g. `https://cloud.example.org`). `*` only for testing |
 | `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` | `30` / `1 minute` | Requests per IP and window |
-| `TRUST_PROXY` | `false` | IP/CIDR of your reverse proxy (e.g. `172.16.0.0/12`) so the rate limit sees real client IPs. Avoid `true` when the port is reachable directly – clients could spoof `X-Forwarded-For` |
-| `LLM_PROVIDER` | `mistral` | `mistral`, `openai` (any OpenAI-compatible API), `anthropic`, `mock` |
+| `TRUST_PROXY` | `false` (`deploy/`: `loopback,uniquelocal`) | IP/CIDR of your reverse proxy (e.g. `172.16.0.0/12`, or the presets `loopback`, `uniquelocal`) so the rate limits see real client IPs – without it all users behind the reverse proxy share one limit. Avoid `true` when the port is reachable directly – clients could spoof `X-Forwarded-For` |
+| `LLM_PROVIDER` | `mistral` | `mistral`, `openai` (any OpenAI-compatible API), `anthropic`, `mock`, `none` (no chat – MCP only) |
 | `LLM_MODEL` | provider default | e.g. `mistral-large-latest`, `qwen2.5:7b`, `claude-sonnet-5-5` |
 | `LLM_API_KEY` | – | Provider key (alternatively `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) |
 | `LLM_BASE_URL` | provider default | e.g. `http://ollama:11434/v1` for Ollama |
@@ -247,6 +259,17 @@ Serve the proxy via HTTPS: the editor runs on HTTPS and browsers block requests 
 (mixed content), except to `localhost`.
 
 ### Protocol
+
+| Endpoint | Purpose |
+|----------|---------|
+| `GET /healthz` | health check |
+| `GET /v1/meta` | public: version, `auth_mode`, chat available, MCP address |
+| `GET /v1/info` | connection test (authenticated) |
+| `POST /v1/chat` | one agent step of the AI chat (below) |
+| `POST /v1/auth/login`, `/v1/auth/login/poll`, `/v1/auth/logout` | `AUTH_MODE=nextcloud`: plugin sign-in with Nextcloud Login Flow v2 |
+| `GET /v1/bridge` | WebSocket from the plugin (MCP bridge) |
+| `POST /mcp` | MCP endpoint (Streamable HTTP, stateless; protocol 2026-07-28 and 2025 clients) |
+| `/.well-known/oauth-*`, `/oauth/*` | OAuth for MCP clients (`AUTH_MODE=nextcloud` with an OAuth client) |
 
 The plugin keeps the conversation; the proxy is stateless.
 
@@ -284,6 +307,79 @@ Tab **Einstellungen** (stored in the browser's `localStorage`; falls back to in-
 - **Proxy-URL** and **Zugangs-Token** – "Verbindung testen" calls `/v1/info`
 - **Automatisch einfügen** – otherwise every AI insertion is shown as a preview with *Einfügen* / *Verwerfen*
 - default width (cm), resolution (dpi), **Einfügemethode** (see Known limitations), language
+- **Mit Nextcloud anmelden** (only when the proxy runs with `AUTH_MODE=nextcloud`; replaces the token field)
+- **MCP-Zugriff erlauben** – connects this editor to the proxy so MCP clients can work on the document (off by default)
+
+## MCP: Claude, ChatGPT, Le Chat …
+
+Instead of the built-in chat you can use your own AI assistant. The proxy offers an
+[MCP](https://modelcontextprotocol.io) endpoint at `<PUBLIC_URL>/mcp`; the assistant then works on the document
+that is open in Euro-Office:
+
+1. Open the document, open the panel **Arbeitsblatt-Assistent**, switch on **MCP-Zugriff erlauben** in
+   *Einstellungen* (status: *MCP: verbunden*). The panel must stay open – it executes the assistant's changes.
+2. Add the MCP address to your assistant (see below) and ask, e.g. *„Erstelle im geöffneten Dokument ein
+   Arbeitsblatt zum Wasserkreislauf für Klasse 5“*.
+
+The assistant gets the same tools as the chat (`get_document_outline`, `get_elements`, `insert_blocks`,
+`replace_elements`, `delete_elements`, `insert_staff`, `insert_empty_staves`, `replace_staff`,
+`convert_german_notes`, `add_lyrics`) plus `list_open_documents` (several open documents: pass `document_id`),
+and the worksheet/ABC guidelines as server instructions. Arguments are validated by the proxy before they reach
+the editor. Changes are applied **without preview** (MCP clients ask before calling tools); every call appears in
+the panel's chat and can be undone in the editor (Ctrl+Z).
+
+**Sign-in** (`AUTH_MODE`):
+
+| Mode | MCP clients sign in with | Plugin signs in with | For |
+|------|--------------------------|----------------------|-----|
+| `token` | `Authorization: Bearer <PROXY_TOKEN>` | the same token | one person / a small team (everyone reaches every open editor) |
+| `nextcloud` | a Nextcloud **app password** (`Authorization: Basic <login:app-password>`) or **OAuth** (sign-in window with your Nextcloud account) | *Mit Nextcloud anmelden* (Nextcloud Login Flow v2 – creates an app password that the proxy keeps) | schools / several users – each user only reaches **their own** open editors |
+| `local` | nothing (listens on `127.0.0.1` only, Host and Origin are checked) | `PROXY_TOKEN` | a single computer (companion app, planned) |
+
+**Set up `AUTH_MODE=nextcloud`:**
+
+```bash
+# proxy/.env
+AUTH_MODE=nextcloud
+NEXTCLOUD_URL=https://cloud.example.org
+PUBLIC_URL=https://worksheet.example.org      # how browsers and AI clients reach the proxy
+CORS_ORIGINS=https://office.example.org       # origin of the editor
+LLM_PROVIDER=mistral                          # or "none" for MCP only
+# optional, for OAuth (claude.ai, ChatGPT and other clients that cannot send custom headers):
+NEXTCLOUD_OAUTH_CLIENT_ID=…
+NEXTCLOUD_OAUTH_CLIENT_SECRET=…
+```
+
+For OAuth, register the proxy in Nextcloud once: *Administration settings → Security → OAuth 2.0 clients*, name
+`Arbeitsblatt-Assistent`, redirect URI `<PUBLIC_URL>/oauth/callback` (or
+`occ oauth2:add-client Arbeitsblatt-Assistent <PUBLIC_URL>/oauth/callback`), and put the client id and secret into
+the `.env`. Nextcloud's OAuth app supports neither PKCE nor client registration, so the proxy acts as the
+authorization server for MCP clients (metadata discovery, PKCE, dynamic client registration and client ID metadata
+documents) and uses Nextcloud only for the login: the user signs in at Nextcloud, then confirms on the proxy's own
+page *„<Client> möchte als <Name> auf deine in Euro-Office geöffneten Dokumente zugreifen“*. The access ends at the
+latest one hour after it is revoked in Nextcloud (*Settings → Security → Devices & sessions*).
+
+**App passwords:** create one per assistant in Nextcloud (*Settings → Security → Devices & sessions → Create new
+app password*) – do not use your login password (Nextcloud accepts it unless the admin enforces token
+authentication). Nextcloud's brute-force protection blocks **all** logins from one IP after about 10 failed
+attempts in 30 minutes; for Nextcloud every MCP sign-in comes from the proxy's IP. The proxy therefore stops wrong
+app passwords itself (5 per login and 10 per client IP in 15 minutes) before they reach Nextcloud, and you should put
+the proxy's IP on Nextcloud's brute-force allow list:
+`occ config:app:set bruteForce whitelist_1 --value=<proxy-IP>/32`.
+
+The reverse proxy in front of the proxy must pass **WebSockets** (`/v1/bridge`) and must not buffer responses.
+Serve the proxy at the root of its own (sub)domain for OAuth: clients look for the metadata under
+`https://<host>/.well-known/…`.
+
+**Add it to your assistant** (`https://worksheet.example.org/mcp` as an example):
+
+- **Claude Code:** `claude mcp add --transport http arbeitsblatt https://worksheet.example.org/mcp`
+  (OAuth: sign in when asked) – or with an app password:
+  `claude mcp add --transport http arbeitsblatt https://worksheet.example.org/mcp --header "Authorization: Basic $(printf 'login:app-password' | base64)"`
+- **claude.ai / Claude Desktop, ChatGPT, Le Chat and other assistants with "custom connectors" / remote MCP
+  servers:** add the URL as a custom connector; they sign in with OAuth (`AUTH_MODE=nextcloud` with an OAuth
+  client). Hosted assistants call the proxy from the internet – it must be publicly reachable via HTTPS.
+- **`AUTH_MODE=token`:** clients that can send headers use `Authorization: Bearer <PROXY_TOKEN>`.
 
 ## Example prompts for teachers
 
@@ -413,6 +509,20 @@ note names in the message), a task heading ("Aufgabe 2") and "leere Zeile". Use 
 `npm run e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
 `/usr/bin/chromium`).
 
+### Testing with a real Nextcloud (sign-in, MCP, OAuth)
+
+`dev/nextcloud/` starts Nextcloud 34 on `http://localhost:8091` with the users `admin` and `lehrer` and an OAuth
+client; `e2e-nextcloud.mjs` runs the plugin sign-in (Login Flow v2), MCP with app passwords and the complete OAuth
+flow (registration, PKCE, Nextcloud login, consent, refresh, revocation in Nextcloud) against it and the local
+Euro-Office (next section):
+
+```bash
+bash scripts/build.sh && (cd proxy && npm run build)
+(cd dev/eurooffice && docker compose up -d)
+(cd dev/nextcloud && docker compose up -d && ./setup.sh)
+node dev/nextcloud/e2e-nextcloud.mjs
+```
+
 ### Testing in a real Euro-Office editor (without Nextcloud)
 
 `dev/eurooffice/` starts a real Euro-Office Document Server (JWT off – development only) with the built plugin
@@ -496,6 +606,18 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   whole tables); a single table cell or part of a paragraph cannot be changed. Indices come from the outline sent with
   each message – if the document is edited meanwhile, the AI may hit the wrong element. Deletions are therefore
   shown for confirmation.
+- **Nextcloud sign-in (tested with Nextcloud 34.0.6).** Nextcloud's OAuth consent cannot be remembered: every
+  OAuth sign-in shows Nextcloud's *Log in* / *Grant access* pages and then the proxy's own consent page, and adds an
+  entry *Arbeitsblatt-Assistent* under *Devices & sessions* (that is where it is revoked). Revoked app passwords and
+  tokens may keep working for about 10 seconds (Nextcloud caches token checks). Two-factor authentication and SSO
+  logins were not tested. Signing out in the plugin deletes its app password in Nextcloud.
+- **MCP.** The editor must be open with the panel *Arbeitsblatt-Assistent* and *MCP-Zugriff erlauben* switched on –
+  the panel executes the changes (closing it disconnects the document). With several open documents the assistant
+  works on the most recently used one unless it passes `document_id`. MCP changes are applied without preview. Tested
+  with the MCP TypeScript SDK client (protocol 2026-07-28) and plain 2025-era JSON-RPC requests, OAuth with a scripted
+  client against Nextcloud 34; hosted assistants (claude.ai, ChatGPT, Le Chat) were not tested against a public
+  installation yet. With `AUTH_MODE=token` every
+  holder of the token reaches every connected editor.
 - **Security.** The token is stored in the browser and therefore visible to the user of that browser – it protects
   the proxy against strangers, not against your own users. Use the rate limit and provider-side spending limits.
 

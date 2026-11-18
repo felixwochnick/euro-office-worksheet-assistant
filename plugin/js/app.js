@@ -28,6 +28,10 @@
 
   var settings = Settings.load();
   var agent = null;
+  var bridge = null;
+  // GET /v1/meta of the configured proxy (auth mode, MCP, chat available); null = unknown / old proxy.
+  var meta = null;
+  var login = null;
   var chatGeneration = 0;
   var started = false;
 
@@ -60,6 +64,8 @@
         document.querySelectorAll('.tab').forEach(function (b) { b.classList.toggle('active', b === btn); });
         document.querySelectorAll('.view').forEach(function (v) { v.classList.toggle('active', v.id === 'view-' + name); });
         if (name === 'manual') loadOutlineOptions();
+        // Messages added while the chat was hidden (e.g. MCP calls) did not scroll the log.
+        if (name === 'chat') { var log = $('chat-log'); log.scrollTop = log.scrollHeight; }
       });
     });
   }
@@ -149,6 +155,21 @@
     });
   }
 
+  /** Short status text of an executed tool call (chat and MCP). */
+  function toolStatus(call, result) {
+    var status;
+    if (!result || !result.ok) return t('tool.failed', { error: (result && result.error) || '?' });
+    if (result.inserted === false || result.replaced === false || result.deleted === false) status = t('tool.rejected');
+    else if (call.name === 'get_document_outline') status = '✓';
+    else if (call.name === 'insert_blocks' || call.name === 'replace_elements') status = t('tool.blocksAt', { count: result.count, from: result.first_index, to: result.last_index });
+    else if (call.name === 'delete_elements') status = t('tool.deletedRange', { count: result.removed_count });
+    else if (call.name === 'get_elements') status = t('tool.read');
+    else if (result.replaced) status = t('tool.replacedAt', { index: result.index });
+    else if (result.index != null) status = t('tool.insertedAt', { index: result.index });
+    else status = t('tool.inserted');
+    return status + fallbackNote(result);
+  }
+
   function setLoading(on) {
     $('chat-loading').classList.toggle('hidden', !on);
     $('chat-send').disabled = on;
@@ -176,16 +197,7 @@
       onToolStart: function () {},
       onToolDone: function (call, result) {
         if (call.name === 'get_document_outline') { addChat('tool', t('tool.get_document_outline')); return; }
-        var status;
-        if (!result.ok) status = t('tool.failed', { error: result.error || '?' });
-        else if (result.inserted === false || result.replaced === false || result.deleted === false) status = t('tool.rejected');
-        else if (call.name === 'insert_blocks' || call.name === 'replace_elements') status = t('tool.blocksAt', { count: result.count, from: result.first_index, to: result.last_index });
-        else if (call.name === 'delete_elements') status = t('tool.deletedRange', { count: result.removed_count });
-        else if (call.name === 'get_elements') status = t('tool.read');
-        else if (result.replaced) status = t('tool.replacedAt', { index: result.index });
-        else if (result.index != null) status = t('tool.insertedAt', { index: result.index });
-        else status = t('tool.inserted');
-        addChat(result.ok ? 'tool' : 'error', toolLabel(call) + ': ' + status + (result.ok ? fallbackNote(result) : ''));
+        addChat(result.ok ? 'tool' : 'error', toolLabel(call) + ': ' + toolStatus(call, result));
       },
       confirmInsert: confirmInsert
     });
@@ -201,6 +213,10 @@
       if (!text || agent.busy) return;
       if (!settings.proxyUrl || !settings.token) {
         addChat('error', t('chat.notConfigured'));
+        return;
+      }
+      if (meta && meta.chat === false) {
+        addChat('error', t('chat.disabled'));
         return;
       }
       $('chat-text').value = '';
@@ -420,6 +436,8 @@
     $('s-dpi').value = settings.dpi;
     $('s-method').value = settings.insertMethod;
     $('s-lang').value = settings.language;
+    $('s-mcp').checked = settings.mcpEnabled;
+    updateAuthUi();
   }
 
   function readSettingsForm() {
@@ -430,8 +448,129 @@
       widthCm: Number($('s-width').value),
       dpi: Number($('s-dpi').value),
       insertMethod: $('s-method').value,
-      language: $('s-lang').value
+      language: $('s-lang').value,
+      mcpEnabled: $('s-mcp').checked
     };
+  }
+
+  // ---------------------------------------------------------------------------
+  // Proxy capabilities, Nextcloud sign-in and MCP bridge
+  // ---------------------------------------------------------------------------
+  function isNextcloud() { return !!(meta && meta.auth_mode === 'nextcloud'); }
+
+  function updateAuthUi() {
+    var nc = isNextcloud();
+    $('s-nc').classList.toggle('hidden', !nc);
+    $('s-token-field').classList.toggle('hidden', nc);
+    var signedIn = nc && !!settings.token;
+    $('s-nc-user').textContent = signedIn ? t('settings.ncSignedIn', { name: settings.userName || '?' }) : '';
+    $('s-nc-login').classList.toggle('hidden', signedIn);
+    $('s-nc-logout').classList.toggle('hidden', !signedIn);
+    var url = settings.proxyUrl ? ((meta && meta.mcp && meta.mcp.url) || settings.proxyUrl + '/mcp') : '–';
+    $('s-mcp-url').textContent = url;
+    $('s-mcp').disabled = !!(meta && !meta.mcp);
+  }
+
+  /** Read GET /v1/meta (public) of the proxy. Proxies before 0.3 do not have it (token mode, no MCP). */
+  function refreshMeta(proxyUrl) {
+    if (!proxyUrl) { meta = null; updateAuthUi(); return Promise.resolve(null); }
+    return window.MusicAgent.request({ proxyUrl: proxyUrl, token: '' }, '/v1/meta', null, null).then(function (m) {
+      meta = m;
+    }, function (err) {
+      meta = err && err.status === 404 ? { auth_mode: 'token', chat: true, mcp: null } : null;
+    }).then(function () {
+      updateAuthUi();
+      return meta;
+    });
+  }
+
+  function showMcpStatus(status, detail) {
+    var el = $('s-mcp-status');
+    var name = detail && typeof detail === 'object' ? (detail.display_name || detail.id || '') : '';
+    el.textContent = t('settings.mcpStatus.' + status, { detail: typeof detail === 'string' ? detail : name });
+    el.className = 'hint' + (status === 'connected' ? ' ok' : status === 'auth' || status === 'origin' || status === 'error' ? ' bad' : '');
+  }
+
+  function initBridge() {
+    if (!window.WorksheetBridge) return;
+    // Executes MCP calls with the chat's tool code, without previews (the AI client asks the user).
+    var executor = new window.MusicAgent.ChatAgent({
+      getSettings: function () { return Object.assign({}, settings, { autoInsert: true }); },
+      onMessage: function () {},
+      onToolStart: function () {},
+      onToolDone: function () {},
+      confirmInsert: function () { return Promise.resolve(true); }
+    });
+    bridge = new window.WorksheetBridge.Bridge({
+      getSettings: function () { return settings; },
+      executor: executor,
+      onStatus: showMcpStatus,
+      onCall: function (call, result) {
+        var text = call.name === 'get_document_outline' && result && result.ok ? toolLabel(call) : toolLabel(call) + ': ' + toolStatus(call, result);
+        addChat((result && result.ok ? 'tool' : 'error') + ' mcp', t('mcp.call', { label: text }));
+      }
+    });
+    bridge.update();
+  }
+
+  function stopLogin() {
+    if (login) { clearTimeout(login.timer); login = null; }
+  }
+
+  function startNextcloudLogin() {
+    stopLogin();
+    var proxyUrl = String($('s-url').value || '').trim().replace(/\/+$/, '');
+    var status = $('s-nc-status');
+    show(status, '…', '');
+    // Open the window right away (popup blockers allow it only during the click).
+    var win = null;
+    try { win = window.open('about:blank', '_blank'); } catch (e) { win = null; }
+    window.MusicAgent.request({ proxyUrl: proxyUrl, token: '' }, '/v1/auth/login', {}, null).then(function (r) {
+      if (win) { try { win.location.href = r.login_url; } catch (e) { win = null; } }
+      status.textContent = '';
+      status.className = 'message';
+      status.appendChild(document.createTextNode(t('settings.ncWaiting') + ' '));
+      var a = document.createElement('a');
+      a.href = r.login_url;
+      a.target = '_blank';
+      a.rel = 'noopener';
+      a.textContent = t('settings.ncOpenLink');
+      status.appendChild(a);
+      var me = login = { flowId: r.flow_id, until: Date.now() + 20 * 60000, timer: null };
+      (function poll() {
+        if (login !== me) return;
+        if (Date.now() > me.until) { stopLogin(); show(status, t('settings.ncExpired'), 'error'); return; }
+        window.MusicAgent.request({ proxyUrl: proxyUrl, token: '' }, '/v1/auth/login/poll', { flow_id: me.flowId }, null).then(function (p) {
+          if (login !== me) return;
+          if (!p || !p.done) { me.timer = setTimeout(poll, 2000); return; }
+          stopLogin();
+          try { if (win && !win.closed) win.close(); } catch (e) {}
+          settings = Settings.save({ proxyUrl: proxyUrl, token: p.token, userName: (p.user && (p.user.display_name || p.user.id)) || '' });
+          fillSettings();
+          show(status, t('settings.ncDone'), 'ok');
+          if (bridge) bridge.update();
+        }, function (err) {
+          if (login !== me) return;
+          // Rate limit or a short network problem: keep waiting.
+          if (err && (err.status === 429 || err.kind === 'network')) { me.timer = setTimeout(poll, 5000); return; }
+          stopLogin();
+          show(status, err && err.status === 404 ? t('settings.ncExpired') : errorText(err), 'error');
+        });
+      })();
+    }, function (err) {
+      try { if (win) win.close(); } catch (e) {}
+      show(status, errorText(err), 'error');
+    });
+  }
+
+  function nextcloudLogout() {
+    stopLogin();
+    var old = { proxyUrl: settings.proxyUrl, token: settings.token };
+    settings = Settings.save({ token: '', userName: '' });
+    fillSettings();
+    if (bridge) bridge.update();
+    if (old.proxyUrl && old.token) window.MusicAgent.request(old, '/v1/auth/logout', {}, null).catch(function () {});
+    $('s-nc-status').className = 'message hidden';
   }
 
   function initSettings() {
@@ -446,13 +585,26 @@
       $('m-width').value = settings.widthCm;
       if (settings.language !== langBefore) { I18n.setLanguage(settings.language); I18n.apply(); }
       show($('s-status'), Settings.isPersistent() ? t('settings.saved') : t('settings.storageWarning'), Settings.isPersistent() ? 'ok' : 'error');
+      refreshMeta(settings.proxyUrl).then(function () { if (bridge) bridge.update(); });
     });
+    $('s-url').addEventListener('change', function () {
+      refreshMeta(String($('s-url').value || '').trim().replace(/\/+$/, ''));
+    });
+    $('s-mcp').addEventListener('change', function () {
+      settings = Settings.save({ mcpEnabled: $('s-mcp').checked });
+      if (bridge) bridge.update();
+    });
+    $('s-nc-login').addEventListener('click', startNextcloudLogin);
+    $('s-nc-logout').addEventListener('click', nextcloudLogout);
     $('s-test').addEventListener('click', function () {
       var candidate = readSettingsForm();
       candidate.proxyUrl = String(candidate.proxyUrl || '').trim().replace(/\/+$/, '');
       show($('s-status'), '…', '');
-      window.MusicAgent.testConnection(candidate).then(function (info) {
-        show($('s-status'), t('settings.testOk', { model: info.model, provider: info.provider }), 'ok');
+      refreshMeta(candidate.proxyUrl).then(function () {
+        if (isNextcloud()) candidate.token = settings.token;
+        return window.MusicAgent.testConnection(candidate);
+      }).then(function (info) {
+        show($('s-status'), t('settings.testOk', { model: info.model || '–', provider: info.provider }), 'ok');
       }, function (err) {
         show($('s-status'), errorText(err), 'error');
       });
@@ -487,6 +639,7 @@
     initChat();
     initManual();
     initSettings();
+    refreshMeta(settings.proxyUrl).then(initBridge, initBridge);
   }
 
   var plugin = window.Asc && window.Asc.plugin;
@@ -509,5 +662,5 @@
   }
 
   // Exposed for the local test harness.
-  window.MusicApp = { start: start, applyTheme: applyTheme };
+  window.MusicApp = { start: start, applyTheme: applyTheme, _bridge: function () { return bridge; } };
 })(window);

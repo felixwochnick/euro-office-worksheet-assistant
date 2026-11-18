@@ -1,5 +1,5 @@
 # Permanent setup: Euro-Office Document Server as its own container (e.g. in Coolify)
-# with this plugin mounted as a volume, plus the LLM proxy.
+# with this plugin mounted as a volume, plus the proxy (AI chat + MCP endpoint).
 # Nextcloud then uses this server as an external Document Server.
 #
 #   bash scripts/build.sh              # creates dist/worksheet-assistant
@@ -38,7 +38,12 @@ services:
     image: music-notation-proxy:local
     restart: unless-stopped
     environment:
-      PROXY_TOKEN: ${PROXY_TOKEN:?set PROXY_TOKEN in .env}
+      AUTH_MODE: ${AUTH_MODE:-token}
+      PROXY_TOKEN: ${PROXY_TOKEN:-}
+      PUBLIC_URL: ${PUBLIC_URL:-}
+      NEXTCLOUD_URL: ${NEXTCLOUD_URL:-}
+      NEXTCLOUD_OAUTH_CLIENT_ID: ${NEXTCLOUD_OAUTH_CLIENT_ID:-}
+      NEXTCLOUD_OAUTH_CLIENT_SECRET: ${NEXTCLOUD_OAUTH_CLIENT_SECRET:-}
       # Origin of the page that hosts the editor iframe (the Euro-Office domain;
       # add the Nextcloud domain as well if your setup serves the editor from there).
       CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS in .env}
@@ -49,12 +54,16 @@ services:
       LLM_BASE_URL: ${LLM_BASE_URL:-}
       # Only trust X-Forwarded-For from your reverse proxy (IP/CIDR, e.g. 10.0.0.0/8);
       # "true" would let clients spoof their IP and bypass the rate limit.
-      TRUST_PROXY: ${TRUST_PROXY:-false}
+      # Default: trust X-Forwarded-For only from loopback and private networks (a reverse proxy in Docker).
+      TRUST_PROXY: ${TRUST_PROXY:-loopback,uniquelocal}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-30}
+    volumes:
+      - proxy-data:/data
     read_only: true
     ports:
       - "127.0.0.1:${PROXY_PUBLISH_PORT:-8787}:8787"
 
 volumes:
+  proxy-data:
   eurooffice-data:
   eurooffice-logs:

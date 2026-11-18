@@ -354,6 +354,7 @@
 
   window.MusicAgent = {
     ChatAgent: ChatAgent,
+    request: request,
     _compactHistory: compactHistory,
     _toolContent: toolContent,
     ProxyError: ProxyError,

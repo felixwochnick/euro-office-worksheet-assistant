@@ -20,7 +20,7 @@ import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const EDITOR_URL = process.env.EDITOR_URL || 'http://localhost:8099/';
@@ -166,6 +166,54 @@ try {
   assert.equal(o2.total_elements, countBeforeWs);
   step('delete_elements removed the worksheet again');
   await shot(page, '3b-worksheet');
+
+  // MCP: the panel connects to the proxy's plugin bridge; an MCP client edits the document through it.
+  if (process.env.SKIP_MCP !== '1') {
+    await plugin.locator('.tab[data-tab=settings]').click();
+    await plugin.locator('#s-mcp').check();
+    await plugin.locator('#s-mcp-status.ok').waitFor({ timeout: 15000 });
+    step('MCP bridge connected: ' + (await plugin.locator('#s-mcp-status').textContent()));
+    const sdk = await import(pathToFileURL(path.join(here, '../../proxy/node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
+    const mcp = new sdk.Client({ name: 'e2e', version: '1.0.0' });
+    await mcp.connect(new sdk.StreamableHTTPClientTransport(new URL(PROXY_URL + '/mcp'), { requestInit: { headers: { authorization: `Bearer ${PROXY_TOKEN}` } } }));
+    const docs = await mcp.callTool({ name: 'list_open_documents', arguments: {} });
+    assert.match(docs.content[0].text, /arbeitsblatt\.docx/i);
+    const outlineText = (await mcp.callTool({ name: 'get_document_outline', arguments: {} })).content[0].text;
+    assert.match(outlineText, /Aufgabe 2/);
+    const totalBefore = (await plugin.evaluate(() => window.MusicEditor.getOutline())).total_elements;
+    const ins = await mcp.callTool({
+      name: 'insert_blocks',
+      arguments: {
+        position: 'end',
+        blocks: [
+          { type: 'heading', level: 2, text: 'MCP-Test: Aufgabe 9' },
+          { type: 'paragraph', text: 'Ergänze die **Tabelle**.' },
+          { type: 'table', rows: [['Wort', 'Silben'], ['Wasser', '']] },
+          { type: 'staff', abc: 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC E G c |]' },
+        ],
+      },
+    });
+    assert.equal(ins.isError, false, ins.content[0].text);
+    const insResult = JSON.parse(ins.content[0].text);
+    let o3 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+    const mcpIdx = o3.elements.findIndex((e) => e.text === 'MCP-Test: Aufgabe 9');
+    assert.ok(mcpIdx >= 0 && o3.elements[mcpIdx].is_heading, 'heading inserted via MCP');
+    assert.ok(o3.elements.slice(mcpIdx).some((e) => e.type === 'table'), 'table inserted via MCP');
+    assert.ok(o3.elements.slice(mcpIdx).some((e) => /C E G c/.test(e.abc || '')), 'staff with alt text inserted via MCP');
+    await plugin.locator('.tab[data-tab=chat]').click();
+    assert.ok((await plugin.locator('.msg.mcp').count()) >= 2, 'MCP calls are logged in the chat');
+    await shot(page, '3c-mcp');
+    const bad = await mcp.callTool({ name: 'insert_staff', arguments: { abc: 'not abc' } });
+    assert.equal(bad.isError, true);
+    const del = await mcp.callTool({ name: 'delete_elements', arguments: { from: insResult.first_index, to: insResult.last_index } });
+    assert.equal(del.isError, false, del.content[0].text);
+    o3 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+    assert.equal(o3.total_elements, totalBefore);
+    await mcp.close();
+    await plugin.locator('.tab[data-tab=settings]').click();
+    await plugin.locator('#s-mcp').uncheck();
+    step(`MCP client inserted (heading, text, table, staff) and deleted content through the plugin bridge`);
+  }
 
   // Load + replace a selected image: select the melody via the builder API
   const selected = await plugin.evaluate(() => window.MusicEditor.callCommand(function () {

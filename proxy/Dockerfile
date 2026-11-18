@@ -16,6 +16,10 @@ COPY --from=build /app/shared ./shared
 COPY --from=build /app/proxy/package.json ./proxy/package.json
 COPY --from=build /app/proxy/node_modules ./proxy/node_modules
 COPY --from=build /app/proxy/build/src ./proxy/build/src
+# Sign-ins, OAuth clients and grants (AUTH_MODE=nextcloud) – mount a volume here.
+RUN mkdir -p /data && chown node:node /data
+ENV DATA_DIR=/data
+VOLUME ["/data"]
 USER node
 EXPOSE 8787
 HEALTHCHECK --interval=30s --timeout=3s --start-period=5s --retries=3 \

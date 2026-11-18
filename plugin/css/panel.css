@@ -109,3 +109,11 @@ textarea { resize: vertical; }
 .preview-doc img { max-width: 100%; display: block; }
 .delete-list { margin: 0; padding-left: 16px; }
 button.danger { background: #c0392b; border-color: #c0392b; color: #fff; }
+
+/* Settings: Nextcloud sign-in and MCP access */
+.row > .grow { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.mcp-box { border: 1px solid var(--border); border-radius: 4px; padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; }
+.mcp-box code { word-break: break-all; }
+#s-mcp-status.ok { color: #2e7d32; }
+#s-mcp-status.bad { color: #c62828; }
+.msg.mcp { border-left: 3px solid var(--accent); }
