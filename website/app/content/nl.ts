@@ -12,7 +12,7 @@ const nl: SiteContent = {
     headline: 'AI-plugin voor Euro-Office – in Nextcloud en op de desktop',
     title: 'Werkbladen maken met AI – voor elk vak',
     description:
-      'Beschrijf wat je nodig hebt: de Worksheet Assistant, je assistent voor werkbladen, zet opdrachten, invuloefeningen, tabellen, schrijflijnen, infokaders en notenbalken direct in je document – met de ingebouwde AI-chat of met je eigen AI-assistent via MCP.',
+      'Beschrijf wat je nodig hebt: de Worksheet Assistant, je assistent voor werkbladen, zet opdrachten, invuloefeningen, puzzels, tabellen, diagrammen, formules, schrijflijnen, infokaders en notenbalken in één consistente vormgeving direct in je document – met de ingebouwde AI-chat of met je eigen AI-assistent via MCP.',
     install: 'Installeren',
     more: 'Zo werkt het',
     imageAlt:
@@ -24,9 +24,9 @@ const nl: SiteContent = {
     description: 'Gemaakt voor leraren en leraren in opleiding – voor werkbladen, toetsen en hand-outs in elk vak.',
     items: [
       {
-        title: 'Complete werkbladen via de chat',
+        title: 'Mooi vormgegeven werkbladen via de chat',
         description:
-          '“Maak een werkblad over de waterkringloop voor groep 7”: titel, opdrachten, tabel, schrijflijnen en infokader in één stap – als je wilt eerst als voorvertoning.'
+          '“Maak een werkblad over de waterkringloop voor groep 5”: titel, genummerde opdrachten met pictogrammen en punten, invultekst met woordenbank, kruiswoordpuzzel, diagram en infokader – in één vormgeving (modern, basisschool, klassiek) en daarna automatisch gecontroleerd.'
       },
       {
         title: 'Aanpassen in plaats van opnieuw beginnen',

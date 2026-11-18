@@ -12,7 +12,7 @@ const fr: SiteContent = {
     headline: 'Plugin d’IA pour Euro-Office – dans Nextcloud et sur ordinateur',
     title: 'Créez des fiches d’exercices avec l’IA – pour toutes les matières',
     description:
-      'Décrivez ce dont vous avez besoin : le Worksheet Assistant (assistant de fiches d’exercices) écrit exercices, textes à trous, tableaux, lignes d’écriture, encadrés et portées directement dans votre document – avec le chat IA intégré ou avec votre propre assistant IA via MCP.',
+      'Décrivez ce dont vous avez besoin : le Worksheet Assistant (assistant de fiches d’exercices) met en page exercices, textes à trous, mots croisés, tableaux, diagrammes, formules, lignes d’écriture, encadrés et portées dans un design homogène, directement dans votre document – avec le chat IA intégré ou avec votre propre assistant IA via MCP.',
     install: 'Installer',
     more: 'Comment ça marche',
     imageAlt:
@@ -24,9 +24,9 @@ const fr: SiteContent = {
     description: 'Conçu pour les enseignants et les futurs enseignants – pour les fiches d’exercices, les évaluations et les supports de cours dans toutes les matières.',
     items: [
       {
-        title: 'Des fiches complètes par chat',
+        title: 'Des fiches mises en page par chat',
         description:
-          '« Crée une fiche d’exercices sur le cycle de l’eau pour le CM2 » : titre, exercices, tableau, lignes d’écriture et encadré en une seule étape – d’abord en aperçu si vous le souhaitez.'
+          '« Crée une fiche d’exercices sur le cycle de l’eau pour le CE2 » : titre, exercices numérotés avec pictogrammes et points, texte à trous avec banque de mots, mots croisés, diagramme et encadré – dans un design (moderne, primaire, classique), puis vérifiée automatiquement.'
       },
       {
         title: 'Modifier plutôt que recommencer',

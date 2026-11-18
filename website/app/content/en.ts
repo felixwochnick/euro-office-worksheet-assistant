@@ -12,7 +12,7 @@ const en: SiteContent = {
     headline: 'AI plugin for Euro-Office – in Nextcloud and on the desktop',
     title: 'Create worksheets with AI – for every subject',
     description:
-      'Describe what you need: the Worksheet Assistant writes tasks, cloze texts, tables, writing lines, info boxes and music staves straight into your document – with the built-in AI chat or with your own AI assistant via MCP.',
+      'Describe what you need: the Worksheet Assistant lays out tasks, cloze texts, puzzles, tables, charts, formulas, writing lines, info boxes and music staves in one consistent design, right in your document – with the built-in AI chat or with your own AI assistant via MCP.',
     install: 'Install',
     more: 'How it works',
     imageAlt:
@@ -24,9 +24,9 @@ const en: SiteContent = {
     description: 'Built for teachers and student teachers – for worksheets, tests and handouts in every subject.',
     items: [
       {
-        title: 'Whole worksheets by chat',
+        title: 'Designed worksheets by chat',
         description:
-          '“Create a worksheet about the water cycle for grade 5”: title, tasks, table, writing lines and info box in one step – as a preview first if you like.'
+          '“Create a worksheet about the water cycle for grade 3”: title, numbered tasks with symbols and points, cloze text with word bank, crossword, chart and info box – in one design (modern, primary school, classic) and checked automatically afterwards.'
       },
       {
         title: 'Edit instead of starting over',
