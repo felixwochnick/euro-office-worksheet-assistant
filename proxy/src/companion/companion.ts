@@ -36,8 +36,13 @@ export interface CompanionOptions {
    * settings page knows; the desktop app chooses its own so that its window can call the API.
    */
   secret?: string;
-  /** Running inside the desktop app (`--app`): reported in state(). */
+  /** Running inside the desktop app (`--app`): reported in state(); the page at / does not carry the API secret. */
   app?: boolean;
+  /**
+   * The app runs from a temporary place (macOS: the mounted .dmg or App Translocation): autostart and Claude entries
+   * would point to a path that is gone after ejecting or a restart, so they are refused.
+   */
+  temporary?: boolean;
   /** Called whenever the server listens: after start() and after every restart with new settings. */
   onListening?: () => void;
   /** Restarting with new settings failed: the server is down. */
@@ -46,6 +51,17 @@ export interface CompanionOptions {
   logStream?: { write(msg: string): void };
   /** Claude Desktop / Claude Code integration: tests replace the file lookups and the `claude` command. */
   claude?: { probe?: Probe; run?: Runner };
+}
+
+const TEMPORARY = 'Die App läuft noch aus dem Download (Disk-Image). Ziehe sie zuerst in den Ordner „Programme“ und starte sie von dort.';
+
+/** The page at / inside the desktop app: no settings here (and no API secret). */
+function appPage(): string {
+  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Arbeitsblatt-Assistent</title></head>' +
+    '<body style="font-family:system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem;line-height:1.5">' +
+    '<h1 style="font-size:1.3rem">Arbeitsblatt-Assistent</h1>' +
+    '<p>Der Server läuft. Die Einstellungen findest du im Fenster der App <b>Arbeitsblatt-Assistent</b> ' +
+    '(Symbol in der Taskleiste bzw. Menüleiste, oder die App erneut starten).</p></body></html>';
 }
 
 const LOOPBACK_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
@@ -237,7 +253,9 @@ export class Companion {
         .header('cache-control', 'no-store')
         .header('x-frame-options', 'DENY')
         .header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'")
-        .send(settingsPage(this.secret)),
+        // In the desktop app the settings live in its window, and the API secret stays with the app: other local
+        // programs (or other users of this computer) could read it from this page.
+        .send(this.opts.app ? appPage() : settingsPage(this.secret)),
     );
     app.get('/companion/api/state', { preHandler: guard }, async () => this.state());
     app.post('/companion/api/settings', { preHandler: guard }, async (req, reply) => {
@@ -263,8 +281,10 @@ export class Companion {
       }
     });
     app.post('/companion/api/autostart', { preHandler: guard }, async (req, reply) => {
+      const enabled = !!(req.body as { enabled?: boolean } | undefined)?.enabled;
+      if (enabled && this.opts.temporary) return reply.code(400).send({ ok: false, error: TEMPORARY });
       try {
-        setAutostart(!!(req.body as { enabled?: boolean } | undefined)?.enabled, this.configDir, this.env);
+        setAutostart(enabled, this.configDir, this.env);
         return { ok: true, autostart: autostartEnabled(this.configDir, this.env) };
       } catch (err) {
         return reply.code(500).send({ ok: false, error: (err as Error).message });
@@ -280,6 +300,7 @@ export class Companion {
       if ((client !== 'desktop' && client !== 'code') || (action !== 'add' && action !== 'remove')) {
         return reply.code(400).send({ ok: false, error: 'Ungültige Anfrage (client: desktop|code, action: add|remove).' });
       }
+      if (action === 'add' && this.opts.temporary) return reply.code(400).send({ ok: false, error: TEMPORARY });
       const run = this.claudeQueue.then(() => claudeAction(this.claudeContext(), client, action));
       this.claudeQueue = run.catch(() => {});
       try {

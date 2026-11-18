@@ -19,7 +19,7 @@ import { spawn } from 'node:child_process';
 import net from 'node:net';
 import { VERSION } from '../version.js';
 import { repairAutostart, setAutostart, stdioCommand } from './autostart.js';
-import { repairDesktopEntry } from './claude.js';
+import { repairDesktopEntry, setDesktopEntry } from './claude.js';
 import { Companion, type CompanionOptions } from './companion.js';
 import { uninstallPlugin } from './install.js';
 import fs from 'node:fs';
@@ -164,6 +164,7 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     logLevel: process.env.LOG_LEVEL || (background ? 'warn' : 'error'),
     secret: uiSecret,
     app,
+    temporary: app && !!process.env.WORKSHEET_ASSISTANT_TEMPORARY,
     logStream: app ? process.stderr : undefined,
     onListening: () => void emit({ event: 'ready', url: companion.url, version: VERSION, chat_error: companion.chatError }),
     onRestartError: (err) => {
@@ -197,6 +198,11 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     case 'uninstall': {
       for (const a of desktopApps(companion.env)) if (uninstallPlugin(a)) log(`Plugin entfernt: ${a.name}`);
       setAutostart(false, companion.configDir, companion.env);
+      try {
+        if (setDesktopEntry(false, stdioCommand(companion.env), companion.env).registered === false) log('Eintrag in Claude Desktop entfernt.');
+      } catch {
+        /* no Claude Desktop or an unreadable config: leave it */
+      }
       log(`Autostart entfernt. Einstellungen liegen noch in ${companion.configDir}`);
       return 0;
     }
@@ -224,16 +230,19 @@ export async function main(argv = process.argv.slice(2)): Promise<number> {
     process.stdin.on('error', () => void shutdown());
     process.stdin.resume();
     process.stdout.on('error', () => void shutdown()); // EPIPE: nobody reads our events any more
-    // Entries written by the standalone program (e.g. from ~/Downloads) now start the app.
-    try {
-      if (repairAutostart(companion.configDir, companion.env)) log('Autostart startet jetzt die App.');
-    } catch (err) {
-      log(`Autostart konnte nicht aktualisiert werden: ${(err as Error).message}`);
-    }
-    try {
-      if (repairDesktopEntry(stdioCommand(companion.env), companion.env)) log('Eintrag in Claude Desktop aktualisiert.');
-    } catch (err) {
-      log(`Eintrag in Claude Desktop konnte nicht aktualisiert werden: ${(err as Error).message}`);
+    // Entries written by the standalone program (e.g. from ~/Downloads) now start the app – unless the app itself
+    // runs from a temporary place (macOS disk image), whose path is gone later.
+    if (!options.temporary) {
+      try {
+        if (repairAutostart(companion.configDir, companion.env)) log('Autostart startet jetzt die App.');
+      } catch (err) {
+        log(`Autostart konnte nicht aktualisiert werden: ${(err as Error).message}`);
+      }
+      try {
+        if (repairDesktopEntry(stdioCommand(companion.env), companion.env)) log('Eintrag in Claude Desktop aktualisiert.');
+      } catch (err) {
+        log(`Eintrag in Claude Desktop konnte nicht aktualisiert werden: ${(err as Error).message}`);
+      }
     }
   }
 

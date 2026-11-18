@@ -152,6 +152,38 @@ test('companion: the API secret can be chosen (desktop app), too short ones are 
   }
 });
 
+test('companion in the desktop app: no API secret on its page; entries refused while it runs from a disk image', async () => {
+  const home = tmp();
+  fs.mkdirSync(path.join(home, '.config', 'Claude'), { recursive: true });
+  for (const temporary of [false, true]) {
+    const port = await freePort();
+    const companion = new Companion({
+      configDir: path.join(home, `cfg-${port}`),
+      env: { platform: 'linux', home, env: { WORKSHEET_ASSISTANT_APP: APP } },
+      port,
+      logLevel: 'silent',
+      secret: SECRET,
+      app: true,
+      temporary,
+      claude: { run: async () => ({ code: 1, stdout: '', stderr: '' }), probe: realProbe },
+    });
+    (companion as unknown as { files: Map<string, Buffer> }).files = FILES;
+    await companion.start();
+    try {
+      const base = `http://127.0.0.1:${port}`;
+      const page = await (await fetch(`${base}/`)).text();
+      assert.ok(!page.includes(SECRET) && page.includes('Arbeitsblatt-Assistent'), 'the page points to the app, without the secret');
+      const add = await api(base, SECRET, 'claude', { client: 'desktop', action: 'add' });
+      assert.equal(add.status, temporary ? 400 : 200);
+      if (temporary) assert.match((await add.json()).error, /Programme/);
+      assert.equal((await api(base, SECRET, 'claude', { client: 'desktop', action: 'remove' })).status, 200, 'removing is always allowed');
+      if (temporary) assert.equal((await api(base, SECRET, 'autostart', { enabled: true })).status, 400);
+    } finally {
+      await companion.stop();
+    }
+  }
+});
+
 test('companion: Claude endpoints (fake claude command, temporary home)', async () => {
   const home = tmp();
   fs.mkdirSync(path.join(home, '.config', 'Claude'), { recursive: true });

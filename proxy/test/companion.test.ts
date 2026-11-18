@@ -7,7 +7,7 @@ import fs from 'node:fs';
 import net from 'node:net';
 import os from 'node:os';
 import path from 'node:path';
-import { autostartTarget } from '../src/companion/autostart.js';
+import { autostartBytes, autostartTarget } from '../src/companion/autostart.js';
 import { Companion } from '../src/companion/companion.js';
 import { installedInfo, installPlugin, localConfigScript, pluginDir, uninstallPlugin } from '../src/companion/install.js';
 import { configDir, desktopApps, detectedApps, PLUGIN_GUID } from '../src/companion/paths.js';
@@ -101,6 +101,12 @@ test('companion autostart entries', () => {
   const win = autostartTarget(['C:\\Program Files\\aa.exe', '--background'], 'C:\\cfg', { platform: 'win32', home: 'C:\\Users\\u', env: {} });
   assert.equal(win.file, 'C:\\cfg\\autostart.vbs');
   assert.match(win.content, /Run """C:\\Program Files\\aa\.exe"" ""--background""", 0, False/);
+  assert.match(win.content, /^On Error Resume Next\r$/m, 'no error dialog at login when the program is gone');
+  // Windows Script Host needs UTF-16 with BOM for paths with umlauts
+  const bytes = autostartBytes({ ...win, content: win.content.replace('aa.exe', 'Jürgen.exe') }, { platform: 'win32', home: 'C:\\Users\\u', env: {} });
+  assert.deepEqual([...bytes.subarray(0, 2)], [0xff, 0xfe]);
+  assert.ok(bytes.subarray(2).toString('utf16le').includes('Jürgen.exe'));
+  assert.equal(autostartBytes(linux, { platform: 'linux', home: '/home/u', env: {} }).toString('utf8'), linux.content);
 });
 
 test('companion: settings page and API, plugin token, applying AI settings', async () => {

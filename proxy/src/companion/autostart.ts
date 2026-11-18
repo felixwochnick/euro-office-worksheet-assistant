@@ -65,7 +65,8 @@ export function autostartTarget(cmd: string[], configDir: string, e: Env = curre
     const quoted = cmd.map((a) => `""${a}""`).join(' ');
     return {
       file: path.win32.join(configDir, 'autostart.vbs'),
-      content: `' Starts the Worksheet Assistant companion app without a console window.\r\nCreateObject("WScript.Shell").Run "${quoted}", 0, False\r\n`,
+      // No error dialog at login when the program is gone (e.g. uninstalled).
+      content: `' Starts the Arbeitsblatt-Assistent app without a console window.\r\nOn Error Resume Next\r\nCreateObject("WScript.Shell").Run "${quoted}", 0, False\r\n`,
     };
   }
   const configHome = e.env.XDG_CONFIG_HOME || path.posix.join(e.home, '.config');
@@ -76,6 +77,14 @@ export function autostartTarget(cmd: string[], configDir: string, e: Env = curre
       'Comment=Local server for the worksheet assistant plugin (AI chat and MCP)\n' +
       `Exec=${cmd.map(desktopQuote).join(' ')}\nTerminal=false\nX-GNOME-Autostart-enabled=true\n`,
   };
+}
+
+/**
+ * Bytes of the entry. Windows Script Host reads a .vbs without byte order mark in the ANSI code page, which garbles
+ * paths with umlauts (C:\\Users\\Jürgen\\…): write it as UTF-16 with BOM.
+ */
+export function autostartBytes(t: AutostartTarget, e: Env = currentEnv()): Buffer {
+  return e.platform === 'win32' ? Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(t.content, 'utf16le')]) : Buffer.from(t.content, 'utf8');
 }
 
 export function autostartEnabled(configDir: string, e: Env = currentEnv()): boolean {
@@ -105,7 +114,7 @@ export function setAutostart(enabled: boolean, configDir: string, e: Env = curre
     return;
   }
   fs.mkdirSync(path.dirname(t.file), { recursive: true });
-  fs.writeFileSync(t.file, t.content);
+  fs.writeFileSync(t.file, autostartBytes(t, e));
   if (e.platform === 'win32') {
     execFileSync('reg', ['add', 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run', '/v', WIN_VALUE, '/t', 'REG_SZ', '/d', `wscript.exe "${t.file}"`, '/f'], { stdio: 'ignore' });
   }
@@ -119,7 +128,7 @@ export function repairAutostart(configDir: string, e: Env = currentEnv()): boole
   if (!autostartEnabled(configDir, e)) return false;
   const t = autostartTarget(launchCommand(e), configDir, e);
   try {
-    if (fs.readFileSync(t.file, 'utf8') === t.content) return false;
+    if (fs.readFileSync(t.file).equals(autostartBytes(t, e))) return false;
   } catch {
     /* unreadable: write it again */
   }
