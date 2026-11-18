@@ -1,5 +1,5 @@
 /**
- * `arbeitsblatt-assistent mcp-stdio`: an MCP server on stdin/stdout for clients that start local servers as a
+ * `worksheet-assistant mcp-stdio`: an MCP server on stdin/stdout for clients that start local servers as a
  * command (Claude Desktop, …). It forwards every tool call to the running companion's HTTP endpoint, where the
  * editors are connected. If the companion is not running yet, it is started in the background first.
  *
@@ -47,13 +47,13 @@ export async function ensureCompanionRunning(url: string): Promise<void> {
 
 export async function runStdio(url: string): Promise<void> {
   await ensureCompanionRunning(url);
-  const client = new Client({ name: 'arbeitsblatt-assistent-stdio', version: VERSION });
+  const client = new Client({ name: 'worksheet-assistant-stdio', version: VERSION });
   await client.connect(new StreamableHTTPClientTransport(new URL(`${url}/mcp`)));
   const { tools } = await client.listTools();
   const instructions = client.getInstructions?.() ?? undefined;
   serveStdio(
     () => {
-      const server = new McpServer({ name: 'arbeitsblatt-assistent', title: 'Arbeitsblatt-Assistent (Euro-Office)', version: VERSION }, { instructions });
+      const server = new McpServer({ name: 'worksheet-assistant', title: 'Worksheet Assistant (Euro-Office)', version: VERSION }, { instructions });
       for (const t of tools) {
         server.registerTool(
           t.name,
@@ -67,7 +67,7 @@ export async function runStdio(url: string): Promise<void> {
             try {
               return (await client.callTool({ name: t.name, arguments: args })) as CallToolResult;
             } catch (err) {
-              return { content: [{ type: 'text', text: `The Arbeitsblatt-Assistent companion is not reachable: ${(err as Error).message}` }], isError: true };
+              return { content: [{ type: 'text', text: `The Worksheet Assistant companion app is not reachable: ${(err as Error).message}` }], isError: true };
             }
           },
         );

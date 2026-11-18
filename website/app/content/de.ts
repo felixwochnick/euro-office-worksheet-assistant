@@ -224,7 +224,7 @@ const de: SiteContent = {
       { title: 'Desktop-App installieren', description: 'Euro-Office oder Nextcloud Office (Desktop) für Windows, macOS oder Linux installieren und einmal starten.' },
       {
         title: 'Begleitprogramm starten',
-        description: '`arbeitsblatt-assistent` für dein System aus den Releases laden, entpacken und starten. Es installiert das Plugin und öffnet seine Einstellungen im Browser. macOS: beim ersten Start Rechtsklick → **Öffnen**; Windows: **Weitere Informationen → Trotzdem ausführen**.',
+        description: '`worksheet-assistant` für dein System aus den Releases laden, entpacken und starten. Es installiert das Plugin und öffnet seine Einstellungen im Browser. macOS: beim ersten Start Rechtsklick → **Öffnen**; Windows: **Weitere Informationen → Trotzdem ausführen**.',
         codeLabel: 'Linux / macOS'
       },
       {

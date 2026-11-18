@@ -2,8 +2,8 @@
 #   cp .env.example .env    # edit
 #   docker compose -f compose.release.yml up -d
 services:
-  music-proxy:
-    image: ghcr.io/felixwochnick/eurooffice-music-notation-proxy:${PROXY_VERSION:-latest}
+  worksheet-server:
+    image: ghcr.io/felixwochnick/euro-office-worksheet-assistant:${PROXY_VERSION:-latest}
     restart: unless-stopped
     env_file:
       - path: .env

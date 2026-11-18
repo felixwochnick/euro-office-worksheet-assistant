@@ -1,12 +1,12 @@
 #!/usr/bin/env python3
-"""Generate dev/eurooffice/files/arbeitsblatt.docx – a minimal worksheet with
+"""Generate dev/eurooffice/files/worksheet.docx – a minimal worksheet with
 Heading styles ("Aufgabe 1..3") for testing the plugin in a real editor.
 Uses only the Python standard library."""
 import os
 import zipfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-OUT = os.path.join(HERE, "files", "arbeitsblatt.docx")
+OUT = os.path.join(HERE, "files", "worksheet.docx")
 
 W = 'xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"'
 

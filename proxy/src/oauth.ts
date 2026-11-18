@@ -283,7 +283,7 @@ export class OAuthServer implements AccessTokenVerifier {
       scopes_supported: ['mcp'],
       client_id_metadata_document_supported: true,
       authorization_response_iss_parameter_supported: true,
-      service_documentation: 'https://github.com/felixwochnick/eurooffice-music-notation-plugin',
+      service_documentation: 'https://github.com/felixwochnick/euro-office-worksheet-assistant',
     };
   }
 

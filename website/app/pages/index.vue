@@ -2,8 +2,8 @@
 import type { TabsItem } from '@nuxt/ui'
 import type { Step } from '~/content/types'
 
-const REPO = 'https://github.com/felixwochnick/eurooffice-music-notation-plugin'
-const RAW = 'https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main'
+const REPO = 'https://github.com/felixwochnick/euro-office-worksheet-assistant'
+const RAW = 'https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main'
 const DOWNLOAD = `${REPO}/releases/latest/download`
 const img = (name: string) => `${useRuntimeConfig().app.baseURL}img/${name}`
 const c = useContent()
@@ -28,7 +28,7 @@ function openInstall(tab: string) {
 const code: Record<string, (string | null)[]> = {
   nextcloud: [
     `curl -fsSL ${RAW}/scripts/install-aio.sh | sudo bash -s -- --watch`,
-    `mkdir arbeitsblatt-server && cd arbeitsblatt-server
+    `mkdir worksheet-server && cd worksheet-server
 curl -fsSLO ${RAW}/proxy/compose.release.yml
 curl -fsSL ${RAW}/proxy/.env.example -o .env
 nano .env   # AUTH_MODE=nextcloud, NEXTCLOUD_URL, PUBLIC_URL, CORS_ORIGINS, LLM_API_KEY
@@ -37,29 +37,29 @@ docker compose -f compose.release.yml up -d`,
   ],
   desktop: [
     null,
-    `# Linux x64 – macOS: arbeitsblatt-assistent-macos-arm64.zip (Apple silicon) / -macos-x64.zip
-curl -fsSLO ${DOWNLOAD}/arbeitsblatt-assistent-linux-x64.zip
-unzip arbeitsblatt-assistent-linux-x64.zip -d arbeitsblatt-assistent
-./arbeitsblatt-assistent/arbeitsblatt-assistent`,
+    `# Linux x64 – macOS: worksheet-assistant-macos-arm64.zip (Apple silicon) / -macos-x64.zip
+curl -fsSLO ${DOWNLOAD}/worksheet-assistant-linux-x64.zip
+unzip worksheet-assistant-linux-x64.zip -d worksheet-assistant
+./worksheet-assistant/worksheet-assistant`,
     null
   ],
   docker: [
-    `git clone ${REPO}.git && cd eurooffice-music-notation-plugin
+    `git clone ${REPO}.git && cd euro-office-worksheet-assistant
 bash scripts/build.sh            # -> dist/worksheet-assistant/`,
     `cd deploy && cp .env.example .env
 nano .env   # JWT_SECRET, AUTH_MODE, PROXY_TOKEN, CORS_ORIGINS, LLM_API_KEY
 docker compose up -d`,
     null
   ],
-  mcp: [null, 'claude mcp add --transport http arbeitsblatt https://arbeitsblatt.example.org/mcp', null]
+  mcp: [null, 'claude mcp add --transport http worksheet-assistant https://worksheets.example.org/mcp', null]
 }
 
 const downloads = [
-  { label: 'Windows', file: 'arbeitsblatt-assistent-windows-x64.zip', icon: 'i-simple-icons-windows' },
-  { label: 'macOS (Apple silicon)', file: 'arbeitsblatt-assistent-macos-arm64.zip', icon: 'i-simple-icons-apple' },
-  { label: 'macOS (Intel)', file: 'arbeitsblatt-assistent-macos-x64.zip', icon: 'i-simple-icons-apple' },
-  { label: 'Linux x64', file: 'arbeitsblatt-assistent-linux-x64.zip', icon: 'i-simple-icons-linux' },
-  { label: 'Linux arm64', file: 'arbeitsblatt-assistent-linux-arm64.zip', icon: 'i-simple-icons-linux' }
+  { label: 'Windows', file: 'worksheet-assistant-windows-x64.zip', icon: 'i-simple-icons-windows' },
+  { label: 'macOS (Apple silicon)', file: 'worksheet-assistant-macos-arm64.zip', icon: 'i-simple-icons-apple' },
+  { label: 'macOS (Intel)', file: 'worksheet-assistant-macos-x64.zip', icon: 'i-simple-icons-apple' },
+  { label: 'Linux x64', file: 'worksheet-assistant-linux-x64.zip', icon: 'i-simple-icons-linux' },
+  { label: 'Linux arm64', file: 'worksheet-assistant-linux-arm64.zip', icon: 'i-simple-icons-linux' }
 ]
 
 const tabs = computed<TabsItem[]>(() => [

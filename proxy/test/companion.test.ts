@@ -43,8 +43,8 @@ test('companion paths: desktop app plugin folders per OS', () => {
   assert.deepEqual(win.map((a) => a.pluginsDir), ['C:\\Users\\u\\AppData\\Local\\Euro-Office\\DesktopEditors\\data\\sdkjs-plugins']);
   const mac = desktopApps({ platform: 'darwin', home: '/Users/u', env: {} });
   assert.equal(mac[1].pluginsDir, '/Users/u/Library/Application Support/asc.nextcloud-office.Nextcloud-Office/data/sdkjs-plugins');
-  assert.equal(configDir({ platform: 'win32', home: 'C:\\Users\\u', env: { APPDATA: 'C:\\Users\\u\\AppData\\Roaming' } }), 'C:\\Users\\u\\AppData\\Roaming\\Arbeitsblatt-Assistent');
-  assert.equal(configDir({ platform: 'linux', home: '/home/u', env: {} }), '/home/u/.config/arbeitsblatt-assistent');
+  assert.equal(configDir({ platform: 'win32', home: 'C:\\Users\\u', env: { APPDATA: 'C:\\Users\\u\\AppData\\Roaming' } }), 'C:\\Users\\u\\AppData\\Roaming\\Worksheet Assistant');
+  assert.equal(configDir({ platform: 'linux', home: '/home/u', env: {} }), '/home/u/.config/worksheet-assistant');
 });
 
 test('companion settings: created with a token (mode 0600), mapped to the local server configuration', () => {
@@ -91,13 +91,13 @@ test('companion install: copies the plugin and writes local-config.js', () => {
 });
 
 test('companion autostart entries', () => {
-  const cmd = ['/opt/A B/arbeitsblatt-assistent', '--background'];
+  const cmd = ['/opt/A B/worksheet-assistant', '--background'];
   const linux = autostartTarget(cmd, '/cfg', { platform: 'linux', home: '/home/u', env: {} });
-  assert.equal(linux.file, '/home/u/.config/autostart/arbeitsblatt-assistent.desktop');
-  assert.match(linux.content, /^Exec="\/opt\/A B\/arbeitsblatt-assistent" --background$/m);
+  assert.equal(linux.file, '/home/u/.config/autostart/worksheet-assistant.desktop');
+  assert.match(linux.content, /^Exec="\/opt\/A B\/worksheet-assistant" --background$/m);
   const mac = autostartTarget(cmd, '/cfg', { platform: 'darwin', home: '/Users/u', env: {} });
-  assert.match(mac.file, /LaunchAgents\/de\.arbeitsblatt-assistent\.companion\.plist$/);
-  assert.match(mac.content, /<string>\/opt\/A B\/arbeitsblatt-assistent<\/string><string>--background<\/string>/);
+  assert.match(mac.file, /LaunchAgents\/io\.github\.felixwochnick\.worksheet-assistant\.plist$/);
+  assert.match(mac.content, /<string>\/opt\/A B\/worksheet-assistant<\/string><string>--background<\/string>/);
   const win = autostartTarget(['C:\\Program Files\\aa.exe', '--background'], 'C:\\cfg', { platform: 'win32', home: 'C:\\Users\\u', env: {} });
   assert.equal(win.file, 'C:\\cfg\\autostart.vbs');
   assert.match(win.content, /Run """C:\\Program Files\\aa\.exe"" ""--background""", 0, False/);

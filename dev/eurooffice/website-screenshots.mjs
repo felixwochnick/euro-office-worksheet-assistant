@@ -134,7 +134,7 @@ try {
       return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
-          version: '0.4.0', url: 'http://127.0.0.1:8787', mcp_url: 'http://127.0.0.1:8787/mcp', config_dir: `${home}/.config/arbeitsblatt-assistent`,
+          version: '0.4.0', url: 'http://127.0.0.1:8787', mcp_url: 'http://127.0.0.1:8787/mcp', config_dir: `${home}/.config/worksheet-assistant`,
           plugin_version: '0.4.0',
           apps: [{ id: 'desktop-editors', name: 'Euro-Office / Nextcloud Office', detected: true, installed: true, configured: true, version: '0.4.0', plugin_dir: `${home}/.local/share/euro-office/desktopeditors/sdkjs-plugins/{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}` }],
           settings: { provider: 'mistral', model: '', base_url: '', has_key: true, extra_origins: [] },
@@ -145,7 +145,7 @@ try {
             { id: 'anthropic', label: 'Anthropic (Claude)', model: 'claude-sonnet-5-5', needs_key: true, base_url: '' },
             { id: 'ollama', label: 'Ollama (lokales Modell)', model: 'qwen2.5:7b', needs_key: false, base_url: 'http://127.0.0.1:11434/v1' },
           ],
-          chat_error: '', autostart: true, stdio_command: ['/opt/arbeitsblatt-assistent/arbeitsblatt-assistent', 'mcp-stdio'], platform: 'linux',
+          chat_error: '', autostart: true, stdio_command: ['/opt/worksheet-assistant/worksheet-assistant', 'mcp-stdio'], platform: 'linux',
         }),
       });
     }

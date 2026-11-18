@@ -222,7 +222,7 @@ const en: SiteContent = {
       { title: 'Install the desktop app', description: 'Install Euro-Office or Nextcloud Office (desktop) for Windows, macOS or Linux and start it once.' },
       {
         title: 'Start the companion app',
-        description: 'Download `arbeitsblatt-assistent` for your system from the releases, unpack and start it. It installs the plugin and opens its settings in the browser. macOS: right click → **Open** the first time; Windows: **More info → Run anyway**.',
+        description: 'Download `worksheet-assistant` for your system from the releases, unpack and start it. It installs the plugin and opens its settings in the browser. macOS: right click → **Open** the first time; Windows: **More info → Run anyway**.',
         codeLabel: 'Linux / macOS'
       },
       {

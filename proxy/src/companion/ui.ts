@@ -103,9 +103,9 @@ function render() {
   updateProvider();
   $('chat-error').textContent = s.chat_error ? 'Der KI-Chat ist aus: ' + s.chat_error : '';
   $('mcp-url').textContent = s.mcp_url;
-  $('claude-code').textContent = 'claude mcp add --transport http arbeitsblatt ' + s.mcp_url;
+  $('claude-code').textContent = 'claude mcp add --transport http worksheet-assistant ' + s.mcp_url;
   const cmd = s.stdio_command;
-  $('claude-config').textContent = JSON.stringify({ mcpServers: { arbeitsblatt: { command: cmd[0], args: cmd.slice(1) } } }, null, 2);
+  $('claude-config').textContent = JSON.stringify({ mcpServers: { 'worksheet-assistant': { command: cmd[0], args: cmd.slice(1) } } }, null, 2);
   $('claude-config-path').textContent = s.platform === 'win32' ? '%APPDATA%\\\\Claude\\\\claude_desktop_config.json'
     : s.platform === 'darwin' ? '~/Library/Application Support/Claude/claude_desktop_config.json' : '~/.config/Claude/claude_desktop_config.json';
   $('autostart').checked = s.autostart;

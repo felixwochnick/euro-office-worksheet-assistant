@@ -222,7 +222,7 @@ const fr: SiteContent = {
       { title: 'Installer l’application de bureau', description: 'Installez l’application de bureau Euro-Office ou Nextcloud Office pour Windows, macOS ou Linux et lancez-la une première fois.' },
       {
         title: 'Lancer l’application compagnon',
-        description: 'Téléchargez `arbeitsblatt-assistent` pour votre système depuis les Releases, décompressez-le et lancez-le. Il installe le plugin et ouvre ses paramètres dans le navigateur. macOS : la première fois, clic droit → **Ouvrir** ; Windows : **Informations complémentaires → Exécuter quand même**.',
+        description: 'Téléchargez `worksheet-assistant` pour votre système depuis les Releases, décompressez-le et lancez-le. Il installe le plugin et ouvre ses paramètres dans le navigateur. macOS : la première fois, clic droit → **Ouvrir** ; Windows : **Informations complémentaires → Exécuter quand même**.',
         codeLabel: 'Linux / macOS'
       },
       {

@@ -222,7 +222,7 @@ const es: SiteContent = {
       { title: 'Instalar la aplicación de escritorio', description: 'Instala la aplicación de escritorio de Euro-Office o Nextcloud Office para Windows, macOS o Linux y ábrela una vez.' },
       {
         title: 'Iniciar la aplicación complementaria',
-        description: 'Descarga `arbeitsblatt-assistent` para tu sistema desde las Releases, descomprímelo e inícialo. Instala el plugin y abre sus ajustes en el navegador. macOS: la primera vez, clic derecho → **Abrir**; Windows: **Más información → Ejecutar de todas formas**.',
+        description: 'Descarga `worksheet-assistant` para tu sistema desde las Releases, descomprímelo e inícialo. Instala el plugin y abre sus ajustes en el navegador. macOS: la primera vez, clic derecho → **Abrir**; Windows: **Más información → Ejecutar de todas formas**.',
         codeLabel: 'Linux / macOS'
       },
       {

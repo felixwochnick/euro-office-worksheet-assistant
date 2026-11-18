@@ -1,13 +1,13 @@
 /**
- * Command line of the companion app (single executable "arbeitsblatt-assistent").
+ * Command line of the companion app (single executable "worksheet-assistant").
  *
- *   arbeitsblatt-assistent                 start (installs/updates the plugin, opens the settings page)
- *   arbeitsblatt-assistent --background    start without opening the browser (autostart)
- *   arbeitsblatt-assistent mcp-stdio       MCP over stdin/stdout (Claude Desktop); starts the companion if needed
- *   arbeitsblatt-assistent install-plugin [--force]
- *   arbeitsblatt-assistent uninstall       remove the plugin from the desktop apps and the autostart entry
- *   arbeitsblatt-assistent autostart on|off
- *   arbeitsblatt-assistent status | version | help
+ *   worksheet-assistant                 start (installs/updates the plugin, opens the settings page)
+ *   worksheet-assistant --background    start without opening the browser (autostart)
+ *   worksheet-assistant mcp-stdio       MCP over stdin/stdout (Claude Desktop); starts the companion if needed
+ *   worksheet-assistant install-plugin [--force]
+ *   worksheet-assistant uninstall       remove the plugin from the desktop apps and the autostart entry
+ *   worksheet-assistant autostart on|off
+ *   worksheet-assistant status | version | help
  */
 import { spawn } from 'node:child_process';
 import { VERSION } from '../version.js';
@@ -21,13 +21,13 @@ import { runStdio } from './stdio.js';
 
 const HELP = `Arbeitsblatt-Assistent ${VERSION} – Begleitprogramm für die Euro-Office-Desktop-App
 
-  arbeitsblatt-assistent                 starten (installiert das Plugin, öffnet die Einstellungen)
-  arbeitsblatt-assistent --background    im Hintergrund starten (ohne Browser)
-  arbeitsblatt-assistent mcp-stdio       MCP über stdin/stdout (z. B. für Claude Desktop)
-  arbeitsblatt-assistent install-plugin [--force]   Plugin in die Desktop-Apps installieren
-  arbeitsblatt-assistent uninstall       Plugin und Autostart entfernen
-  arbeitsblatt-assistent autostart on|off
-  arbeitsblatt-assistent status | version | help
+  worksheet-assistant                 starten (installiert das Plugin, öffnet die Einstellungen)
+  worksheet-assistant --background    im Hintergrund starten (ohne Browser)
+  worksheet-assistant mcp-stdio       MCP über stdin/stdout (z. B. für Claude Desktop)
+  worksheet-assistant install-plugin [--force]   Plugin in die Desktop-Apps installieren
+  worksheet-assistant uninstall       Plugin und Autostart entfernen
+  worksheet-assistant autostart on|off
+  worksheet-assistant status | version | help
 
 Optionen: --port <n>, --no-browser, --plugin-source <dir>
 `;

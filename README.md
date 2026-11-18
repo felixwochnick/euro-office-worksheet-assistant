@@ -71,7 +71,7 @@ service, the proxy.
   staff ABC); the proxy forwards them to the configured model provider – choose the provider accordingly (e.g. an EU
   provider such as Mistral, or a local model via Ollama).
 
-**Website:** https://felixwochnick.github.io/eurooffice-music-notation-plugin/ – overview, live demo of the German
+**Website:** https://felixwochnick.github.io/euro-office-worksheet-assistant/ – overview, live demo of the German
 note converter and installation guide in German, English, French, Spanish, Italian, Dutch and Polish.
 
 ## Repository layout
@@ -118,8 +118,8 @@ There are three parts: the **plugin** (in the Euro-Office Document Server), the 
 | C – `docker cp` by hand | one command | ❌ (gone after every AIO update) | quick tests |
 | **D – desktop app (Windows, macOS, Linux) + companion app** | download, start | ✅ | working locally with the Euro-Office / Nextcloud Office desktop editors |
 
-Prebuilt packages are attached to each [GitHub release](https://github.com/felixwochnick/eurooffice-music-notation-plugin/releases)
-(`worksheet-assistant.tar.gz`, `.zip`, `.plugin`; up to 0.1.0 `music-notation.*`); the proxy image is `ghcr.io/felixwochnick/eurooffice-music-notation-proxy`.
+Prebuilt packages are attached to each [GitHub release](https://github.com/felixwochnick/euro-office-worksheet-assistant/releases)
+(`worksheet-assistant.tar.gz`, `.zip`, `.plugin`; up to 0.1.0 `music-notation.*`); the proxy image is `ghcr.io/felixwochnick/euro-office-worksheet-assistant`.
 Releases are created by pushing a tag (`git tag v0.1.0 && git push origin v0.1.0`, see `.github/workflows/release.yml`).
 Until the first release exists, build locally with `bash scripts/build.sh` and use `--source dist/worksheet-assistant`.
 
@@ -133,7 +133,7 @@ removes plugins copied into it. AIO offers no supported way to mount own plugins
 
 ```bash
 # latest release
-curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/scripts/install-aio.sh \
+curl -fsSL https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/scripts/install-aio.sh \
   | sudo bash -s -- --watch
 
 # or from a checkout / local build
@@ -162,15 +162,15 @@ plain HTTP from there). On the AIO host itself, put it behind your reverse proxy
 → `localhost:8787`):
 
 ```bash
-mkdir music-proxy && cd music-proxy
-curl -fsSLO https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/proxy/compose.release.yml
-curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/proxy/.env.example -o .env
+mkdir worksheet-server && cd worksheet-server
+curl -fsSLO https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/proxy/compose.release.yml
+curl -fsSL https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/proxy/.env.example -o .env
 nano .env        # PROXY_TOKEN (openssl rand -hex 24), CORS_ORIGINS, LLM_API_KEY
 docker compose -f compose.release.yml up -d
 ```
 
 (From a checkout: `cd proxy && docker compose up -d --build`. If pulling the image fails with "denied", set the
-package `eurooffice-music-notation-proxy` to *public* once under GitHub → Packages → Package settings.)
+package `euro-office-worksheet-assistant` to *public* once under GitHub → Packages → Package settings.)
 
 **3. Settings** – in the editor: *Plugins* → *Arbeitsblatt-Assistent* → *Einstellungen*: enter the proxy URL and the token.
 Below the token field the plugin shows **the origin to add to `CORS_ORIGINS`** (the address of the Document Server
@@ -194,14 +194,14 @@ docker compose up -d
 - `eurooffice` – image `ghcr.io/euro-office/documentserver` (pin `EUROOFFICE_VERSION` in production) with
   JWT enabled, data/log volumes and `dist/worksheet-assistant` mounted read-only into
   `/var/www/euro-office/documentserver/sdkjs-plugins/worksheet-assistant`,
-- `music-proxy` – the LLM proxy (see below).
+- `worksheet-server` – the LLM proxy (see below).
 
 Both ports are published on `127.0.0.1` only; remove the `ports:` entries when the reverse proxy reaches the
 containers through the Docker network (as in Coolify). Set `TRUST_PROXY` to the reverse proxy's IP/CIDR – not to
 `true` – so clients cannot spoof `X-Forwarded-For` to bypass the rate limit.
 
 Put a TLS reverse proxy in front (Coolify does this automatically), e.g. `https://office.example.org` → `eurooffice:80`
-and `https://notes-proxy.example.org` → `music-proxy:8787`. In Nextcloud, disable the AIO-internal office
+and `https://worksheets.example.org` → `worksheet-server:8787`. In Nextcloud, disable the AIO-internal office
 integration and enter the Document Server URL (`https://office.example.org/`) and the same JWT secret in the
 Euro-Office/ONLYOFFICE connector settings (*Administration settings → Office*). Both sides must use the same
 `JWT_SECRET`.
@@ -222,13 +222,13 @@ Reopen the document. The plugin is gone after the next AIO update – use A to a
 ### D – desktop app with the companion app (Windows, macOS, Linux)
 
 The desktop editors (Euro-Office, Nextcloud Office) have no plugin manager, and there is no Document Server to put
-a proxy next to. The **companion app** (`arbeitsblatt-assistent`, one executable, no installation of Node.js
+a proxy next to. The **companion app** (`worksheet-assistant`, one executable, no installation of Node.js
 needed) does both on the user's computer:
 
 1. Install and start the desktop app once (it creates its data folder).
-2. Download `arbeitsblatt-assistent-<os>-<arch>.zip` from the
-   [releases](https://github.com/felixwochnick/eurooffice-music-notation-plugin/releases), unpack it and start
-   `arbeitsblatt-assistent` (macOS: right click → *Open* the first time; Windows SmartScreen: *More info → Run
+2. Download `worksheet-assistant-<os>-<arch>.zip` from the
+   [releases](https://github.com/felixwochnick/euro-office-worksheet-assistant/releases), unpack it and start
+   `worksheet-assistant` (macOS: right click → *Open* the first time; Windows SmartScreen: *More info → Run
    anyway* – the program is not signed).
 3. It installs the plugin into the desktop apps it finds, starts a local server on `127.0.0.1:8787` and opens its
    settings page in the browser: AI provider and API key for the chat (Mistral, OpenAI, Anthropic, Ollama, any
@@ -240,12 +240,12 @@ needed) does both on the user's computer:
 | | |
 |---|---|
 | Plugin folders | Linux `~/.local/share/euro-office/desktopeditors/sdkjs-plugins/` and Windows `%LOCALAPPDATA%\Euro-Office\DesktopEditors\data\sdkjs-plugins\` (shared by Euro-Office and Nextcloud Office), macOS `~/Library/Application Support/asc.euro-office.Euro-Office/data/sdkjs-plugins/` resp. `…/asc.nextcloud-office.Nextcloud-Office/data/sdkjs-plugins/`. The plugin folder must be a real folder (no symlink) named after the plugin GUID `{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}`. New documents pick up a newly installed plugin without restarting the app |
-| Settings | Linux `~/.config/arbeitsblatt-assistent/`, Windows `%APPDATA%\Arbeitsblatt-Assistent\`, macOS `~/Library/Application Support/Arbeitsblatt-Assistent/` (`config.json`, mode 0600 – contains the API key) |
+| Settings | Linux `~/.config/worksheet-assistant/`, Windows `%APPDATA%\Worksheet Assistant\`, macOS `~/Library/Application Support/Worksheet Assistant/` (`config.json`, mode 0600 – contains the API key) |
 | Server | `AUTH_MODE=local`: listens on `127.0.0.1` only; the plugin uses the token, MCP needs no sign-in (Host and Origin are checked) |
 | Autostart | Linux XDG autostart, macOS LaunchAgent, Windows `HKCU\…\Run` (started without a console window) |
-| MCP | Streamable HTTP `http://127.0.0.1:8787/mcp`, or `arbeitsblatt-assistent mcp-stdio` for clients that start a command (Claude Desktop: the settings page shows the exact `claude_desktop_config.json` entry) |
+| MCP | Streamable HTTP `http://127.0.0.1:8787/mcp`, or `worksheet-assistant mcp-stdio` for clients that start a command (Claude Desktop: the settings page shows the exact `claude_desktop_config.json` entry) |
 
-Commands: `arbeitsblatt-assistent [--background] [--port n]`, `install-plugin [--force]`, `uninstall`,
+Commands: `worksheet-assistant [--background] [--port n]`, `install-plugin [--force]`, `uninstall`,
 `autostart on|off`, `mcp-stdio`, `status`, `help`. Build it yourself with `bash scripts/build.sh &&
 (cd proxy && npm ci) && npm ci && node scripts/build-companion.mjs` (an official Node.js ≥ 25.5 from nodejs.org,
 nvm or fnm – distribution packages link system libraries and the executable would only run on that system; CI
@@ -407,9 +407,9 @@ Serve the proxy at the root of its own (sub)domain for OAuth: clients look for t
 
 **Add it to your assistant** (`https://worksheet.example.org/mcp` as an example):
 
-- **Claude Code:** `claude mcp add --transport http arbeitsblatt https://worksheet.example.org/mcp`
+- **Claude Code:** `claude mcp add --transport http worksheet-assistant https://worksheet.example.org/mcp`
   (OAuth: sign in when asked) – or with an app password:
-  `claude mcp add --transport http arbeitsblatt https://worksheet.example.org/mcp --header "Authorization: Basic $(printf 'login:app-password' | base64)"`
+  `claude mcp add --transport http worksheet-assistant https://worksheet.example.org/mcp --header "Authorization: Basic $(printf 'login:app-password' | base64)"`
 - **claude.ai / Claude Desktop, ChatGPT, Le Chat and other assistants with "custom connectors" / remote MCP
   servers:** add the URL as a custom connector; they sign in with OAuth (`AUTH_MODE=nextcloud` with an OAuth
   client). Hosted assistants call the proxy from the internet – it must be publicly reachable via HTTPS.
@@ -514,7 +514,7 @@ npm test                    # unit tests (shared ABC helpers) + proxy tests (age
 ```bash
 cd website && npm install
 npm run dev                                              # http://localhost:3000
-NUXT_APP_BASE_URL=/eurooffice-music-notation-plugin/ npm run build   # static site in .output/public
+NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ npm run build   # static site in .output/public
 ```
 
 The live demo imports `shared/abc-tools.js` directly, so it always uses the same converter as the plugin. The site is
@@ -563,7 +563,7 @@ node dev/nextcloud/e2e-nextcloud.mjs
 ### Testing in a real Euro-Office editor (without Nextcloud)
 
 `dev/eurooffice/` starts a real Euro-Office Document Server (JWT off – development only) with the built plugin
-mounted, plus a tiny document storage (`server.mjs`) that serves a test worksheet (`files/arbeitsblatt.docx`,
+mounted, plus a tiny document storage (`server.mjs`) that serves a test worksheet (`files/worksheet.docx`,
 generated by `make-worksheet.py`), the editor page and the save callback (saved versions go to `dev/eurooffice/out/`).
 
 ```bash

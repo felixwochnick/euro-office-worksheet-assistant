@@ -5,8 +5,8 @@
  *
  *   bash scripts/build.sh            # plugin (dist/worksheet-assistant/)
  *   (cd proxy && npm ci)             # server dependencies
- *   node scripts/build-companion.mjs # -> dist/companion/arbeitsblatt-assistent[.exe]
- *                                    #    dist/arbeitsblatt-assistent-<os>-<arch>.zip
+ *   node scripts/build-companion.mjs # -> dist/companion/worksheet-assistant[.exe]
+ *                                    #    dist/worksheet-assistant-<os>-<arch>.zip
  *
  * Steps: bundle server + companion + shared/abc-tools.js with esbuild into one CommonJS file, embed the plugin
  * files as an asset, build the executable with `node --build-sea`, sign it ad hoc on macOS, zip it.
@@ -20,7 +20,7 @@ import * as esbuild from 'esbuild';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const out = path.join(root, 'dist', 'companion');
 const pluginDir = path.join(root, 'dist', 'worksheet-assistant');
-const exeName = process.platform === 'win32' ? 'arbeitsblatt-assistent.exe' : 'arbeitsblatt-assistent';
+const exeName = process.platform === 'win32' ? 'worksheet-assistant.exe' : 'worksheet-assistant';
 const os = { win32: 'windows', darwin: 'macos', linux: 'linux' }[process.platform] ?? process.platform;
 const hasZip = (() => {
   try {
@@ -31,7 +31,7 @@ const hasZip = (() => {
   }
 })();
 // zip everywhere (Windows: PowerShell); .tar.gz on systems without zip.
-const archive = path.join(root, 'dist', `arbeitsblatt-assistent-${os}-${process.arch}.${process.platform === 'win32' || hasZip ? 'zip' : 'tar.gz'}`);
+const archive = path.join(root, 'dist', `worksheet-assistant-${os}-${process.arch}.${process.platform === 'win32' || hasZip ? 'zip' : 'tar.gz'}`);
 
 const [major, minor] = process.versions.node.split('.').map(Number);
 if (major < 25 || (major === 25 && minor < 5)) {
@@ -134,21 +134,31 @@ if (process.platform === 'darwin') execFileSync('codesign', ['--sign', '-', '--f
 
 console.log('==> Archive');
 fs.rmSync(archive, { force: true });
-const readme = path.join(out, 'LIESMICH.txt');
+const readme = path.join(out, 'README.txt');
 fs.writeFileSync(
   readme,
   [
+    'Worksheet Assistant – companion app for the Euro-Office desktop editors',
+    '',
+    '1. Install Euro-Office or Nextcloud Office (desktop) and start it once.',
+    `2. Start ${exeName}. It installs the plugin and opens its settings in the browser`,
+    '   (http://127.0.0.1:8787/): AI provider and API key for the chat, MCP for Claude & co., autostart.',
+    '3. Open a document in the desktop app: Plugins → Worksheet Assistant (German UI: Arbeitsblatt-Assistent).',
+    '',
+    'macOS: the first time, right click → Open (the program is not notarized).',
+    'Windows: SmartScreen → "More info" → "Run anyway".',
+    '',
     'Arbeitsblatt-Assistent – Begleitprogramm für die Euro-Office-Desktop-App',
     '',
     '1. Euro-Office oder Nextcloud Office (Desktop) installieren und einmal starten.',
     `2. ${exeName} starten. Das Programm installiert das Plugin und öffnet seine Einstellungen im Browser`,
     '   (http://127.0.0.1:8787/): KI-Anbieter und API-Schlüssel für den Chat, MCP für Claude & Co., Autostart.',
-    '3. Desktop-App neu starten, Dokument öffnen: Plugins → Arbeitsblatt-Assistent.',
+    '3. In der Desktop-App ein Dokument öffnen: Plugins → Arbeitsblatt-Assistent.',
     '',
     'macOS: beim ersten Start Rechtsklick → Öffnen (das Programm ist nicht notariell beglaubigt).',
     'Windows: SmartScreen → „Weitere Informationen“ → „Trotzdem ausführen“.',
     '',
-    'Hilfe: arbeitsblatt-assistent help · https://github.com/felixwochnick/eurooffice-music-notation-plugin',
+    `Help / Hilfe: ${exeName} help · https://github.com/felixwochnick/euro-office-worksheet-assistant`,
     '',
   ].join(process.platform === 'win32' ? '\r\n' : '\n'),
 );
@@ -161,7 +171,7 @@ if (process.platform === 'win32') {
   execFileSync('zip', ['-qr', archive, 'licenses'], { cwd: pluginDir, stdio: 'inherit' });
 } else {
   fs.cpSync(licDir, path.join(out, 'licenses'), { recursive: true });
-  execFileSync('tar', ['-czf', archive, '-C', out, exeName, 'LIESMICH.txt', 'LICENSE.txt', 'THIRD-PARTY-LICENSES.txt', 'licenses'], { stdio: 'inherit' });
+  execFileSync('tar', ['-czf', archive, '-C', out, exeName, 'README.txt', 'LICENSE.txt', 'THIRD-PARTY-LICENSES.txt', 'licenses'], { stdio: 'inherit' });
 }
 const size = (f) => `${(fs.statSync(f).size / 1048576).toFixed(1)} MB`;
 console.log(`    ${path.relative(root, exe)} (${size(exe)})`);

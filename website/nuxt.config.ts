@@ -1,6 +1,6 @@
 // Project website for GitHub Pages (static, prerendered) in 7 languages.
 // The base URL is set by the Pages workflow: NUXT_APP_BASE_URL=/<repository>/
-const SITE = 'https://felixwochnick.github.io/eurooffice-music-notation-plugin'
+const SITE = 'https://felixwochnick.github.io/euro-office-worksheet-assistant'
 
 export default defineNuxtConfig({
   modules: ['@nuxt/ui', '@nuxtjs/i18n'],

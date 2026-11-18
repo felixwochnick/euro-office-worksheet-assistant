@@ -47,7 +47,7 @@ jobs:
           node harness/e2e.mjs
 
       - name: Proxy Docker image builds
-        run: docker build -f proxy/Dockerfile -t music-notation-proxy:ci .
+        run: docker build -f proxy/Dockerfile -t worksheet-assistant-server:ci .
 
       - uses: actions/upload-artifact@v4
         with:
@@ -94,7 +94,7 @@ jobs:
 
       - name: Smoke test
         run: |
-          exe=dist/companion/arbeitsblatt-assistent
+          exe=dist/companion/worksheet-assistant
           [ -f "$exe.exe" ] && exe="$exe.exe"
           "$exe" version
           home="$(mktemp -d)"
@@ -114,4 +114,4 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: companion-${{ runner.os }}-${{ runner.arch }}
-          path: dist/arbeitsblatt-assistent-*
+          path: dist/worksheet-assistant-*

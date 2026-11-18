@@ -8,7 +8,7 @@
 # Usage (on the AIO host, as root or a member of the docker group):
 #
 #   # latest release from GitHub
-#   curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/scripts/install-aio.sh | sudo bash -s -- --watch
+#   curl -fsSL https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/scripts/install-aio.sh | sudo bash -s -- --watch
 #
 #   # or from a local build / downloaded archive
 #   sudo scripts/install-aio.sh --source dist/worksheet-assistant --watch
@@ -27,7 +27,7 @@
 #   --install-only      (internal) copy the stored plugin into the container and exit
 set -euo pipefail
 
-REPO="felixwochnick/eurooffice-music-notation-plugin"
+REPO="felixwochnick/euro-office-worksheet-assistant"
 NAME="worksheet-assistant"
 CONTAINER="${EUROOFFICE_CONTAINER:-nextcloud-aio-eurooffice}"
 PLUGIN_DIR="/var/www/euro-office/documentserver/sdkjs-plugins"

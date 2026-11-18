@@ -222,7 +222,7 @@ const nl: SiteContent = {
       { title: 'Desktopapp installeren', description: 'Installeer Euro-Office of Nextcloud Office (desktop) voor Windows, macOS of Linux en start de app één keer.' },
       {
         title: 'Companion-app starten',
-        description: 'Download `arbeitsblatt-assistent` voor je systeem bij de releases, pak het uit en start het. Het programma installeert de plugin en opent de instellingen in de browser. macOS: de eerste keer met rechts klikken → **Open**; Windows: **Meer informatie → Toch uitvoeren**.',
+        description: 'Download `worksheet-assistant` voor je systeem bij de releases, pak het uit en start het. Het programma installeert de plugin en opent de instellingen in de browser. macOS: de eerste keer met rechts klikken → **Open**; Windows: **Meer informatie → Toch uitvoeren**.',
         codeLabel: 'Linux / macOS'
       },
       {
