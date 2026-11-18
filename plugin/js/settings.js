@@ -14,7 +14,11 @@
     widthCm: 16,
     dpi: 300,
     insertMethod: 'auto', // auto | api | imageData | html
-    language: 'de'
+    language: 'de',
+    // Let MCP clients edit this document through the proxy's plugin bridge (bridge.js).
+    mcpEnabled: false,
+    // Display name of the Nextcloud user (AUTH_MODE=nextcloud; the token is then a sign-in token).
+    userName: ''
   };
 
   var memory = null;

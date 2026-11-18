@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.3.0 – MCP endpoint and sign-in with Nextcloud
+
+- **MCP endpoint** (`<PUBLIC_URL>/mcp`, Streamable HTTP, stateless, MCP 2026-07-28 and 2025 clients): AI assistants
+  such as Claude, ChatGPT or Le Chat read and edit the document that is open in Euro-Office – with the same tools as
+  the chat (worksheet blocks, staves, lyrics, German note names) plus `list_open_documents`. Arguments are validated
+  by the proxy before they reach the editor.
+- **Plugin bridge**: with *MCP-Zugriff erlauben* the panel keeps a WebSocket to the proxy and executes the
+  assistant's tool calls in the editor; every call is shown in the chat.
+- **Sign-in modes** (`AUTH_MODE`): `token` (shared token, as before), `nextcloud` (each Nextcloud user signs in;
+  MCP clients only reach their own editors) and `local` (one computer, loopback only, MCP without sign-in).
+- **Nextcloud sign-in**: the plugin signs in with *Mit Nextcloud anmelden* (Login Flow v2); MCP clients use a
+  Nextcloud app password or **OAuth via Nextcloud** – the proxy is the authorization server for MCP clients
+  (metadata discovery, PKCE, dynamic client registration, client ID metadata documents, own consent page) and uses
+  Nextcloud's OAuth2 app for the login. Revoking the access in Nextcloud ends it within an hour.
+- `LLM_PROVIDER=none`: MCP only, no AI chat (*„entweder KI-API oder MCP“*).
+- New public `GET /v1/meta`; the proxy image stores sign-ins in `/data` (volume).
+
+
 ## 0.2.0 – Arbeitsblatt-Assistent
 
 - **Renamed** to "Arbeitsblatt-Assistent" / "Worksheet Assistant": an AI assistant for worksheets of any subject;

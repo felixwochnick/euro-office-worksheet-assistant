@@ -101,10 +101,25 @@
   <section id="view-settings" class="view" role="tabpanel">
     <label class="field"><span data-i18n="settings.proxyUrl">Proxy-URL</span>
       <input id="s-url" type="url" placeholder="https://notes-proxy.example.org" autocomplete="off"></label>
-    <label class="field"><span data-i18n="settings.token">Zugangs-Token</span>
+    <div id="s-nc" class="hidden">
+      <small class="hint" data-i18n="settings.ncHint"></small>
+      <div class="row">
+        <span id="s-nc-user" class="grow"></span>
+        <button id="s-nc-login" class="secondary" data-i18n="settings.ncLogin">Mit Nextcloud anmelden</button>
+        <button id="s-nc-logout" class="secondary hidden" data-i18n="settings.ncLogout">Abmelden</button>
+      </div>
+      <div id="s-nc-status" class="message hidden"></div>
+    </div>
+    <label class="field" id="s-token-field"><span data-i18n="settings.token">Zugangs-Token</span>
       <input id="s-token" type="password" autocomplete="off"></label>
     <small class="hint"><span data-i18n="settings.originHint">Im Proxy unter CORS_ORIGINS eintragen:</span> <code id="s-origin"></code></small>
     <label class="check"><input id="s-auto" type="checkbox"> <span data-i18n="settings.autoInsert">automatisch einfügen</span></label>
+    <div class="mcp-box">
+      <label class="check"><input id="s-mcp" type="checkbox"> <span data-i18n="settings.mcp">MCP-Zugriff erlauben</span></label>
+      <small class="hint" data-i18n="settings.mcpHint"></small>
+      <small class="hint"><span data-i18n="settings.mcpUrl">MCP-Adresse:</span> <code id="s-mcp-url"></code></small>
+      <div id="s-mcp-status" class="hint"></div>
+    </div>
     <div class="row">
       <label class="field small"><span data-i18n="settings.width">Standardbreite (cm)</span>
         <input id="s-width" type="number" min="3" max="19" step="0.5"></label>
@@ -131,7 +146,7 @@
       <button id="s-test" class="secondary" data-i18n="settings.test">Verbindung testen</button>
     </div>
     <div id="s-status" class="message hidden"></div>
-    <p class="about">Arbeitsblatt-Assistent 0.2.0 · MIT · abcjs (MIT) · ONLYOFFICE plugin SDK (AGPL-3.0)</p>
+    <p class="about">Arbeitsblatt-Assistent 0.3.0 · MIT · abcjs (MIT) · ONLYOFFICE plugin SDK (AGPL-3.0)</p>
   </section>
 
   <script src="js/abc-tools.js"></script>
@@ -141,6 +156,7 @@
   <script src="js/editor.js"></script>
   <script src="js/blocks.js"></script>
   <script src="js/agent.js"></script>
+  <script src="js/bridge.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

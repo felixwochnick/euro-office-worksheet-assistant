@@ -1,5 +1,5 @@
 import type { Config } from '../config.js';
-import type { LLMProvider } from '../types.js';
+import { ProviderError, type LLMProvider } from '../types.js';
 import { AnthropicProvider } from './anthropic.js';
 import { MockProvider } from './mock.js';
 import { OpenAICompatibleProvider } from './openai.js';
@@ -17,6 +17,15 @@ export function createProvider(cfg: Config): LLMProvider {
       });
     case 'mock':
       return new MockProvider();
+    case 'none':
+      // MCP-only deployment: the AI client (e.g. Claude) brings its own model.
+      return {
+        name: 'none',
+        model: '',
+        complete: async () => {
+          throw new ProviderError('The AI chat is disabled on this server (LLM_PROVIDER=none) – use an MCP client instead.', 503);
+        },
+      };
     case 'mistral':
     case 'openai':
       return new OpenAICompatibleProvider({

@@ -1,4 +1,4 @@
-# LLM proxy for the Euro-Office music notation plugin.
+# Server of the Euro-Office worksheet assistant: AI chat proxy and MCP endpoint.
 #   cp .env.example .env   # then edit
 #   docker compose up -d --build
 services:
@@ -15,6 +15,9 @@ services:
       PORT: "8787"
     ports:
       - "${PROXY_PUBLISH_PORT:-8787}:8787"
+    volumes:
+      # sign-ins, OAuth clients and grants (AUTH_MODE=nextcloud)
+      - proxy-data:/data
     read_only: true
     security_opt:
       - no-new-privileges:true
@@ -31,4 +34,5 @@ services:
       - ollama:/root/.ollama
 
 volumes:
+  proxy-data:
   ollama:
