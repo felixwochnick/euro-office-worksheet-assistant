@@ -6,7 +6,7 @@
 //! app. Without one, and for installations that cannot replace themselves (Linux .deb), the app only reads the
 //! latest release from the GitHub API and offers its download page.
 
-use serde::{Deserialize, Serialize};
+use serde::Serialize;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Mutex;
 use std::time::{Duration, SystemTime, UNIX_EPOCH};
@@ -17,6 +17,7 @@ pub const REPO: &str = "felixwochnick/euro-office-worksheet-assistant";
 /// First check shortly after the start, then every six hours.
 const FIRST_CHECK: Duration = Duration::from_secs(20);
 const INTERVAL: Duration = Duration::from_secs(6 * 60 * 60);
+const RETRY: Duration = Duration::from_secs(15 * 60);
 
 static UPDATER_ENABLED: AtomicBool = AtomicBool::new(false);
 
@@ -106,9 +107,11 @@ impl Updates {
 }
 
 /// Can this installation install updates itself? Needs the updater key; on Linux only the AppImage can be
-/// replaced (a .deb belongs to the package manager).
+/// replaced (a .deb belongs to the package manager); not from a temporary place (macOS disk image).
 pub fn self_update_supported() -> bool {
-    if !UPDATER_ENABLED.load(Ordering::Relaxed) {
+    if !UPDATER_ENABLED.load(Ordering::Relaxed)
+        || crate::sidecar::is_temporary_location(&crate::sidecar::app_launch_path())
+    {
         return false;
     }
     if cfg!(target_os = "linux") {
@@ -145,35 +148,41 @@ struct Found {
     url: String,
 }
 
-#[derive(Deserialize)]
-struct GithubRelease {
-    tag_name: String,
-    html_url: String,
-    #[serde(default)]
-    body: Option<String>,
-}
-
-fn latest_github_release() -> Result<GithubRelease, String> {
+/// Tag of the latest release, from the redirect of github.com/<repo>/releases/latest (not the GitHub API: its
+/// limit of 60 requests per hour and address is quickly used up by a school network behind one address).
+fn latest_release_tag() -> Result<String, String> {
     let agent: ureq::Agent = ureq::Agent::config_builder()
         .timeout_global(Some(Duration::from_secs(20)))
+        .max_redirects(0)
+        .http_status_as_error(false)
         .build()
         .into();
-    agent
-        .get(&format!("https://api.github.com/repos/{REPO}/releases/latest"))
+    let response = agent
+        .get(&format!("https://github.com/{REPO}/releases/latest"))
         .header("User-Agent", "worksheet-assistant-app")
-        .header("Accept", "application/vnd.github+json")
         .call()
-        .map_err(|e| e.to_string())?
-        .body_mut()
-        .read_json::<GithubRelease>()
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+    let location = response
+        .headers()
+        .get("location")
+        .and_then(|v| v.to_str().ok())
+        .ok_or_else(|| format!("HTTP {} ohne Weiterleitung", response.status().as_u16()))?;
+    tag_from_location(location).ok_or_else(|| format!("unerwartete Weiterleitung: {location}"))
 }
 
-/// Check for a newer version and publish the result (event `update-status`, tray menu).
-pub async fn check(app: &AppHandle) -> UpdateStatus {
+/// ".../releases/tag/v0.6.1" → "v0.6.1"
+fn tag_from_location(location: &str) -> Option<String> {
+    let tag = location.split("/releases/tag/").nth(1)?.split(['?', '#']).next()?;
+    (!tag.is_empty()).then(|| tag.to_string())
+}
+
+/// Check for a newer version and publish the result (event `update-status`, tray menu). A failed background check
+/// (`manual == false`, e.g. no network yet after logging in) is not shown as an error; returns whether it worked.
+pub async fn check(app: &AppHandle, manual: bool) -> (UpdateStatus, bool) {
     let updates = app.state::<Updates>();
-    if matches!(updates.status().state, UpdateState::Checking | UpdateState::Downloading) {
-        return updates.status();
+    let before = updates.status();
+    if matches!(before.state, UpdateState::Checking | UpdateState::Downloading) {
+        return (before, true);
     }
     updates.update(app, |s| {
         s.state = UpdateState::Checking;
@@ -202,12 +211,13 @@ pub async fn check(app: &AppHandle) -> UpdateStatus {
     } else {
         let current = current.clone();
         tauri::async_runtime::spawn_blocking(move || {
-            latest_github_release().map(|r| {
-                is_newer(&r.tag_name, &current).then(|| Found {
-                    version: r.tag_name.trim_start_matches('v').to_string(),
-                    notes: r.body,
+            latest_release_tag().map(|tag| {
+                let version = tag.trim_start_matches('v').to_string();
+                is_newer(&tag, &current).then(|| Found {
+                    url: release_page(&version),
+                    version,
+                    notes: None,
                     manual: true,
-                    url: r.html_url,
                 })
             })
         })
@@ -215,7 +225,15 @@ pub async fn check(app: &AppHandle) -> UpdateStatus {
         .unwrap_or_else(|e| Err(e.to_string()))
     };
 
+    let ok = result.is_ok();
     updates.update(app, |s| {
+        if let (Err(_), false) = (&result, manual) {
+            *s = UpdateStatus {
+                message: None,
+                ..before
+            };
+            return;
+        }
         s.checked_at = Some(now());
         s.progress = None;
         match result {
@@ -238,11 +256,11 @@ pub async fn check(app: &AppHandle) -> UpdateStatus {
             }
         }
     });
-    updates.status()
+    (updates.status(), ok)
 }
 
-/// Install the available update: stop the server, download, install, restart. For a manual update open the
-/// download page instead.
+/// Install the available update: download, install, restart (the server keeps running during the download). For a
+/// manual update open the download page instead.
 pub async fn install(app: &AppHandle) -> Result<(), String> {
     let updates = app.state::<Updates>();
     let status = updates.status();
@@ -263,14 +281,10 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
         s.progress = Some(0.0);
         s.message = None;
     });
-    // The installer replaces the server program as well; on Windows a running program cannot be replaced.
-    let sidecar = app.state::<crate::sidecar::Sidecar>();
-    sidecar.stop();
-
     let mut received: u64 = 0;
     let progress_app = app.clone();
-    let result = update
-        .download_and_install(
+    let downloaded = update
+        .download(
             move |chunk, total| {
                 received += chunk as u64;
                 if let Some(total) = total.filter(|t| *t > 0) {
@@ -286,13 +300,27 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
             || {},
         )
         .await;
+    let result = match downloaded {
+        Ok(bytes) => {
+            // Windows: the installer replaces the server program too, which it cannot while it runs. Elsewhere the
+            // files are replaced in place and the server stops with the restart.
+            #[cfg(windows)]
+            {
+                let stopper = app.clone();
+                let _ = tauri::async_runtime::spawn_blocking(move || stopper.state::<crate::sidecar::Sidecar>().stop())
+                    .await;
+            }
+            update.install(bytes)
+        }
+        Err(err) => Err(err),
+    };
     match result {
         Ok(()) => {
             // Windows: the installer has already taken over and quits the app. Elsewhere: start the new version.
             app.restart();
         }
         Err(err) => {
-            sidecar.start(app);
+            app.state::<crate::sidecar::Sidecar>().start(app);
             updates.update(app, |s| {
                 s.state = UpdateState::Error;
                 s.progress = None;
@@ -303,13 +331,13 @@ pub async fn install(app: &AppHandle) -> Result<(), String> {
     }
 }
 
-/// Check in the background: shortly after the start, then every six hours.
+/// Check in the background: shortly after the start, then every six hours; after a failure again in 15 minutes.
 pub fn schedule(app: AppHandle) {
     std::thread::spawn(move || {
         std::thread::sleep(FIRST_CHECK);
         loop {
-            tauri::async_runtime::block_on(check(&app));
-            std::thread::sleep(INTERVAL);
+            let (_, ok) = tauri::async_runtime::block_on(check(&app, false));
+            std::thread::sleep(if ok { INTERVAL } else { RETRY });
         }
     });
 }
@@ -326,6 +354,21 @@ mod tests {
         assert!(!is_newer("v0.5.9", "0.6.0"));
         assert!(!is_newer("nightly", "0.6.0"));
         assert!(!is_newer("v0.7.0-beta.1", "0.7.0"));
+    }
+
+    #[test]
+    fn tags_from_redirects() {
+        let base = "https://github.com/felixwochnick/euro-office-worksheet-assistant/releases";
+        assert_eq!(
+            tag_from_location(&format!("{base}/tag/v0.6.1")).as_deref(),
+            Some("v0.6.1")
+        );
+        assert_eq!(
+            tag_from_location(&format!("{base}/tag/v0.6.1?x=1")).as_deref(),
+            Some("v0.6.1")
+        );
+        assert_eq!(tag_from_location(base), None);
+        assert_eq!(tag_from_location(&format!("{base}/tag/")), None);
     }
 
     #[test]

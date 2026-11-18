@@ -51,7 +51,13 @@ const steps = computed<Step[]>(() => [
 ])
 
 const open = computed(() => steps.value.filter(s => !s.done && !s.optional).length)
-const background = computed(() => info.value?.platform === 'macos' ? 'in der Menüleiste oben rechts' : 'im Infobereich der Taskleiste')
+const closeHint = computed(() => {
+  if (info.value && !info.value.tray) {
+    return 'Wenn du das Fenster schließt, wird es nur minimiert: Der Arbeitsblatt-Assistent läuft weiter, damit KI-Chat und Claude funktionieren. Beenden kannst du ihn unter Einstellungen.'
+  }
+  const where = info.value?.platform === 'macos' ? 'in der Menüleiste oben rechts' : 'im Infobereich der Taskleiste'
+  return `Das Fenster kannst du schließen: Der Arbeitsblatt-Assistent läuft ${where} weiter, damit KI-Chat und Claude funktionieren. Beenden kannst du ihn dort oder unter Einstellungen.`
+})
 </script>
 
 <template>
@@ -94,10 +100,7 @@ const background = computed(() => info.value?.platform === 'macos' ? 'in der Men
 
     <div class="flex gap-3 text-sm text-muted">
       <UIcon name="i-lucide-info" class="mt-0.5 size-4 shrink-0" />
-      <p>
-        Das Fenster kannst du schließen: Der Arbeitsblatt-Assistent läuft {{ background }} weiter, damit KI-Chat und
-        Claude funktionieren. Beenden kannst du ihn dort oder unter Einstellungen.
-      </p>
+      <p>{{ closeHint }}</p>
     </div>
   </AppPage>
 </template>

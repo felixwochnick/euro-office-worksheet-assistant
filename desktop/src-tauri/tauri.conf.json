@@ -55,7 +55,8 @@
     "homepage": "https://felixwochnick.github.io/euro-office-worksheet-assistant/",
     "macOS": {
       "signingIdentity": "-",
-      "minimumSystemVersion": "11.0"
+      "minimumSystemVersion": "11.0",
+      "entitlements": "macos/entitlements.plist"
     },
     "windows": {
       "nsis": {
@@ -64,7 +65,8 @@
           "German",
           "English"
         ],
-        "displayLanguageSelector": false
+        "displayLanguageSelector": false,
+        "installerHooks": "windows/hooks.nsh"
       }
     },
     "linux": {

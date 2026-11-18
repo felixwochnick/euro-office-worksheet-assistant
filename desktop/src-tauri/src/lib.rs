@@ -65,6 +65,9 @@ async fn api(sidecar: State<'_, Sidecar>, method: String, path: String, body: Op
         let agent: ureq::Agent = ureq::Agent::config_builder()
             .timeout_global(Some(Duration::from_secs(60)))
             .http_status_as_error(false)
+            // Never through an HTTP proxy from the environment (school or company networks): the server is local,
+            // and the secret must not travel to a proxy.
+            .proxy(None)
             .build()
             .into();
         let response = match method.as_str() {
@@ -99,7 +102,7 @@ fn update_status(updates: State<Updates>) -> UpdateStatus {
 
 #[tauri::command]
 async fn check_updates(app: AppHandle) -> UpdateStatus {
-    updates::check(&app).await
+    updates::check(&app, true).await.0
 }
 
 #[tauri::command]
@@ -127,6 +130,10 @@ struct AppInfo {
     platform: &'static str,
     self_update: bool,
     log_dir: Option<String>,
+    /// Icon in the tray / menu bar: closing the window keeps the app running there (otherwise it is minimized).
+    tray: bool,
+    /// Started from a temporary place (macOS: the disk image): it must be moved to Programme first.
+    temporary: bool,
 }
 
 #[tauri::command]
@@ -136,6 +143,8 @@ fn app_info(app: AppHandle) -> AppInfo {
         platform: std::env::consts::OS,
         self_update: updates::self_update_supported(),
         log_dir: app.path().app_log_dir().ok().map(|p| p.display().to_string()),
+        tray: app.tray_by_id(tray::TRAY_ID).is_some(),
+        temporary: sidecar::is_temporary_location(&sidecar::app_launch_path()),
     }
 }
 
@@ -172,8 +181,10 @@ pub fn run() {
             let handle = app.handle().clone();
             app.manage(Sidecar::new());
             app.manage(Updates::new(app.package_info().version.to_string()));
-            if let Err(err) = tray::create(&handle) {
-                // Without a tray (e.g. GNOME without AppIndicator extension) the window is the only way in.
+            // Without a tray (e.g. GNOME without the AppIndicator extension) the window is the only way in.
+            if !tray::host_available() {
+                eprintln!("worksheet-assistant: no tray on this desktop, the window is minimized instead of hidden");
+            } else if let Err(err) = tray::create(&handle) {
                 eprintln!("worksheet-assistant: no tray icon: {err}");
             }
             #[cfg(target_os = "macos")]
@@ -189,14 +200,17 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            // Closing the window keeps the app (and the server) running in the tray.
+            // Closing the window keeps the app (and the server for the plugin and Claude) running: hidden in the tray,
+            // or minimized where there is no tray.
             if let WindowEvent::CloseRequested { api, .. } = event {
                 let app = window.app_handle();
+                api.prevent_close();
                 if app.tray_by_id(tray::TRAY_ID).is_some() {
-                    api.prevent_close();
                     let _ = window.hide();
                     #[cfg(target_os = "macos")]
                     let _ = app.set_activation_policy(tauri::ActivationPolicy::Accessory);
+                } else {
+                    let _ = window.minimize();
                 }
             }
         })
@@ -217,10 +231,8 @@ pub fn run() {
 
     app.run(|app, event| match event {
         RunEvent::Exit => app.state::<Sidecar>().stop(),
-        // Without a tray, closing the window ends the app.
-        RunEvent::ExitRequested { code: None, api, .. } if app.tray_by_id(tray::TRAY_ID).is_some() => {
-            api.prevent_exit()
-        }
+        // The app only ends through "Beenden" (an exit with a code), never because its window went away.
+        RunEvent::ExitRequested { code: None, api, .. } => api.prevent_exit(),
         #[cfg(target_os = "macos")]
         RunEvent::Reopen { .. } => show_main_window(app),
         _ => {}

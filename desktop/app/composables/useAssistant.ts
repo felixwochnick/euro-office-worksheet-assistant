@@ -38,14 +38,8 @@ export function useAssistant() {
   }
 
   async function start() {
-    const [i, s, u] = await Promise.all([
-      call<AppInfo>('app_info'),
-      call<ServerStatus>('server_status'),
-      call<UpdateStatus>('update_status')
-    ])
-    info.value = i
-    server.value = s
-    update.value = u
+    // Listen first, then read the current state: an event in between would otherwise be lost (e.g. the server
+    // becoming ready, and the window would keep showing "startet …").
     await onEvent<ServerStatus>('server-status', (payload) => {
       const wasRunning = server.value.state === 'running'
       server.value = payload
@@ -57,6 +51,14 @@ export function useAssistant() {
     await onEvent<UpdateStatus>('update-status', (payload) => {
       update.value = payload
     })
+    const [i, s, u] = await Promise.all([
+      call<AppInfo>('app_info'),
+      call<ServerStatus>('server_status'),
+      call<UpdateStatus>('update_status')
+    ])
+    info.value = i
+    server.value = s
+    update.value = u
     if (s.state === 'running') {
       await refresh()
       refreshClaude()

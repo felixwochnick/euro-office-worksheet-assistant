@@ -138,6 +138,22 @@ pub fn app_launch_path() -> PathBuf {
     std::env::current_exe().unwrap_or_default()
 }
 
+/// Does `path` lie in a place that is gone later? macOS: the mounted disk image (`/Volumes/…`) or App Translocation
+/// (an app started from Downloads without moving it to Programme). Autostart and Claude entries must not point there.
+pub fn is_temporary_location(path: &Path) -> bool {
+    let p = path.to_string_lossy();
+    cfg!(target_os = "macos") && (p.starts_with("/Volumes/") || p.contains("/AppTranslocation/"))
+}
+
+/// Environment for the companion: where the app is (and whether that place is temporary).
+fn app_env(cmd: &mut Command) {
+    let app = app_launch_path();
+    if is_temporary_location(&app) {
+        cmd.env("WORKSHEET_ASSISTANT_TEMPORARY", "1");
+    }
+    cmd.env("WORKSHEET_ASSISTANT_APP", app);
+}
+
 fn hide_console(cmd: &mut Command) {
     #[cfg(windows)]
     {
@@ -151,19 +167,65 @@ fn hide_console(cmd: &mut Command) {
 
 /// `worksheet-assistant-app mcp-stdio`: Claude Desktop starts this app as an MCP server. Run the companion's
 /// `mcp-stdio` with our stdin/stdout and return its exit code (no window, no tray).
+///
+/// The companion must not outlive this process: Claude Desktop stops its MCP servers by ending this process, and a
+/// left-over companion would keep its executable locked (Windows installer) and run on. Unix: this process becomes
+/// the companion (exec). Windows: the companion runs in a job object that is killed when this process ends.
 pub fn run_passthrough(args: &[OsString]) -> i32 {
     let mut cmd = Command::new(sidecar_path());
     cmd.args(args)
-        .env("WORKSHEET_ASSISTANT_APP", app_launch_path())
         .stdin(Stdio::inherit())
         .stdout(Stdio::inherit())
         .stderr(Stdio::inherit());
+    app_env(&mut cmd);
     hide_console(&mut cmd);
-    match cmd.status() {
-        Ok(s) => s.code().unwrap_or(1),
+    #[cfg(unix)]
+    {
+        use std::os::unix::process::CommandExt;
+        let err = cmd.exec(); // only returns on failure
+        eprintln!("worksheet-assistant: cannot start {}: {err}", sidecar_path().display());
+        1
+    }
+    #[cfg(not(unix))]
+    match cmd.spawn() {
+        Ok(mut child) => {
+            #[cfg(windows)]
+            win_job::kill_with_this_process(&child);
+            child.wait().ok().and_then(|s| s.code()).unwrap_or(1)
+        }
         Err(err) => {
             eprintln!("worksheet-assistant: cannot start {}: {err}", sidecar_path().display());
             1
+        }
+    }
+}
+
+#[cfg(windows)]
+mod win_job {
+    use std::os::windows::io::AsRawHandle;
+    use windows_sys::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation, SetInformationJobObject,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+    };
+
+    /// Put `child` into a job that is killed when its last handle closes. The handle is never closed by us: it
+    /// closes when this process ends, however it ends.
+    pub fn kill_with_this_process(child: &std::process::Child) {
+        // SAFETY: plain Win32 calls with a zeroed, correctly sized limit structure and the child's process handle.
+        unsafe {
+            let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+            if job.is_null() {
+                return;
+            }
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const core::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+            AssignProcessToJobObject(job, child.as_raw_handle());
         }
     }
 }
@@ -231,10 +293,10 @@ impl Sidecar {
         let mut cmd = Command::new(&path);
         cmd.arg("--app")
             .env("WORKSHEET_ASSISTANT_UI_SECRET", &self.secret)
-            .env("WORKSHEET_ASSISTANT_APP", app_launch_path())
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
+        app_env(&mut cmd);
         hide_console(&mut cmd);
         let mut child = match cmd.spawn() {
             Ok(c) => c,
@@ -442,6 +504,22 @@ mod tests {
             (Some("failed"), Some("kaputt"))
         );
         assert_eq!(s.state, ServerState::Error);
+    }
+
+    #[test]
+    fn temporary_locations() {
+        let mac = cfg!(target_os = "macos");
+        assert_eq!(
+            is_temporary_location(Path::new("/Volumes/Arbeitsblatt-Assistent/A.app/Contents/MacOS/a")),
+            mac
+        );
+        assert_eq!(
+            is_temporary_location(Path::new("/private/var/folders/x/T/AppTranslocation/1-2/d/A.app/a")),
+            mac
+        );
+        assert!(!is_temporary_location(Path::new(
+            "/Applications/Arbeitsblatt-Assistent.app/Contents/MacOS/a"
+        )));
     }
 
     #[test]

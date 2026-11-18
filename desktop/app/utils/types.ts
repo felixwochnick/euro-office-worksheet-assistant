@@ -26,6 +26,10 @@ export interface AppInfo {
   platform: 'macos' | 'windows' | 'linux' | string
   self_update: boolean
   log_dir: string | null
+  /** Icon in the tray / menu bar (closing the window hides it there; otherwise the window is minimized). */
+  tray: boolean
+  /** macOS: started from the disk image or Downloads – must be moved to Programme first. */
+  temporary: boolean
 }
 
 export interface DesktopAppState {

@@ -292,7 +292,8 @@ You need the Euro-Office or Nextcloud Office desktop editor: install it and star
 | Linux (Debian, Ubuntu) | `Arbeitsblatt-Assistent_<version>_amd64.deb` / `_arm64.deb` |
 
 **2. Install** it like any other app: run the Windows setup; on macOS open the `.dmg` and drag the app into
-*Applications*; on Linux make the AppImage executable and start it, or install the `.deb`
+*Applications* – start it from there, not from the disk image (the app asks for this: autostart, the Claude entry
+and updates need its final place); on Linux make the AppImage executable and start it, or install the `.deb`
 (`sudo apt install ./Arbeitsblatt-Assistent_<version>_amd64.deb`).
 
 The app has no developer signature yet, so the system may warn on the first start:
@@ -322,8 +323,8 @@ the window of the running app.
 **Autostart** is off by default. Switch it on under *Einstellungen* (recommended): the app then starts hidden in the
 tray when you log in, so the AI chat and Claude work without opening it first.
 
-**Linux tray:** GNOME shows tray icons only with the extension *AppIndicator and KStatusNotifierItem Support*. Without
-it, start the app again to open its window.
+**Linux tray:** GNOME shows tray icons only with the extension *AppIndicator and KStatusNotifierItem Support*. The app
+checks for it: without a tray, closing the window only minimizes it (quit under *Einstellungen*).
 
 **Claude.** On the page *Claude & MCP*:
 
@@ -344,6 +345,10 @@ automatically.
 started from a terminal): install the app and start it. It stops a still running old program automatically and
 rewrites the old autostart entry and the Claude Desktop entry to point to the app. Your settings (AI provider, API
 key, port, plugin token) are kept – the app uses the same settings folder. The old executable can be deleted.
+
+**Uninstalling** on Windows (*Settings → Apps*) also removes the plugin from the desktop editors, the autostart entry
+and the entry in Claude Desktop; elsewhere run `worksheet-assistant uninstall` (see the command line below) before
+deleting the app.
 
 Reference:
 

@@ -1,6 +1,7 @@
 /**
  * Simulated backend for `nuxt dev` in a browser and for UI checks (never used inside the app).
- * Scenario via URL: ?scenario=fresh (nothing set up, default) | ready | error | update | starting
+ * Scenario via URL: ?scenario=fresh (nothing set up, default) | ready | error | update | starting | temporary
+ * (macOS app still on the disk image) | no-tray (Linux desktop without tray icons)
  */
 import type { AppInfo, ClaudeStatus, CompanionState, ServerStatus, UpdateStatus } from './types'
 
@@ -52,7 +53,14 @@ const claude: ClaudeStatus = {
   mcp_url: state.mcp_url
 }
 
-const info: AppInfo = { version: '0.6.0', platform: 'linux', self_update: true, log_dir: '/home/lehrer/.local/share/io.github.felixwochnick.worksheet-assistant/logs' }
+const info: AppInfo = {
+  version: '0.6.0',
+  platform: scenario === 'temporary' ? 'macos' : 'linux',
+  self_update: scenario !== 'temporary',
+  log_dir: '/home/lehrer/.local/share/io.github.felixwochnick.worksheet-assistant/logs',
+  tray: scenario !== 'no-tray',
+  temporary: scenario === 'temporary'
+}
 
 async function api(method: string, path: string, body: Record<string, unknown> | null): Promise<unknown> {
   await wait(250)

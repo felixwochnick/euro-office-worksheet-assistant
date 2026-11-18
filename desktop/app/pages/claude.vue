@@ -98,6 +98,7 @@ const claudeApp = computed(() => info.value?.platform === 'windows' ? 'Claude f√
             v-if="!claude.desktop.registered || !claude.desktop.current"
             icon="i-lucide-plug"
             :loading="busy === 'desktop'"
+            :disabled="info?.temporary"
             @click="change('desktop', 'add')"
           >
             {{ claude.desktop.registered ? 'Eintrag aktualisieren' : 'In Claude eintragen' }}
@@ -126,7 +127,7 @@ const claudeApp = computed(() => info.value?.platform === 'windows' ? 'Claude f√
         </div>
         <UAlert v-if="claude.code.error" color="error" variant="subtle" icon="i-lucide-circle-alert" :description="claude.code.error" />
         <div v-if="claude.code.installed" class="flex flex-wrap gap-2">
-          <UButton v-if="!claude.code.registered" icon="i-lucide-plug" :loading="busy === 'code'" @click="change('code', 'add')">
+          <UButton v-if="!claude.code.registered" icon="i-lucide-plug" :loading="busy === 'code'" :disabled="info?.temporary" @click="change('code', 'add')">
             In Claude Code eintragen
           </UButton>
           <UButton v-else color="neutral" variant="outline" icon="i-lucide-unplug" :loading="busy === 'code'" @click="change('code', 'remove')">

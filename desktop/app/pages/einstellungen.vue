@@ -49,6 +49,7 @@ function openFolder(path?: string | null) {
         v-if="state && server.state === 'running'"
         :model-value="state.autostart"
         :loading="autostartBusy"
+        :disabled="info?.temporary && !state.autostart"
         label="Beim Anmelden am Computer automatisch starten"
         description="Empfohlen: Dann funktionieren KI-Chat und Claude, ohne dass du das Programm vorher öffnest. Es startet unsichtbar im Hintergrund."
         @update:model-value="setAutostart"

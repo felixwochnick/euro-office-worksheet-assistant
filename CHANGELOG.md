@@ -26,7 +26,12 @@
   code-signed yet (macOS ad-hoc signed, not notarized).
 - The server program `worksheet-assistant` is part of the app (same commands as before). New `--app` mode for the
   desktop app: JSON events on stdout, quits when stdin closes; its log goes to `server.log` in the app's log folder.
-- **Windows:** no console window any more – neither for the app nor for its server program.
+- **Windows:** no console window any more – neither for the app nor for its server program. The installer stops
+  running server programs (Claude Desktop keeps one per MCP connection) before it replaces them; uninstalling also
+  removes the plugin, the autostart entry and the Claude Desktop entry. The autostart script no longer garbles
+  paths with umlauts and shows no error dialog when the app is gone.
+- **macOS:** the app asks to be moved to *Programme* when it runs from the disk image (autostart, Claude entry and
+  updates would point to a path that disappears).
 - **Plugin:** when the AI chat is not set up yet, the panel asks to open the app (page *KI-Chat*) instead of linking
   to a settings page in the browser; it calls the app "App Arbeitsblatt-Assistent" instead of "Begleitprogramm".
 - Releases are created as drafts and published once all installers are attached; the release job checks that all

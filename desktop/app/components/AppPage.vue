@@ -4,7 +4,7 @@
  * error states instead of the content.
  */
 const props = withDefaults(defineProps<{ title: string, needsServer?: boolean }>(), { needsServer: true })
-const { server, state, stateError } = useAssistant()
+const { server, state, stateError, info } = useAssistant()
 const ready = computed(() => !props.needsServer || (server.value.state === 'running' && !!state.value))
 </script>
 
@@ -15,6 +15,14 @@ const ready = computed(() => !props.needsServer || (server.value.state === 'runn
     </header>
 
     <div class="max-w-2xl space-y-6 px-8 py-7">
+      <UAlert
+        v-if="info?.temporary"
+        color="warning"
+        variant="subtle"
+        icon="i-lucide-triangle-alert"
+        title="Bitte zuerst installieren"
+        description="Die App läuft noch aus dem Download. Ziehe den Arbeitsblatt-Assistenten in den Ordner „Programme“, wirf das Disk-Image aus und starte ihn von dort. Erst dann funktionieren Autostart, Claude und Updates."
+      />
       <UpdateNotice />
       <template v-if="ready">
         <slot />

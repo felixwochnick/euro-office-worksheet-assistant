@@ -146,10 +146,10 @@ jobs:
           path: dist/desktop/updater-*.json
           if-no-files-found: ignore
 
-  # latest.json for the app's updater, then publish the release.
+  # latest.json for the app's updater, then publish the release – only when every installer was built. Otherwise
+  # the release stays a draft: rerun the failed job, or publish it by hand.
   publish:
     needs: [release, desktop]
-    if: always() && needs.release.result == 'success'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

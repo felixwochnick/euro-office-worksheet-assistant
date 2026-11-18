@@ -9,6 +9,34 @@ use tauri::{AppHandle, Manager, Runtime};
 
 pub const TRAY_ID: &str = "main";
 
+/// Can this desktop show tray icons? Linux: only with a StatusNotifier host (KDE, most desktops; GNOME only with the
+/// AppIndicator extension) – the library would create an icon nobody sees. Windows and macOS always can.
+pub fn host_available() -> bool {
+    #[cfg(target_os = "linux")]
+    {
+        use gio::prelude::*;
+        let Ok(bus) = gio::bus_get_sync(gio::BusType::Session, gio::Cancellable::NONE) else {
+            return false;
+        };
+        bus.call_sync(
+            Some("org.freedesktop.DBus"),
+            "/org/freedesktop/DBus",
+            "org.freedesktop.DBus",
+            "NameHasOwner",
+            Some(&("org.kde.StatusNotifierWatcher",).to_variant()),
+            Some(gio::glib::VariantTy::new("(b)").expect("valid type")),
+            gio::DBusCallFlags::NONE,
+            2000,
+            gio::Cancellable::NONE,
+        )
+        .ok()
+        .and_then(|v| v.get::<(bool,)>())
+        .is_some_and(|(owned,)| owned)
+    }
+    #[cfg(not(target_os = "linux"))]
+    true
+}
+
 fn status_text(app: &AppHandle) -> String {
     let status = app.state::<Sidecar>().status();
     match status.state {
