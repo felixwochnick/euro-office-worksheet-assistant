@@ -49,7 +49,7 @@ const en: SiteContent = {
       {
         title: 'Nextcloud, server or desktop',
         description:
-          'One command for Nextcloud AIO, a Docker Compose file for your own Document Server, or the companion app for the desktop app (Windows, macOS, Linux).'
+          'One command for Nextcloud AIO, a Docker Compose file for your own Document Server, or the Worksheet Assistant app for the Euro-Office desktop app (Windows, macOS, Linux).'
       }
     ]
   },
@@ -68,9 +68,9 @@ const en: SiteContent = {
       {
         title: 'On your computer',
         badge: 'Windows · macOS · Linux',
-        description: 'The Euro-Office or Nextcloud Office desktop app with the companion app – no server of your own.',
-        bullets: ['Installs the plugin by itself', 'Your own API key or a local model', 'MCP for Claude Desktop included'],
-        link: 'Get the companion app'
+        description: 'The Euro-Office or Nextcloud Office desktop app with the Worksheet Assistant app – install it like any other app, no server of your own.',
+        bullets: ['Installs and updates the plugin by itself', 'Your own API key or a local model', 'Connect Claude Desktop with one click'],
+        link: 'Download the app'
       },
       {
         title: 'With your AI assistant',
@@ -118,14 +118,14 @@ const en: SiteContent = {
   },
   companion: {
     headline: 'Desktop',
-    title: 'The companion app for the desktop editors',
+    title: 'The Worksheet Assistant app for your computer',
     description:
-      'The Euro-Office and Nextcloud Office desktop apps have no plugin manager and no server. The companion app does both on your computer – one program, no installation.',
-    imageAlt: 'Settings page of the companion app: plugin installed, AI provider Mistral, configuration for Claude Desktop',
+      'The Euro-Office and Nextcloud Office desktop apps have no plugin manager and no server. The Worksheet Assistant app does both: install it like any other app, start it once – then it works invisibly in the background. No terminal, no browser.',
+    imageAlt: 'Window of the Worksheet Assistant app, page “Übersicht” (overview): all three steps done – plugin in the desktop app, AI chat in the plugin, Claude connected',
     items: [
-      { title: 'Plugin set up automatically', description: 'Installs, updates and connects the plugin – no settings in the editor.' },
+      { title: 'Plugin set up automatically', description: 'Installs the plugin in Euro-Office and Nextcloud Office, connects it and keeps it up to date – no settings in the editor.' },
       { title: 'Your AI', description: 'Mistral, OpenAI, Anthropic, Ollama or any OpenAI-compatible API – the key stays on your computer.' },
-      { title: 'MCP included', description: 'Ready-made entries for Claude Desktop and Claude Code; starts with your computer if you like.' }
+      { title: 'Claude in one click', description: 'Connects Claude Desktop or Claude Code with one click. The app reports new versions itself and starts with your computer if you like.' }
     ]
   },
   music: {
@@ -175,7 +175,7 @@ const en: SiteContent = {
   parts: {
     headline: 'What runs where',
     title: 'One plugin, one small server – and the AI of your choice',
-    description: 'The plugin needs no server of its own. The AI chat and MCP add a small service – on the server or as the companion app.',
+    description: 'The plugin needs no server of its own. The AI chat and MCP add a small service – on the server or in the Worksheet Assistant app on your computer.',
     items: [
       {
         title: 'Plugin',
@@ -186,7 +186,7 @@ const en: SiteContent = {
       {
         title: 'Server',
         badge: 'for AI chat and MCP',
-        description: 'A small service (Docker, ≈ 30 MB RAM) next to Nextcloud – or the companion app on your own computer.',
+        description: 'A small service (Docker, ≈ 30 MB RAM) next to Nextcloud – or in the background of the Worksheet Assistant app on your own computer.',
         bullets: ['API key stays on the server', 'Sign-in via Nextcloud, rate limit', 'Checks content before it reaches the document']
       },
       {
@@ -219,15 +219,14 @@ const en: SiteContent = {
       }
     ],
     desktop: [
-      { title: 'Install the desktop app', description: 'Install Euro-Office or Nextcloud Office (desktop) for Windows, macOS or Linux and start it once.' },
+      { title: 'Install Euro-Office', description: 'Install the Euro-Office or Nextcloud Office desktop app for Windows, macOS or Linux and start it once.' },
       {
-        title: 'Start the companion app',
-        description: 'Download `worksheet-assistant` for your system from the releases, unpack and start it. It installs the plugin and opens its settings in the browser. macOS: right click → **Open** the first time; Windows: **More info → Run anyway**.',
-        codeLabel: 'Linux / macOS'
+        title: 'Install the Worksheet Assistant app',
+        description: 'Download the installer for your system and install it like any other app (macOS: drag it into **Applications**); it is called **Arbeitsblatt-Assistent**. On start its window opens: it sets up the plugin and works invisibly in the background. The app is not signed yet – if macOS refuses to open it: **System Settings → Privacy & Security → Open Anyway**; Windows: **More info → Run anyway**.'
       },
       {
         title: 'Choose your AI',
-        description: 'In the settings (`http://127.0.0.1:8787`) enter the provider and API key – or a local model via Ollama, or MCP only. Then open a document in the desktop app: **Plugins → Worksheet Assistant**.'
+        description: 'In the app, on the page **KI-Chat** (AI chat), enter the provider and API key – or a local model via Ollama, or MCP only. Then open a document in Euro-Office: **Plugins → Worksheet Assistant**. You can close the window – the app keeps running in the system tray (macOS: menu bar). Tip: switch on autostart under **Einstellungen** (settings).'
       }
     ],
     docker: [
@@ -242,11 +241,11 @@ const en: SiteContent = {
     mcp: [
       {
         title: 'Connect the document',
-        description: 'In the open document switch on **Plugins → Worksheet Assistant → Settings → Allow MCP access** (already on with the companion app). The panel shows the MCP address.'
+        description: 'In the open document switch on **Plugins → Worksheet Assistant → Settings → Allow MCP access** (already on with the Worksheet Assistant app). The panel shows the MCP address.'
       },
       {
         title: 'Connect your AI assistant',
-        description: 'Add the MCP address: in Claude, ChatGPT or Le Chat as a custom connector (sign-in via Nextcloud), in Claude Code with a command, in Claude Desktop through the companion app (`mcp-stdio`).',
+        description: 'Add the MCP address: in Claude, ChatGPT or Le Chat as a custom connector (sign-in via Nextcloud), in Claude Code with a command. The Worksheet Assistant app connects Claude Desktop and Claude Code with one click (page **Claude & MCP**).',
         codeLabel: 'Claude Code'
       },
       { title: 'Get started', description: '“Create a worksheet about fractions for grade 6 in the open document” – the changes appear in the editor right away.' }
@@ -260,7 +259,7 @@ const en: SiteContent = {
       {
         label: 'Does the plugin need its own server?',
         content:
-          'The plugin itself does not – it is just files served by Euro-Office. The AI chat and MCP need the small server; in the desktop app the companion app takes this role. The music tab works without any server.'
+          'The plugin itself does not – it is just files served by Euro-Office. The AI chat and MCP need the small server; on your own computer the Worksheet Assistant app takes this role. The music tab works without any server.'
       },
       {
         label: 'Which AI is used?',
@@ -284,7 +283,7 @@ const en: SiteContent = {
       },
       {
         label: 'Does it work without Nextcloud?',
-        content: 'Yes: with the desktop app and the companion app, or with your own Euro-Office Document Server and a shared access token.'
+        content: 'Yes: with the Euro-Office or Nextcloud Office desktop app and the Worksheet Assistant app, or with your own Euro-Office Document Server and a shared access token.'
       },
       {
         label: 'Can I change inserted content later?',
@@ -297,14 +296,19 @@ const en: SiteContent = {
           'AIO re-creates the Euro-Office container, which removes custom plugins. With `--watch` the install script sets up a small service that re-installs the plugin automatically after every restart.'
       },
       {
+        label: 'How is the app updated?',
+        content:
+          'The Worksheet Assistant app regularly checks for a new version and shows it in its window and in the system tray (macOS: menu bar). One click downloads and installs it – with the .deb package you get a link to the download page instead. The new version updates the plugin in Euro-Office automatically.'
+      },
+      {
         label: 'What has it been tested with?',
         content:
-          'Euro-Office 9.3.8 (Document Server and desktop app on Linux), Nextcloud 34 and Mistral – automated in the real editor. The companion app is built and checked automatically for Windows and macOS. Hosted assistants such as claude.ai have not been tested against a public installation yet.'
+          'Euro-Office 9.3.8 (Document Server and desktop app on Linux), Nextcloud 34 and Mistral – automated in the real editor. The Worksheet Assistant app is built and checked automatically for Windows, macOS and Linux. Hosted assistants such as claude.ai have not been tested against a public installation yet.'
       },
       {
         label: 'Is it open source?',
         content:
-          'Yes, under the MIT license. It ships abcjs (MIT) and the ONLYOFFICE plugin files (AGPL-3.0); the companion app contains Node.js and npm packages – all with their license texts.'
+          'Yes, under the MIT license. It ships abcjs (MIT) and the ONLYOFFICE plugin files (AGPL-3.0); the Worksheet Assistant app contains Node.js and npm packages – all with their license texts.'
       }
     ]
   },

@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.6.0 – desktop app
+
+- **Desktop app "Arbeitsblatt-Assistent"** (Windows, macOS, Linux; Tauri 2 with a Nuxt UI window) replaces the
+  standalone companion app that was started from a terminal and showed its settings page in the browser. Install it
+  like any app: it installs and updates the plugin in the Euro-Office and Nextcloud Office desktop editors and runs
+  the local server (AI chat and MCP on `127.0.0.1:8787`) invisibly in the background – no terminal, no browser.
+- **Window and tray:** pages *Übersicht* (setup checklist: plugin, AI chat, Claude), *Desktop-App* (plugin status
+  per editor, install/update), *KI-Chat* (provider, API key, model, URL), *Claude & MCP* and *Einstellungen*
+  (autostart, updates, settings and log folders, quit). Closing the window keeps the app running with an icon in the
+  system tray (macOS: menu bar); starting it again opens the window. Autostart (off by default) starts it hidden.
+- **Claude with one click:** adds or removes the entry in Claude Desktop's configuration (other entries are kept, a
+  `.bak` backup is written) and in Claude Code (if its `claude` command is found, otherwise a command to copy);
+  MCP URL and command entry for other clients. Claude Desktop starts the app in the background if it is not running.
+- **Updates:** the app checks the GitHub releases shortly after the start and every 6 hours and shows new versions
+  in the window and the tray. On macOS, Windows and with the AppImage one click downloads, installs and restarts
+  (never silently – the restart briefly interrupts a running AI chat); the `.deb` links to the download page. The new
+  app version updates the plugin in the editors.
+- **Migration from the standalone companion (0.4/0.5):** the app stops a still running old companion and rewrites
+  its autostart entry and the Claude Desktop entry to point to the app. Settings (AI provider, API key, port, plugin
+  token) are kept – same settings folder.
+- **Installers** on every release: `Arbeitsblatt-Assistent_<version>_macos-arm64.dmg` / `_macos-x64.dmg`,
+  `_windows-x64-setup.exe` (current user, no admin rights), `_linux-x64.AppImage` / `_linux-arm64.AppImage` and
+  `_amd64.deb` / `_arm64.deb`. The `worksheet-assistant-<os>-<arch>.zip` archives are no longer released. Not
+  code-signed yet (macOS ad-hoc signed, not notarized).
+- The server program `worksheet-assistant` is part of the app (same commands as before). New `--app` mode for the
+  desktop app: JSON events on stdout, quits when stdin closes; its log goes to `server.log` in the app's log folder.
+- **Windows:** no console window any more – neither for the app nor for its server program.
+- **Plugin:** when the AI chat is not set up yet, the panel asks to open the app (page *KI-Chat*) instead of linking
+  to a settings page in the browser; it calls the app "App Arbeitsblatt-Assistent" instead of "Begleitprogramm".
+- Releases are created as drafts and published once all installers are attached; the release job checks that all
+  version numbers match the tag. App self-updates need a signing key (see README, *Releases*).
+
 ## 0.5.0 – designed worksheets
 
 - **Designs (themes):** *Klassisch* (black and white, toner-saving), *Modern* (blue accent) and *Grundschule* (13 pt,

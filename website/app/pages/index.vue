@@ -1,10 +1,13 @@
 <script setup lang="ts">
 import type { TabsItem } from '@nuxt/ui'
 import type { Step } from '~/content/types'
+import { version as APP_VERSION } from '../../../desktop/package.json'
 
 const REPO = 'https://github.com/felixwochnick/euro-office-worksheet-assistant'
 const RAW = 'https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main'
-const DOWNLOAD = `${REPO}/releases/latest/download`
+// The installers carry the version in their names: link the release of the desktop app's version in this checkout
+// (still valid after later releases; the app then updates itself).
+const DOWNLOAD = `${REPO}/releases/download/v${APP_VERSION}`
 const img = (name: string) => `${useRuntimeConfig().app.baseURL}img/${name}`
 const c = useContent()
 
@@ -35,14 +38,7 @@ nano .env   # AUTH_MODE=nextcloud, NEXTCLOUD_URL, PUBLIC_URL, CORS_ORIGINS, LLM_
 docker compose -f compose.release.yml up -d`,
     null
   ],
-  desktop: [
-    null,
-    `# Linux x64 – macOS: worksheet-assistant-macos-arm64.zip (Apple silicon) / -macos-x64.zip
-curl -fsSLO ${DOWNLOAD}/worksheet-assistant-linux-x64.zip
-unzip worksheet-assistant-linux-x64.zip -d worksheet-assistant
-./worksheet-assistant/worksheet-assistant`,
-    null
-  ],
+  desktop: [null, null, null],
   docker: [
     `git clone ${REPO}.git && cd euro-office-worksheet-assistant
 bash scripts/build.sh            # -> dist/worksheet-assistant/`,
@@ -54,12 +50,15 @@ docker compose up -d`,
   mcp: [null, 'claude mcp add --transport http worksheet-assistant https://worksheets.example.org/mcp', null]
 }
 
+const installer = (suffix: string) => `Arbeitsblatt-Assistent_${APP_VERSION}_${suffix}`
 const downloads = [
-  { label: 'Windows', file: 'worksheet-assistant-windows-x64.zip', icon: 'i-simple-icons-windows' },
-  { label: 'macOS (Apple silicon)', file: 'worksheet-assistant-macos-arm64.zip', icon: 'i-simple-icons-apple' },
-  { label: 'macOS (Intel)', file: 'worksheet-assistant-macos-x64.zip', icon: 'i-simple-icons-apple' },
-  { label: 'Linux x64', file: 'worksheet-assistant-linux-x64.zip', icon: 'i-simple-icons-linux' },
-  { label: 'Linux arm64', file: 'worksheet-assistant-linux-arm64.zip', icon: 'i-simple-icons-linux' }
+  { label: 'Windows', file: installer('windows-x64-setup.exe'), icon: 'i-simple-icons-windows' },
+  { label: 'macOS (Apple silicon)', file: installer('macos-arm64.dmg'), icon: 'i-simple-icons-apple' },
+  { label: 'macOS (Intel)', file: installer('macos-x64.dmg'), icon: 'i-simple-icons-apple' },
+  { label: 'Linux x64 (AppImage)', file: installer('linux-x64.AppImage'), icon: 'i-simple-icons-linux' },
+  { label: 'Linux arm64 (AppImage)', file: installer('linux-arm64.AppImage'), icon: 'i-simple-icons-linux' },
+  { label: 'Debian/Ubuntu x64 (.deb)', file: installer('amd64.deb'), icon: 'i-simple-icons-debian' },
+  { label: 'Debian/Ubuntu arm64 (.deb)', file: installer('arm64.deb'), icon: 'i-simple-icons-debian' }
 ]
 
 const tabs = computed<TabsItem[]>(() => [
@@ -160,7 +159,7 @@ const stepsOf = (tab: string): Step[] => (c.value.install as unknown as Record<s
       :links="[{ label: c.ways.items[1]!.link, icon: 'i-lucide-download', onClick: () => openInstall('desktop') }]"
     >
       <div class="overflow-hidden rounded-xl shadow-xl ring ring-default">
-        <img :src="img('companion.webp')" :alt="c.companion.imageAlt" width="1720" height="1600" loading="lazy" class="w-full">
+        <img :src="img('companion.webp')" :alt="c.companion.imageAlt" width="1960" height="1400" loading="lazy" class="w-full">
       </div>
     </UPageSection>
 

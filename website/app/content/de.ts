@@ -51,7 +51,7 @@ const de: SiteContent = {
       {
         title: 'Nextcloud, Server oder Desktop',
         description:
-          'Ein Befehl für Nextcloud AIO, ein Docker-Compose für den eigenen Document Server oder das Begleitprogramm für die Desktop-App (Windows, macOS, Linux).'
+          'Ein Befehl für Nextcloud AIO, ein Docker-Compose für den eigenen Document Server oder die App Arbeitsblatt-Assistent für die Euro-Office-Desktop-App (Windows, macOS, Linux).'
       }
     ]
   },
@@ -70,9 +70,9 @@ const de: SiteContent = {
       {
         title: 'Auf dem Computer',
         badge: 'Windows · macOS · Linux',
-        description: 'Die Desktop-App von Euro-Office bzw. Nextcloud Office mit dem Begleitprogramm – ohne eigenen Server.',
-        bullets: ['Installiert das Plugin selbst', 'Eigener API-Schlüssel oder lokales Modell', 'MCP für Claude Desktop inklusive'],
-        link: 'Begleitprogramm laden'
+        description: 'Die Desktop-App von Euro-Office bzw. Nextcloud Office mit der App Arbeitsblatt-Assistent – installieren wie jede andere App, ohne eigenen Server.',
+        bullets: ['Installiert und aktualisiert das Plugin selbst', 'Eigener API-Schlüssel oder lokales Modell', 'Claude Desktop mit einem Klick verbinden'],
+        link: 'App herunterladen'
       },
       {
         title: 'Mit deinem KI-Assistenten',
@@ -120,14 +120,14 @@ const de: SiteContent = {
   },
   companion: {
     headline: 'Desktop',
-    title: 'Das Begleitprogramm für die Desktop-App',
+    title: 'Die App Arbeitsblatt-Assistent für deinen Computer',
     description:
-      'Die Desktop-Apps von Euro-Office und Nextcloud Office haben keinen Plugin-Manager und keinen Server. Das Begleitprogramm erledigt beides auf deinem Computer – ein Programm, keine Installation.',
-    imageAlt: 'Einstellungsseite des Begleitprogramms: Plugin installiert, KI-Anbieter Mistral, Konfiguration für Claude Desktop',
+      'Die Desktop-Apps von Euro-Office und Nextcloud Office haben keinen Plugin-Manager und keinen Server. Die App Arbeitsblatt-Assistent erledigt beides: installieren wie jede andere App, einmal starten – danach arbeitet sie unsichtbar im Hintergrund. Kein Terminal, kein Browser.',
+    imageAlt: 'Fenster der App Arbeitsblatt-Assistent, Seite „Übersicht“: alle drei Schritte erledigt – Plugin in der Desktop-App, KI-Chat im Plugin, Claude verbunden',
     items: [
-      { title: 'Plugin automatisch', description: 'Installiert und aktualisiert das Plugin und verbindet es – keine Einstellungen im Editor.' },
+      { title: 'Plugin automatisch', description: 'Installiert das Plugin in Euro-Office und Nextcloud Office, verbindet es und hält es aktuell – keine Einstellungen im Editor.' },
       { title: 'Deine KI', description: 'Mistral, OpenAI, Anthropic, Ollama oder jede OpenAI-kompatible API – der Schlüssel bleibt auf deinem Computer.' },
-      { title: 'MCP inklusive', description: 'Fertige Einträge für Claude Desktop und Claude Code; startet auf Wunsch mit dem Computer.' }
+      { title: 'Claude mit einem Klick', description: 'Verbindet Claude Desktop oder Claude Code mit einem Klick. Neue Versionen meldet die App selbst; auf Wunsch startet sie mit dem Computer.' }
     ]
   },
   music: {
@@ -177,7 +177,7 @@ const de: SiteContent = {
   parts: {
     headline: 'Was läuft wo',
     title: 'Ein Plugin, ein kleiner Server – und die KI deiner Wahl',
-    description: 'Das Plugin braucht keinen eigenen Server. Für KI-Chat und MCP kommt ein kleiner Dienst dazu – auf dem Server oder als Begleitprogramm.',
+    description: 'Das Plugin braucht keinen eigenen Server. Für KI-Chat und MCP kommt ein kleiner Dienst dazu – auf dem Server oder in der App Arbeitsblatt-Assistent auf deinem Computer.',
     items: [
       {
         title: 'Plugin',
@@ -188,7 +188,7 @@ const de: SiteContent = {
       {
         title: 'Server',
         badge: 'für KI-Chat und MCP',
-        description: 'Kleiner Dienst (Docker, ≈ 30 MB RAM) neben Nextcloud – oder das Begleitprogramm auf dem eigenen Computer.',
+        description: 'Kleiner Dienst (Docker, ≈ 30 MB RAM) neben Nextcloud – oder im Hintergrund der App Arbeitsblatt-Assistent auf dem eigenen Computer.',
         bullets: ['API-Schlüssel bleibt auf dem Server', 'Anmeldung über Nextcloud, Anfragelimit', 'Prüft Inhalte, bevor sie ins Dokument kommen']
       },
       {
@@ -221,15 +221,14 @@ const de: SiteContent = {
       }
     ],
     desktop: [
-      { title: 'Desktop-App installieren', description: 'Euro-Office oder Nextcloud Office (Desktop) für Windows, macOS oder Linux installieren und einmal starten.' },
+      { title: 'Euro-Office installieren', description: 'Die Desktop-App von Euro-Office oder Nextcloud Office für Windows, macOS oder Linux installieren und einmal starten.' },
       {
-        title: 'Begleitprogramm starten',
-        description: '`worksheet-assistant` für dein System aus den Releases laden, entpacken und starten. Es installiert das Plugin und öffnet seine Einstellungen im Browser. macOS: beim ersten Start Rechtsklick → **Öffnen**; Windows: **Weitere Informationen → Trotzdem ausführen**.',
-        codeLabel: 'Linux / macOS'
+        title: 'App Arbeitsblatt-Assistent installieren',
+        description: 'Installationsdatei für dein System laden und wie jede andere App installieren (macOS: in **Programme** ziehen). Beim Start öffnet sich ihr Fenster: Sie richtet das Plugin ein und arbeitet unsichtbar im Hintergrund. Die App ist noch nicht signiert – falls macOS sie nicht öffnet: **Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen**; Windows: **Weitere Informationen → Trotzdem ausführen**.'
       },
       {
         title: 'KI wählen',
-        description: 'In den Einstellungen (`http://127.0.0.1:8787`) Anbieter und API-Schlüssel eintragen – oder ein lokales Modell über Ollama, oder nur MCP. Dann in der Desktop-App ein Dokument öffnen: **Plugins → Arbeitsblatt-Assistent**.'
+        description: 'In der App auf der Seite **KI-Chat** Anbieter und API-Schlüssel eintragen – oder ein lokales Modell über Ollama, oder nur MCP. Dann in Euro-Office ein Dokument öffnen: **Plugins → Arbeitsblatt-Assistent**. Das Fenster darfst du schließen – die App läuft im Infobereich (macOS: in der Menüleiste) weiter. Tipp: unter **Einstellungen** den Autostart einschalten.'
       }
     ],
     docker: [
@@ -244,11 +243,11 @@ const de: SiteContent = {
     mcp: [
       {
         title: 'Dokument verbinden',
-        description: 'Im geöffneten Dokument **Plugins → Arbeitsblatt-Assistent → Einstellungen → MCP-Zugriff erlauben** einschalten (beim Begleitprogramm schon an). Das Panel zeigt die MCP-Adresse.'
+        description: 'Im geöffneten Dokument **Plugins → Arbeitsblatt-Assistent → Einstellungen → MCP-Zugriff erlauben** einschalten (mit der App Arbeitsblatt-Assistent schon an). Das Panel zeigt die MCP-Adresse.'
       },
       {
         title: 'KI-Assistent verbinden',
-        description: 'Die MCP-Adresse eintragen: bei Claude, ChatGPT oder Le Chat als eigenen Connector (Anmeldung über Nextcloud), in Claude Code per Befehl, in Claude Desktop über das Begleitprogramm (`mcp-stdio`).',
+        description: 'Die MCP-Adresse eintragen: bei Claude, ChatGPT oder Le Chat als eigenen Connector (Anmeldung über Nextcloud), in Claude Code per Befehl. Mit der App Arbeitsblatt-Assistent verbindest du Claude Desktop und Claude Code mit einem Klick (Seite **Claude & MCP**).',
         codeLabel: 'Claude Code'
       },
       { title: 'Loslegen', description: '„Erstelle im geöffneten Dokument ein Arbeitsblatt zu Brüchen für Klasse 6“ – die Änderungen erscheinen sofort im Editor.' }
@@ -262,7 +261,7 @@ const de: SiteContent = {
       {
         label: 'Braucht das Plugin einen eigenen Server?',
         content:
-          'Das Plugin selbst nicht – es besteht nur aus Dateien, die Euro-Office ausliefert. KI-Chat und MCP brauchen den kleinen Server; in der Desktop-App übernimmt das Begleitprogramm diese Rolle. Der Noten-Tab funktioniert ganz ohne Server.'
+          'Das Plugin selbst nicht – es besteht nur aus Dateien, die Euro-Office ausliefert. KI-Chat und MCP brauchen den kleinen Server; auf dem eigenen Computer übernimmt die App Arbeitsblatt-Assistent diese Rolle. Der Noten-Tab funktioniert ganz ohne Server.'
       },
       {
         label: 'Welche KI wird verwendet?',
@@ -287,7 +286,7 @@ const de: SiteContent = {
       {
         label: 'Geht das auch ohne Nextcloud?',
         content:
-          'Ja: mit der Desktop-App und dem Begleitprogramm, oder mit einem eigenen Euro-Office Document Server und einem gemeinsamen Zugangs-Token.'
+          'Ja: mit der Desktop-App von Euro-Office bzw. Nextcloud Office und der App Arbeitsblatt-Assistent, oder mit einem eigenen Euro-Office Document Server und einem gemeinsamen Zugangs-Token.'
       },
       {
         label: 'Kann ich eingefügte Inhalte später ändern?',
@@ -300,14 +299,19 @@ const de: SiteContent = {
           'AIO erzeugt den Euro-Office-Container neu, dabei verschwinden eigene Plugins. Mit `--watch` richtet das Installationsskript einen kleinen Dienst ein, der das Plugin nach jedem Neustart automatisch wieder einspielt.'
       },
       {
+        label: 'Wie wird die App aktualisiert?',
+        content:
+          'Die App Arbeitsblatt-Assistent prüft regelmäßig, ob es eine neue Version gibt, und zeigt sie im Fenster und im Infobereich (macOS: in der Menüleiste) an. Ein Klick lädt und installiert sie – beim .deb-Paket gibt es stattdessen einen Link zur Download-Seite. Das Plugin in Euro-Office aktualisiert die neue Version automatisch.'
+      },
+      {
         label: 'Womit ist das getestet?',
         content:
-          'Mit Euro-Office 9.3.8 (Document Server und Desktop-App unter Linux), Nextcloud 34 und Mistral – automatisiert im echten Editor. Das Begleitprogramm wird für Windows und macOS automatisch gebaut und geprüft. Gehostete Assistenten wie claude.ai wurden noch nicht gegen eine öffentliche Installation getestet.'
+          'Mit Euro-Office 9.3.8 (Document Server und Desktop-App unter Linux), Nextcloud 34 und Mistral – automatisiert im echten Editor. Die App Arbeitsblatt-Assistent wird für Windows, macOS und Linux automatisch gebaut und geprüft. Gehostete Assistenten wie claude.ai wurden noch nicht gegen eine öffentliche Installation getestet.'
       },
       {
         label: 'Ist das Open Source?',
         content:
-          'Ja, unter MIT-Lizenz. Mitgeliefert werden abcjs (MIT) und die ONLYOFFICE-Plugin-Dateien (AGPL-3.0); das Begleitprogramm enthält Node.js und npm-Pakete – alle mit ihren Lizenztexten.'
+          'Ja, unter MIT-Lizenz. Mitgeliefert werden abcjs (MIT) und die ONLYOFFICE-Plugin-Dateien (AGPL-3.0); die App Arbeitsblatt-Assistent enthält Node.js und npm-Pakete – alle mit ihren Lizenztexten.'
       }
     ]
   },
