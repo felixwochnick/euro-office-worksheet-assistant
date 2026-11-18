@@ -20,23 +20,30 @@ interface AbcTools {
   addLyrics(abc: string, text: string): LyricsResult
 }
 
+const c = useContent()
+const t = computed(() => c.value.demo)
+const { locale } = useI18n()
+// Decimal comma everywhere except English (bars such as 2.5).
+const num = (n: number | null | undefined) => (locale.value === 'en' ? String(n) : String(n).replace('.', ','))
+
+// Inputs are German note names in every language (that is what the converter reads).
 const examples = [
-  { label: 'c – f – g', notes: 'c – f – g', lyrics: '', clef: 'treble' },
-  { label: 'Hänschen klein', notes: '4/4 g e e f d d', lyrics: 'Hän-schen klein ging al-lein', clef: 'treble' },
-  { label: 'Notenwerte', notes: '4/4 bc1, f1, g2, be2, c1, c1', lyrics: '', clef: 'treble' },
-  { label: 'Bassschlüssel', notes: "C D E F G A H c", lyrics: '', clef: 'bass' }
+  { notes: 'c – f – g', lyrics: '', clef: 'treble' },
+  { notes: '4/4 g e e f d d', lyrics: 'Hän-schen klein ging al-lein', clef: 'treble' },
+  { notes: '4/4 bc1, f1, g2, be2, c1, c1', lyrics: '', clef: 'treble' },
+  { notes: 'C D E F G A H c', lyrics: '', clef: 'bass' }
 ]
 
 const notes = ref(examples[1]!.notes)
 const lyrics = ref(examples[1]!.lyrics)
 const clef = ref('treble')
 const digits = ref('auto')
-const clefItems = [{ label: 'Violinschlüssel', value: 'treble' }, { label: 'Bassschlüssel', value: 'bass' }]
-const digitItems = [
-  { label: 'Ziffern: automatisch', value: 'auto' },
-  { label: "Ziffern = Oktave (c1 = c')", value: 'octave' },
-  { label: 'Ziffern = Notenwert (c1 = Ganze)', value: 'duration' }
-]
+const clefItems = computed(() => [{ label: t.value.treble, value: 'treble' }, { label: t.value.bass, value: 'bass' }])
+const digitItems = computed(() => [
+  { label: t.value.digitsAuto, value: 'auto' },
+  { label: t.value.digitsOctave, value: 'octave' },
+  { label: t.value.digitsDuration, value: 'duration' }
+])
 
 const paper = ref<HTMLElement | null>(null)
 const ready = ref(false)
@@ -47,13 +54,14 @@ let tools: AbcTools | null = null
 let abcjs: { renderAbc: (el: HTMLElement, abc: string, opts: object) => unknown } | null = null
 
 function issueText(i: Issue): string {
+  const m = t.value.issues
   switch (i.code) {
-    case 'unknown_name': return `„${i.token}“ ist kein bekannter Tonname.`
-    case 'double_accidental': return `„${i.token}“ hat zwei Vorzeichen-Angaben.`
-    case 'far_from_staff': return `„${i.token}“ liegt in der ${i.octave} – weit außerhalb des Notensystems.`
-    case 'incomplete_bar': return `Die Noten füllen keine vollen ${i.meter}-Takte (${String(i.bars).replace('.', ',')} Takte).`
-    case 'too_many_syllables': return 'Der Text hat mehr Silben als die Melodie Noten.'
-    case 'too_few_syllables': return 'Der Text reicht nicht für alle Noten – die übrigen bleiben ohne Text.'
+    case 'unknown_name': return fmt(m.unknownName, { token: i.token ?? '' })
+    case 'double_accidental': return fmt(m.doubleAccidental, { token: i.token ?? '' })
+    case 'far_from_staff': return fmt(m.farFromStaff, { token: i.token ?? '', octave: i.octave ?? '' })
+    case 'incomplete_bar': return fmt(m.incompleteBar, { meter: i.meter ?? '', bars: num(i.bars) })
+    case 'too_many_syllables': return m.tooManySyllables
+    case 'too_few_syllables': return m.tooFewSyllables
     default: return i.token ? `${i.token}: ${i.error}` : i.error
   }
 }
@@ -67,11 +75,11 @@ function update() {
   }
   let tune = r.tune
   if (r.notes.length) {
-    const info = [`${r.notes.length} Töne`]
+    const info = [fmt(t.value.noteCount, { n: r.notes.length })]
     if (/\d/.test(notes.value.replace(/\d+\/\d+/g, ''))) {
-      info.push(r.digits === 'duration' ? 'Ziffern als Notenwerte gelesen' : 'Ziffern als Oktaven gelesen')
+      info.push(r.digits === 'duration' ? t.value.readAsDurations : t.value.readAsOctaves)
     }
-    if (r.meter) info.push(`${r.meter}-Takt, ${String(r.bars).replace('.', ',')} Takte`)
+    if (r.meter) info.push(fmt(t.value.meterInfo, { meter: r.meter, bars: num(r.bars) }))
     msgs.unshift({ type: 'info', text: info.join(' · ') })
   }
   r.warnings.forEach(w => msgs.push({ type: 'warning', text: issueText(w) }))
@@ -97,7 +105,7 @@ function useExample(e: typeof examples[number]) {
   digits.value = 'auto'
 }
 
-watch([notes, lyrics, clef, digits], update)
+watch([notes, lyrics, clef, digits, locale], update)
 
 onMounted(async () => {
   // The UMD module ends up as CommonJS in the production build (exports in `default`)
@@ -115,25 +123,25 @@ onMounted(async () => {
 <template>
   <div class="grid gap-6 lg:grid-cols-5">
     <div class="space-y-4 lg:col-span-2">
-      <UFormField label="Tonnamen (deutsch)" help="z. B. c – f – g, fis' g' a' h', bc = ces, 4/4 = Takt">
+      <UFormField :label="t.notesLabel" :help="t.notesHelp">
         <UInput v-model="notes" size="lg" class="w-full" placeholder="c – f – g" />
       </UFormField>
       <div class="grid grid-cols-2 gap-3">
-        <UFormField label="Schlüssel">
+        <UFormField :label="t.clefLabel">
           <USelect v-model="clef" :items="clefItems" class="w-full" />
         </UFormField>
-        <UFormField label="Ziffern">
+        <UFormField :label="t.digitsLabel">
           <USelect v-model="digits" :items="digitItems" class="w-full" />
         </UFormField>
       </div>
-      <UFormField label="Liedtext (optional)" help="Silben mit - trennen: Al-le mei-ne Ent-chen">
+      <UFormField :label="t.lyricsLabel" :help="t.lyricsHelp">
         <UInput v-model="lyrics" class="w-full" placeholder="Hän-schen klein ging al-lein" />
       </UFormField>
       <div class="flex flex-wrap gap-2">
         <UButton
-          v-for="e in examples"
-          :key="e.label"
-          :label="e.label"
+          v-for="(e, i) in examples"
+          :key="e.notes"
+          :label="t.examples[i]"
           size="xs"
           color="neutral"
           variant="subtle"
@@ -146,7 +154,7 @@ onMounted(async () => {
       <div class="abc-paper min-h-40 rounded-lg bg-white p-3 shadow-sm ring ring-default">
         <div ref="paper" />
         <p v-if="!ready" class="p-6 text-center text-sm text-neutral-500">
-          Notenzeile wird geladen …
+          {{ t.paperLoading }}
         </p>
       </div>
       <div class="space-y-1.5">
@@ -161,7 +169,7 @@ onMounted(async () => {
         />
       </div>
       <UCollapsible v-if="abc">
-        <UButton label="ABC-Notation anzeigen" color="neutral" variant="link" trailing-icon="i-lucide-chevron-down" class="px-0" />
+        <UButton :label="t.showAbc" color="neutral" variant="link" trailing-icon="i-lucide-chevron-down" class="px-0" />
         <template #content>
           <pre class="mt-2 overflow-x-auto rounded-lg bg-elevated p-3 text-xs">{{ abc }}</pre>
         </template>

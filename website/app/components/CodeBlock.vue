@@ -2,6 +2,7 @@
 // Shell snippet with a copy button.
 const props = defineProps<{ code: string, label?: string }>()
 const copied = ref(false)
+const c = useContent()
 
 async function copy() {
   try {
@@ -28,7 +29,7 @@ async function copy() {
       size="sm"
       class="absolute right-2"
       :class="label ? 'top-9' : 'top-2'"
-      :aria-label="copied ? 'Kopiert' : 'Kopieren'"
+      :aria-label="copied ? c.footer.copied : c.footer.copy"
       @click="copy"
     />
   </div>
