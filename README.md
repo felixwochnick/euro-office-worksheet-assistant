@@ -310,6 +310,9 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   functions; if that fails the image ends up at the cursor and the chat says so.
 - **Alt text.** Set via `ApiDrawing.SetDescription` (ONLYOFFICE ≥ 10.0) or the internal `docPr.setDescr`. Without alt
   text, staves can't be loaded back for editing.
+- **"At the cursor"** means: as a new paragraph *after* the paragraph containing the cursor (or the selected image);
+  an empty paragraph at the cursor is used directly. The staff never splits a paragraph and never replaces selected
+  text (found in testing: inserting at the exact cursor position replaced a selected sentence).
 - **Cursor position.** `ApiDocument.GetCurrentParagraph` (≥ 9.0), otherwise the internal `CurPos.ContentPos`. The
   position is reported as a top-level element index (a table counts as one element); inside headers/footers it is
   unknown.

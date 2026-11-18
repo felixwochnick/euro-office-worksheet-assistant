@@ -92,6 +92,22 @@ try {
   assert.match(melody.abc || '', /Alle meine Entchen/, 'ABC alt text readable');
   step('manual insert after a paragraph, alt text set: ' + manualStatus.split('\n')[0]);
 
+  // Insert "at the cursor" while a sentence is selected: the sentence must survive
+  // (regression: InsertContent replaced the selection).
+  await plugin.evaluate(() => window.MusicEditor.callCommand(function () {
+    Api.GetDocument().GetElement(4).GetRange().Select(); // "Schreibe die Tonnamen unter die Noten."
+    return true;
+  }, {}, false));
+  await plugin.locator('#m-template').selectOption('emptyBass');
+  await plugin.locator('#m-position').selectOption('cursor');
+  await plugin.evaluate(() => { document.getElementById('m-status').className = 'message hidden'; });
+  await plugin.locator('#m-insert').click();
+  await plugin.locator('#m-status.ok, #m-status.error').waitFor({ timeout: 20000 });
+  o2 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+  assert.equal(o2.elements[4].text, 'Schreibe die Tonnamen unter die Noten.', 'selected text is kept');
+  assert.match(o2.elements[5].abc || '', /clef=bass/, 'staff inserted after the paragraph with the cursor');
+  step('insert at the cursor keeps selected text (new paragraph after it)');
+
   // Chat (mock model): "unter Aufgabe 2 … c – f – g … leere Zeile", auto insert
   await plugin.locator('.tab[data-tab=chat]').click();
   await plugin.locator('#chat-auto').check();

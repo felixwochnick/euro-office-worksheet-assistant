@@ -2,6 +2,8 @@
 /*
  * End-to-end smoke test of the plugin panel in the local test harness.
  *
+ * Env: PROXY_URL – proxy with LLM_PROVIDER=mock (default: what the harness has stored, http://localhost:8787)
+ *
  * Prerequisites:
  *   1. npm install (root, installs playwright-core – no browser download)
  *   2. a Chromium/Chrome binary (CHROMIUM_PATH, default /usr/bin/chromium)
@@ -31,6 +33,11 @@ const doc = () => page.evaluate(() => window.HarnessMock.state.elements.map((e) 
 
 try {
   await page.goto(BASE);
+  if (process.env.PROXY_URL) {
+    // Point the plugin at another proxy (e.g. a mock instance next to a real one).
+    await page.locator('#h-url').fill(process.env.PROXY_URL);
+    await page.locator('#h-apply').click();
+  }
   const frame = page.frameLocator('#panel');
   await frame.locator('#chat-text').waitFor();
 

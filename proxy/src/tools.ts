@@ -15,7 +15,7 @@ import type { ToolCall, ToolDefinition } from './types.js';
 
 const positionSchema = {
   description:
-    'Where to insert. "cursor" = at the current cursor position; {"after_heading": "<text>"} = directly after the paragraph/heading whose text matches; {"after_paragraph_index": n} = after the top-level element with index n from the document outline. Prefer after_paragraph_index when the outline is known.',
+    'Where to insert. "cursor" = as a new paragraph after the paragraph containing the cursor (an empty paragraph at the cursor is used directly); {"after_heading": "<text>"} = directly after the paragraph/heading whose text matches; {"after_paragraph_index": n} = after the top-level element with index n from the document outline. Prefer after_paragraph_index when the outline is known.',
   anyOf: [
     { type: 'string', enum: ['cursor'] },
     {

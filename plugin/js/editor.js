@@ -235,11 +235,55 @@
       para.AddDrawing(img);
 
       if (target === null) {
-        doc.InsertContent([para]);
-        // Only trust the index if the inserted paragraph object itself is in the
-        // document (InsertContent may copy/merge it) – otherwise report it as unknown.
-        try { var p = para.GetPosInParent ? para.GetPosInParent() : -1; if (p >= 0) res.index = p; } catch (e) {}
-        res.position = 'cursor';
+        // "cursor": insert as a new paragraph AFTER the paragraph containing the
+        // cursor (or the selected drawing). Inserting at the exact cursor position
+        // would split the paragraph – and replace selected text.
+        var cur = null;
+        try {
+          var sel = doc.GetSelectedDrawings ? doc.GetSelectedDrawings() : [];
+          var sp = sel && sel.length && sel[0].GetParentParagraph ? sel[0].GetParentParagraph() : null;
+          if (sp && sp.Paragraph && sp.Paragraph.GetParent && sp.Paragraph.GetParent() === doc.Document) cur = sp.GetPosInParent();
+        } catch (e) {}
+        if (cur === null || cur < 0) {
+          try {
+            var cp = doc.GetCurrentParagraph ? doc.GetCurrentParagraph() : null;
+            if (cp && cp.Paragraph && cp.Paragraph.GetParent && cp.Paragraph.GetParent() === doc.Document) cur = cp.GetPosInParent();
+          } catch (e) {}
+        }
+        if (cur === null || cur < 0) {
+          // Cursor in a table etc.: index of the top-level element (internal API).
+          try {
+            var ld = doc.Document;
+            if (ld && ld.CurPos && typeof ld.CurPos.ContentPos === 'number') {
+              cur = ld.CurPos.ContentPos;
+              if (ld.IsSelectionUse && ld.IsSelectionUse() && ld.Selection) cur = Math.max(ld.Selection.StartPos, ld.Selection.EndPos);
+            }
+          } catch (e) {}
+        }
+        if (cur !== null && cur >= 0 && cur < count) {
+          var curEl = doc.GetElement(cur);
+          var isEmptyPara = false;
+          try {
+            isEmptyPara = curEl.GetClassType() === 'paragraph' && !String(curEl.GetText ? curEl.GetText() : '').replace(/[\r\n\s]+/g, '') &&
+              !(curEl.GetAllDrawingObjects && curEl.GetAllDrawingObjects().length);
+          } catch (e) {}
+          if (isEmptyPara) {
+            // Use the empty paragraph the cursor is in.
+            curEl.AddDrawing(img);
+            res.index = cur;
+            res.position = 'cursor (empty paragraph ' + cur + ')';
+          } else {
+            doc.AddElement(cur + 1, para);
+            res.index = cur + 1;
+            res.position = 'cursor (after ' + cur + ')';
+          }
+        } else {
+          // Last resort: exact cursor position, but never replace selected text.
+          try { if (doc.RemoveSelection) doc.RemoveSelection(); } catch (e) {}
+          doc.InsertContent([para]);
+          try { var p = para.GetPosInParent ? para.GetPosInParent() : -1; if (p >= 0) res.index = p; } catch (e) {}
+          res.position = 'cursor';
+        }
       } else {
         doc.AddElement(target + 1, para);
         res.index = target + 1;
