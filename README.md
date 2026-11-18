@@ -233,13 +233,13 @@ needed) does both on the user's computer:
 3. It installs the plugin into the desktop apps it finds, starts a local server on `127.0.0.1:8787` and opens its
    settings page in the browser: AI provider and API key for the chat (Mistral, OpenAI, Anthropic, Ollama, any
    OpenAI-compatible API – or none), MCP setup for Claude & co., autostart.
-4. Restart the desktop app, open a document: **Plugins → Arbeitsblatt-Assistent**. The plugin is already connected
+4. Open a new document in the desktop app (or restart it): **Plugins → Arbeitsblatt-Assistent**. The plugin is already connected
    to the companion (it writes `local-config.js` with the address and a random token into the installed plugin);
    *MCP-Zugriff erlauben* is on by default.
 
 | | |
 |---|---|
-| Plugin folders | Linux `~/.local/share/{euro-office,nextcloud-office}/desktopeditors/sdkjs-plugins/`, Windows `%LOCALAPPDATA%\{Euro-Office,Nextcloud-Office}\DesktopEditors\data\sdkjs-plugins\`, macOS `~/Library/Application Support/{asc.euro-office.Euro-Office,asc.nextcloud-office.Nextcloud-Office}/data/sdkjs-plugins/`; the plugin folder is named after its GUID `{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}` |
+| Plugin folders | Linux `~/.local/share/euro-office/desktopeditors/sdkjs-plugins/` and Windows `%LOCALAPPDATA%\Euro-Office\DesktopEditors\data\sdkjs-plugins\` (shared by Euro-Office and Nextcloud Office), macOS `~/Library/Application Support/asc.euro-office.Euro-Office/data/sdkjs-plugins/` resp. `…/asc.nextcloud-office.Nextcloud-Office/data/sdkjs-plugins/`. The plugin folder must be a real folder (no symlink) named after the plugin GUID `{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}`. New documents pick up a newly installed plugin without restarting the app |
 | Settings | Linux `~/.config/arbeitsblatt-assistent/`, Windows `%APPDATA%\Arbeitsblatt-Assistent\`, macOS `~/Library/Application Support/Arbeitsblatt-Assistent/` (`config.json`, mode 0600 – contains the API key) |
 | Server | `AUTH_MODE=local`: listens on `127.0.0.1` only; the plugin uses the token, MCP needs no sign-in (Host and Origin are checked) |
 | Autostart | Linux XDG autostart, macOS LaunchAgent, Windows `HKCU\…\Run` (started without a console window) |

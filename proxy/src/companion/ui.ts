@@ -31,7 +31,7 @@ details summary{cursor:pointer;font-weight:600;margin-top:8px}
 <section><h2>1. Plugin in der Desktop-App</h2>
 <div id="apps"></div>
 <div class="row"><button class="primary" id="install">Plugin installieren / aktualisieren</button><span class="msg" id="install-msg"></span></div>
-<p><small>Danach die Desktop-App neu starten und ein Dokument öffnen: <b>Plugins → Arbeitsblatt-Assistent</b>. Das Plugin ist bereits mit diesem Programm verbunden – keine Einstellungen nötig.</small></p>
+<p><small>Danach in der Desktop-App ein neues Dokument öffnen (oder die App neu starten): <b>Plugins → Arbeitsblatt-Assistent</b>. Das Plugin ist bereits mit diesem Programm verbunden – keine Einstellungen nötig.</small></p>
 </section>
 
 <section><h2>2. KI-Chat im Plugin</h2>
@@ -126,7 +126,7 @@ $('install').addEventListener('click', async () => {
   try {
     const force = !state.apps.some((a) => a.detected);
     const r = await api('install', { force });
-    msg('install-msg', r.installed.length ? 'Installiert für ' + r.installed.map((x) => x.app).join(', ') + '. Desktop-App neu starten.' : 'Keine Desktop-App gefunden.', !!r.installed.length);
+    msg('install-msg', r.installed.length ? 'Installiert für ' + r.installed.map((x) => x.app).join(', ') + '. Neues Dokument öffnen oder die App neu starten.' : 'Keine Desktop-App gefunden.', !!r.installed.length);
     await load();
   } catch (e) { msg('install-msg', e.message, false); }
 });

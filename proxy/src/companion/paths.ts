@@ -13,7 +13,7 @@ export const PLUGIN_GUID = '{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}';
 export const APP_NAME = 'Arbeitsblatt-Assistent';
 
 export interface DesktopApp {
-  id: 'euro-office' | 'nextcloud-office';
+  id: 'euro-office' | 'nextcloud-office' | 'desktop-editors';
   name: string;
   /** The app's per-user data folder (exists once the app was started). */
   dataDir: string;
@@ -31,7 +31,10 @@ export function currentEnv(): Env {
   return { platform: process.platform, home: os.homedir(), env: process.env };
 }
 
-/** Per-user data folders of the desktop apps (both brands), whether installed or not. */
+/**
+ * Per-user data folders of the desktop apps, whether installed or not. On Linux and Windows both brands
+ * (Euro-Office, Nextcloud Office) use the same folder; on macOS each brand has its own (verified with 9.3.8).
+ */
 export function desktopApps(e: Env = currentEnv()): DesktopApp[] {
   const p = e.platform === 'win32' ? path.win32 : path.posix;
   const make = (id: DesktopApp['id'], name: string, dataDir: string): DesktopApp => ({
@@ -42,10 +45,7 @@ export function desktopApps(e: Env = currentEnv()): DesktopApp[] {
   });
   if (e.platform === 'win32') {
     const local = e.env.LOCALAPPDATA || p.join(e.home, 'AppData', 'Local');
-    return [
-      make('euro-office', 'Euro-Office', p.join(local, 'Euro-Office', 'DesktopEditors', 'data')),
-      make('nextcloud-office', 'Nextcloud Office', p.join(local, 'Nextcloud-Office', 'DesktopEditors', 'data')),
-    ];
+    return [make('desktop-editors', 'Euro-Office / Nextcloud Office', p.join(local, 'Euro-Office', 'DesktopEditors', 'data'))];
   }
   if (e.platform === 'darwin') {
     const support = p.join(e.home, 'Library', 'Application Support');
@@ -55,13 +55,10 @@ export function desktopApps(e: Env = currentEnv()): DesktopApp[] {
     ];
   }
   const share = e.env.XDG_DATA_HOME || p.join(e.home, '.local', 'share');
-  return [
-    make('euro-office', 'Euro-Office', p.join(share, 'euro-office', 'desktopeditors')),
-    make('nextcloud-office', 'Nextcloud Office', p.join(share, 'nextcloud-office', 'desktopeditors')),
-  ];
+  return [make('desktop-editors', 'Euro-Office / Nextcloud Office', p.join(share, 'euro-office', 'desktopeditors'))];
 }
 
-/** Apps whose data folder exists (they were started at least once). */
+/** Apps whose data folder exists (they were started at least once; installing before works, too). */
 export function detectedApps(e: Env = currentEnv()): DesktopApp[] {
   return desktopApps(e).filter((a) => {
     try {

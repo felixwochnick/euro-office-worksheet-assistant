@@ -35,13 +35,12 @@ const FILES = new Map([
 ]);
 
 test('companion paths: desktop app plugin folders per OS', () => {
+  // Linux and Windows: one folder for both brands (Euro-Office and Nextcloud Office)
   const linux = desktopApps({ platform: 'linux', home: '/home/u', env: {} });
-  assert.deepEqual(linux.map((a) => a.pluginsDir), [
-    '/home/u/.local/share/euro-office/desktopeditors/sdkjs-plugins',
-    '/home/u/.local/share/nextcloud-office/desktopeditors/sdkjs-plugins',
-  ]);
+  assert.deepEqual(linux.map((a) => a.pluginsDir), ['/home/u/.local/share/euro-office/desktopeditors/sdkjs-plugins']);
+  assert.equal(desktopApps({ platform: 'linux', home: '/home/u', env: { XDG_DATA_HOME: '/data' } })[0].pluginsDir, '/data/euro-office/desktopeditors/sdkjs-plugins');
   const win = desktopApps({ platform: 'win32', home: 'C:\\Users\\u', env: { LOCALAPPDATA: 'C:\\Users\\u\\AppData\\Local' } });
-  assert.equal(win[0].pluginsDir, 'C:\\Users\\u\\AppData\\Local\\Euro-Office\\DesktopEditors\\data\\sdkjs-plugins');
+  assert.deepEqual(win.map((a) => a.pluginsDir), ['C:\\Users\\u\\AppData\\Local\\Euro-Office\\DesktopEditors\\data\\sdkjs-plugins']);
   const mac = desktopApps({ platform: 'darwin', home: '/Users/u', env: {} });
   assert.equal(mac[1].pluginsDir, '/Users/u/Library/Application Support/asc.nextcloud-office.Nextcloud-Office/data/sdkjs-plugins');
   assert.equal(configDir({ platform: 'win32', home: 'C:\\Users\\u', env: { APPDATA: 'C:\\Users\\u\\AppData\\Roaming' } }), 'C:\\Users\\u\\AppData\\Roaming\\Arbeitsblatt-Assistent');
@@ -74,7 +73,7 @@ test('companion install: copies the plugin and writes local-config.js', () => {
   assert.equal(detectedApps(env).length, 0);
   fs.mkdirSync(path.join(home, '.local/share/euro-office/desktopeditors'), { recursive: true });
   const [app] = detectedApps(env);
-  assert.equal(app.id, 'euro-office');
+  assert.equal(app.id, 'desktop-editors');
   const local = { proxyUrl: 'http://127.0.0.1:8787', token: 'tok-0123456789abcdef' };
   assert.equal(installedInfo(app, local).installed, false);
   const dir = installPlugin(app, FILES, local);

@@ -89,11 +89,16 @@ export class Companion {
     return apps.map((a) => ({ app: a.name, dir: installPlugin(a, this.pluginFiles(), this.local()) }));
   }
 
-  /** Install where the plugin is missing, outdated or points to another port/token. */
+  /**
+   * Install where the plugin is missing, outdated or points to another port/token. Without any detected app the
+   * plugin is installed into all known locations: the apps also load it when they are started for the first time
+   * afterwards.
+   */
   ensureInstalled(): Array<{ app: string; dir: string }> {
     const version = pluginVersion(this.pluginFiles());
     const done: Array<{ app: string; dir: string }> = [];
-    for (const a of detectedApps(this.env)) {
+    const detected = detectedApps(this.env);
+    for (const a of detected.length ? detected : desktopApps(this.env)) {
       const info = installedInfo(a, this.local());
       if (!info.installed || !info.configured || info.version !== version) {
         done.push({ app: a.name, dir: installPlugin(a, this.pluginFiles(), this.local()) });
