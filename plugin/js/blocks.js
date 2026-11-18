@@ -205,12 +205,70 @@
       } catch (e) {}
       try { if (b) cellObj['SetCellBorder' + side](b.size / 8 * 0.3528, Api.CreateSolidFill(Api.CreateRGBColor(c[0], c[1], c[2]))); } catch (e) {}
     }
-    function buildTable(e) {
+    // A table with only a percentage width (tblW type="pct") and automatic cell widths is stretched by Word, but
+    // Google Docs and Apple Pages follow the grid (w:gridCol) and cell widths (w:tcW) and shrink the table to its
+    // content. So every table gets an absolute width in twips, a fixed layout and explicit cell and grid widths.
+    var TEXT_WIDTH_FALLBACK = 9070; // 16 cm: A4 with common margins
+    var DEFAULT_CELL_MARGIN = 108; // 0.19 cm, left and right, when the table sets none
+    var textWidthCache = null;
+    function textWidth() {
+      if (textWidthCache) return textWidthCache;
+      var w = 0;
+      var sec = null;
+      try {
+        sec = doc.GetFinalSection();
+        // Public getters (twips) in newer editor versions ...
+        if (sec.GetPageWidth && sec.GetPageMarginLeft && sec.GetPageMarginRight) {
+          w = sec.GetPageWidth() - sec.GetPageMarginLeft() - sec.GetPageMarginRight();
+        }
+        // ... otherwise the internal section properties (millimetres).
+        if (!(w > 0) && sec.Section && sec.Section.GetPageWidth) {
+          var s = sec.Section;
+          w = (s.GetPageWidth() - s.GetPageMarginLeft() - s.GetPageMarginRight()) * 1440 / 25.4;
+        }
+      } catch (x) { w = 0; }
+      // Page columns: one column (as in cmdDocInfo).
+      try {
+        var colsPr = sec && sec.Section && sec.Section.Columns;
+        if (w > 0 && colsPr && colsPr.Num > 1) w = (w - (colsPr.Num - 1) * (colsPr.Space || 10) * 1440 / 25.4) / colsPr.Num;
+      } catch (x) {}
+      textWidthCache = w > 1440 && w < 31680 ? Math.round(w) : TEXT_WIDTH_FALLBACK; // 1 in .. 22 in
+      return textWidthCache;
+    }
+    /** Column widths in twips: the layout's percentages (e.widths) of the total, else equal columns. */
+    function columnWidths(e, cols, total) {
+      var out = [];
+      var pct = e.widths && e.widths.length >= cols ? e.widths : null;
+      var sum = 0;
+      for (var i = 0; i < cols; i++) sum += pct ? Number(pct[i]) || 0 : 0;
+      for (var j = 0; j < cols; j++) out.push(pct && sum > 0 ? Math.floor(total * (Number(pct[j]) || 0) / sum) : Math.floor(total / cols));
+      return out;
+    }
+    function setTableWidths(t, rowCount, cols, colW, total) {
+      try { t.SetWidth('twips', total); } catch (x) {}
+      try { t.SetTableLayout('fixed'); } catch (x) {}
+      for (var r = 0; r < rowCount; r++) {
+        for (var c = 0; c < cols; c++) {
+          try { t.GetRow(r).GetCell(c).SetWidth('twips', colW[c]); } catch (x) {}
+        }
+      }
+      // The grid (w:tblGrid) is not derived from the cell widths: Api.CreateTable starts with a default grid
+      // (2 cm per column). Set it on the underlying table so the exported w:gridCol values match the cells.
+      try {
+        if (t.Table && t.Table.SetTableGrid) t.Table.SetTableGrid(colW.map(function (v) { return v * 25.4 / 1440; }));
+      } catch (x) {}
+    }
+
+    /** availTwips: width available for the table (the text width, or the inner width of the parent cell). */
+    function buildTable(e, availTwips) {
       var rows = e.rows || [];
       var cols = rows.reduce(function (m, r) { return Math.max(m, (r.cells || []).length); }, 1);
       var t = Api.CreateTable(cols, Math.max(1, rows.length));
-      try { t.SetWidth('percent', 100); } catch (x) {}
-      try { if (e.widths) t.SetTableLayout('fixed'); } catch (x) {}
+      var total = availTwips > 0 ? Math.round(availTwips) : textWidth();
+      var colW = columnWidths(e, cols, total);
+      setTableWidths(t, Math.max(1, rows.length), cols, colW, total);
+      var cm = e.cellMargins || {};
+      var padding = (cm.left != null ? cm.left : DEFAULT_CELL_MARGIN) + (cm.right != null ? cm.right : DEFAULT_CELL_MARGIN);
       if (e.borders) {
         Object.keys(SIDES).forEach(function (k) {
           if (!(k in e.borders)) return;
@@ -237,7 +295,6 @@
         for (var ci = 0; ci < cols; ci++) {
           var spec = (rows[r].cells || [])[ci] || { content: [] };
           var cl = row.GetCell(ci);
-          try { if (e.widths && e.widths[ci] != null) cl.SetWidth('percent', e.widths[ci]); } catch (x) {}
           try { if (spec.shd) { var s = rgb(spec.shd); if (s) cl.SetShd('clear', s[0], s[1], s[2], false); } } catch (x) {}
           try { if (spec.valign) cl.SetVerticalAlign(spec.valign); } catch (x) {}
           if (spec.borders) {
@@ -246,7 +303,8 @@
             });
           }
           var content = cl.GetContent();
-          var built = (spec.content || []).map(buildElement);
+          var inner = Math.max(144, colW[ci] - padding); // nested tables: the inner width of this cell
+          var built = (spec.content || []).map(function (x) { return buildElement(x, inner); });
           if (built.length) {
             for (var b2 = 0; b2 < built.length; b2++) content.Push(built[b2]);
             try { content.RemoveElement(0); } catch (x) {}
@@ -256,8 +314,8 @@
       return t;
     }
 
-    function buildElement(e) {
-      return e.t === 'table' ? buildTable(e) : buildParagraph(e);
+    function buildElement(e, availTwips) {
+      return e.t === 'table' ? buildTable(e, availTwips) : buildParagraph(e);
     }
 
     function buildAll(elements) {
@@ -338,7 +396,7 @@
           var s0 = doc.GetFinalSection();
           var content = s0[hf[1]]('default', true);
           if (!content) return;
-          var els = (spec || []).map(buildElement);
+          var els = (spec || []).map(function (x) { return buildElement(x); });
           if (content.RemoveAllElements) content.RemoveAllElements();
           for (var k = 0; k < els.length; k++) content.Push(els[k]);
           if (els.length && content.GetElementsCount() > els.length) content.RemoveElement(0);
