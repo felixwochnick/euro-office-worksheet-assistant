@@ -138,6 +138,7 @@ export class Companion {
     }
     this.app = await buildServer(cfg, {
       settingsUrl: `${this.url}/`,
+      settingsInApp: !!this.opts.app,
       extend: (app) => this.routes(app),
       logStream: this.opts.logStream,
     });

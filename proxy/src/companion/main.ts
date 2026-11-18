@@ -27,7 +27,7 @@ import { configDir, desktopApps } from './paths.js';
 import { settingsFile } from './settings-store.js';
 import { runStdio } from './stdio.js';
 
-const HELP = `Arbeitsblatt-Assistent ${VERSION} – Begleitprogramm für die Euro-Office-Desktop-App
+const HELP = `Arbeitsblatt-Assistent ${VERSION} – Server-Programm der App (KI-Chat und MCP für die Euro-Office-Desktop-App)
 
   worksheet-assistant                 starten (installiert das Plugin, öffnet die Einstellungen)
   worksheet-assistant --background    im Hintergrund starten (ohne Browser)

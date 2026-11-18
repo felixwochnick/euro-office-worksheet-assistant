@@ -136,7 +136,9 @@ test('companion: settings page and API, plugin token, applying AI settings', asy
     // the plugin authenticates with the companion's token
     const info = await fetch(`${base}/v1/info`, { headers: { authorization: `Bearer ${companion.settings.token}` } });
     assert.equal(info.status, 200);
-    assert.equal((await (await fetch(`${base}/v1/meta`)).json()).settings_url, `${base}/`);
+    const meta = await (await fetch(`${base}/v1/meta`)).json();
+    assert.equal(meta.settings_url, `${base}/`);
+    assert.equal(meta.settings_in_app, false);
 
     // a provider without key is refused; with a key the server restarts with chat enabled
     const bad = await api('settings', { provider: 'mistral' });

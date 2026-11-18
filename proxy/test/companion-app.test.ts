@@ -183,6 +183,8 @@ test('companion: Claude endpoints (fake claude command, temporary home)', async 
     const state = await (await api(base, SECRET, 'state')).json();
     assert.equal(state.app, true);
     assert.deepEqual(state.stdio_command, [APP, 'mcp-stdio']);
+    // the plugin points to the app's window, not to a settings page, when the chat is not set up
+    assert.equal((await (await fetch(`${base}/v1/meta`)).json()).settings_in_app, true);
 
     assert.equal((await fetch(`${base}/companion/api/claude`)).status, 403, 'no secret');
     const configPath = path.join(home, '.config', 'Claude', 'claude_desktop_config.json');

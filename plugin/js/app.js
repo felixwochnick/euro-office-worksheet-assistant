@@ -259,7 +259,8 @@
         return;
       }
       if (meta && meta.chat === false) {
-        if (meta.settings_url) addChat('error', t('chat.disabledLocal'), meta.settings_url);
+        if (meta.settings_in_app) addChat('error', t('chat.disabledApp'));
+        else if (meta.settings_url) addChat('error', t('chat.disabledLocal'), meta.settings_url);
         else addChat('error', t('chat.disabled'));
         return;
       }
