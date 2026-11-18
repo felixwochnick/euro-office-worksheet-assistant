@@ -1,0 +1,34 @@
+# Local Euro-Office Document Server for testing the plugin WITHOUT Nextcloud.
+# Development only: JWT is disabled and private IPs are allowed.
+#
+#   bash scripts/build.sh
+#   cd dev/eurooffice && docker compose up -d
+#   open http://localhost:8099/          (editor with files/arbeitsblatt.docx)
+#
+# For the AI chat also start the proxy (proxy/.env with CORS_ORIGINS=http://localhost:8090).
+services:
+  eurooffice:
+    image: ghcr.io/euro-office/documentserver:${EUROOFFICE_VERSION:-latest}
+    environment:
+      JWT_ENABLED: "false"
+      ALLOW_PRIVATE_IP_ADDRESS: "true"
+    volumes:
+      - ../../dist/music-notation:/var/www/euro-office/documentserver/sdkjs-plugins/music-notation:ro
+    ports:
+      - "127.0.0.1:8090:80"
+
+  # Minimal document storage: serves the test document and the editor page and
+  # receives save callbacks (saved .docx files end up in ./out/).
+  storage:
+    image: node:22-alpine
+    working_dir: /app
+    command: ["node", "server.mjs"]
+    environment:
+      PORT: "8099"
+      DS_URL: http://localhost:8090          # Document Server as seen from the browser
+      DS_INTERNAL_URL: http://eurooffice     # Document Server as seen from this container
+      STORAGE_URL: http://storage:8099       # this service as seen from the Document Server
+    volumes:
+      - ./:/app
+    ports:
+      - "127.0.0.1:8099:8099"

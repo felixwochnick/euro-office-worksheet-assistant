@@ -9,7 +9,8 @@
     "test": "node --test tests/ && npm --prefix proxy test",
     "test:shared": "node --test tests/",
     "harness": "bash scripts/build.sh && node scripts/serve.mjs",
-    "e2e": "node harness/e2e.mjs"
+    "e2e": "node harness/e2e.mjs",
+    "e2e:real": "node dev/eurooffice/e2e-real-editor.mjs"
   },
   "devDependencies": {
     "playwright-core": "^1.65.1"
