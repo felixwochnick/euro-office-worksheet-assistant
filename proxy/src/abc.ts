@@ -12,6 +12,8 @@ export interface AbcIssue {
   code: string;
   message: string;
   line?: number;
+  syllables?: number;
+  notes?: number;
 }
 
 export interface AbcValidation {
@@ -56,6 +58,19 @@ export interface AbcTools {
     text: string,
     opts?: { clef?: string; bareOctave?: number; explicitNatural?: boolean; digits?: 'auto' | 'octave' | 'duration' },
   ): GermanConversion;
+  addLyrics(
+    abc: string,
+    text: string,
+    opts?: { mode?: 'replace' | 'verse' },
+  ): {
+    ok: boolean;
+    abc: string;
+    syllables: number;
+    notes: number;
+    lines: Array<{ notes: number; syllables: number }>;
+    errors: ConversionIssue[];
+    warnings: ConversionIssue[];
+  };
   buildAbc(o: { notes: string; clef?: string; meter?: string; length?: string; key?: string; title?: string }): string;
   emptyStavesAbc(o: { clef?: string; count?: number; measures?: number }): string;
 }

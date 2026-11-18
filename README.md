@@ -6,8 +6,11 @@ music staves into text documents – for example worksheets for music lessons.
 - **AI chat in the side panel** – e.g. *"Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein
   und darunter eine leere Zeile zum Nachschreiben"*. The AI sees the document outline and the cursor position and
   calls tools that the plugin executes locally in the editor.
-- **Manual mode without AI** – ABC editor with live preview, templates (empty treble/bass staff, example melody,
-  scales) and a converter for German note names (`c – f – g`, `fis' g' a' h'`, …).
+- **Manual mode without AI** – ABC editor with live preview, templates (empty treble/bass staff, example melody
+  with lyrics, scales), a converter for German note names (`c – f – g`, `fis' g' a' h'`, …) and a **lyrics field**
+  that distributes syllables over the notes (also as additional verses).
+- **Song text (lyrics)** – by chat („Füge zu Zeile 1 den Text hinzu: Hänschen klein ging allein“) or manually; the
+  syllables are placed under the notes (ABC `w:` lines), dense lines are broken evenly by whole measures.
 - **Printable images** – ABC is rendered with [abcjs](https://www.abcjs.net/) to SVG and rasterised to PNG at
   300 dpi. The **ABC source is stored as the image alt text**, so a staff can be selected later, loaded back into the
   panel, edited and replaced.
@@ -132,7 +135,8 @@ Without Docker: `cd proxy && npm ci && npm run build && node --env-file=.env bui
 | `LLM_MODEL` | provider default | e.g. `mistral-large-latest`, `qwen2.5:7b`, `claude-sonnet-5-5` |
 | `LLM_API_KEY` | – | Provider key (alternatively `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) |
 | `LLM_BASE_URL` | provider default | e.g. `http://ollama:11434/v1` for Ollama |
-| `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_MS` | `0.2`, `2048`, `60000` | Model parameters |
+| `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_MS` | `0.2`, `8192`, `120000` | Model parameters. Reasoning models (current `mistral-large-latest`) spend part of `LLM_MAX_TOKENS` on "thinking" – values that are too low end in empty answers |
+| `LLM_REASONING_EFFORT` | `medium` for Mistral, otherwise not sent | `reasoning_effort` for reasoning models (`low`/`medium`/`high`, `off` = not sent). Without it `mistral-large-latest` can "think" for minutes and run out of tokens. Models that reject it are retried automatically without the parameter |
 | `MAX_ITERATIONS` | `6` | Max. tool rounds per user message; afterwards the model must answer in text |
 | `BODY_LIMIT_BYTES`, `PORT`, `HOST`, `LOG_LEVEL` | `1000000`, `8787`, `0.0.0.0`, `info` | Server settings |
 
@@ -164,7 +168,8 @@ Tools offered to the model (JSON Schema in `proxy/src/tools.ts`):
 | `insert_empty_staves({clef, count, measures, width_cm, position})` | plugin | empty staves made of invisible rests (`x`) |
 | `replace_staff({index, abc, width_cm})` | plugin | change an existing staff in place (keeps its width); the outline numbers staves ("Notenzeile 1, 2, …") and marks a selected one |
 | `get_document_outline()` | plugin | headings/paragraphs with indices, cursor, ABC of existing staves |
-| `convert_german_notes({notes, clef})` | proxy | deterministic German note names → ABC |
+| `convert_german_notes({notes, clef, digits})` | proxy | deterministic German note names → ABC |
+| `add_lyrics({abc, lyrics, mode})` | proxy | distribute hyphenated text over the notes (`w:` lines); `mode: "verse"` adds a verse |
 
 ABC in `insert_staff` is validated on the proxy (headers `X: M: L: K:` incl. `clef=`, no German `h`/`fis` in the
 body, balanced brackets …). Invalid ABC is sent back to the model with the errors instead of reaching the editor.
@@ -187,6 +192,9 @@ Tab **Einstellungen** (stored in the browser's `localStorage`; falls back to in-
 - „Welche Töne stehen in der Notenzeile unter Aufgabe 1?“ (the AI reads the ABC from the alt text)
 - „Bitte ändere Zeile 1: statt bc #c“ (changes the existing staff in place – staves are counted in document order)
 - „In der markierten Zeile soll das große C am Ende ein c' werden.“ (select the staff image first)
+- „Füge zu Zeile 1 den Text hinzu: Hänschen klein ging allein“ (the AI adds the syllable breaks)
+- „Und darunter als zweite Strophe: Stock und Hut steht ihm gut“
+- „Schreibe die Tonnamen als Lösung unter Notenzeile 2.“
 - „Schreibe einen Rhythmus im 3/4-Takt: Halbe, Viertel | punktierte Halbe – alles auf g'.“
 
 ## ABC notation cheat sheet
@@ -210,7 +218,19 @@ C D E F | G2 G2 |]  the music
 
 Durations relative to `L:1/4`: `C` quarter, `C2` half, `C4` whole, `C/2` or `C/` eighth, `C3` dotted half,
 `C>D` dotted rhythm. Rests: `z` (visible), `x` (invisible). Bar lines: `|`, double `||`, final `|]`, repeat `:|`.
-Chords: `[CEG]`. Ties: `C2-C`. Lyrics line below the notes: `w: Al-le mei-ne Ent-chen`.
+Chords: `[CEG]`. Ties: `C2-C`. Chord symbols above a note: `"Am"A`; free text above/below: `"^Text"C` / `"_Text"C`.
+
+**Lyrics** – a `w:` line directly below a music line, one syllable per note (rests are skipped):
+
+```
+C D E F | G2 G2 |
+w: Al-le mei-ne Ent-chen
+w: Hän-schen klein ging al-lein     ← second verse
+```
+
+`-` between syllables of a word · `_` hold the previous syllable for one more note · `*` note without text ·
+`~` two words on one note (`a~b`). In the manual tab you only type the hyphenated text into *Liedtext*; the plugin
+distributes it over all music lines and reports if syllables and notes do not match.
 
 ### German note names (converter in the manual tab and AI tool `convert_german_notes`)
 
@@ -332,9 +352,15 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
 - **Plugin discovery.** Plugins are picked up from `sdkjs-plugins` when the editor loads. If the plugin does not
   show up, reload the editor with a cleared browser cache.
 - **Rendering.** abcjs fonts for titles/lyrics come from the browser; the PNG is a raster image (300 dpi by default,
-  adjustable up to 600 dpi). Staves always span the full chosen width (`%%stretchlast`).
+  adjustable up to 600 dpi). Staves always span the full chosen width (`%%stretchlast`). If a line is too dense for
+  the width (typically with lyrics), the image is rendered with lines broken evenly by whole measures (syllables move
+  along); the ABC stored in the alt text is not changed. The image is never wider than the chosen width.
+- **Lyrics.** German syllable breaks are not computed by the plugin: in the manual tab type them with `-`
+  (`Al-le mei-ne`); the AI hyphenates itself. Lyrics with `|` (bar advance) are not re-broken.
 - **AI quality.** Even with validation the model may choose unexpected rhythms or octaves; check the preview (or
-  disable *Automatisch einfügen*). Small local models often fail at tool calling.
+  disable *Automatisch einfügen*). Small local models often fail at tool calling. Melodies "from memory" (e.g.
+  „Alle meine Entchen“) are not reliable – in tests Mistral produced the right melody once and a variant once; give
+  the notes (or use the manual template) when exactness matters.
 - **Security.** The token is stored in the browser and therefore visible to the user of that browser – it protects
   the proxy against strangers, not against your own users. Use the rate limit and provider-side spending limits.
 

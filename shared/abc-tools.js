@@ -626,13 +626,30 @@
     var body = lines.slice(i);
     var hasMusic = false;
     var depth = { '[': 0, '(': 0, '{': 0 };
+    var lastMusicNotes = 0;   // notes of the music line the next w: line belongs to
+    var continued = false;    // previous music line ended with "\" (continuation)
     for (var b = 0; b < body.length; b++) {
       var lineNo = i + b + 1;
       var raw = body[b];
       if (/^\s*%/.test(raw) || raw.trim() === '') continue;
       if (/^X:/.test(raw)) { err('multiple_tunes', 'Only one tune (one X: header) is allowed.', lineNo); continue; }
-      if (/^[wW]:/.test(raw)) continue;            // lyrics
+      if (/^[wW]:/.test(raw)) {                    // lyrics
+        if (/^w:/.test(raw) && lastMusicNotes > 0) {
+          var ls = lyricSlots(raw.replace(/^w:\s*/, ''));
+          if (!ls.hasBarAdvance && ls.slots.length !== lastMusicNotes) {
+            warnings.push({
+              code: 'lyrics_mismatch', line: lineNo, syllables: ls.slots.length, notes: lastMusicNotes,
+              message: 'Lyrics line ' + lineNo + ' has ' + ls.slots.length + ' syllables but its music line has ' + lastMusicNotes +
+                ' notes. Separate syllables with "-", hold a syllable with "_", skip a note with "*".'
+            });
+          }
+        }
+        continue;
+      }
       if (/^[A-Za-z]:/.test(raw)) continue;        // header field inside the body (e.g. K: change)
+      var lineNotes = countLyricNotes(raw);
+      lastMusicNotes = continued ? lastMusicNotes + lineNotes : lineNotes;
+      continued = /\\\s*$/.test(raw);
       var stripped = stripBodyNoise(raw);
       if (stripped.unbalancedQuote) err('unbalanced_quotes', 'Unbalanced double quotes.', lineNo);
       var clean = stripped.clean;
@@ -670,6 +687,260 @@
     return result.errors.map(function (e) {
       return (e.line ? 'line ' + e.line + ': ' : '') + e.message;
     }).join(' ');
+  }
+
+  // ---------------------------------------------------------------------------
+  // Lyrics (w: lines) and line breaking
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Number of notes in a music line that receive a lyric syllable: rests,
+   * spacers and grace notes are skipped, a chord counts as one note.
+   */
+  function countLyricNotes(line) {
+    var clean = stripBodyNoise(line).clean
+      .replace(/\{[^}]*\}/g, ' ')    // grace notes
+      .replace(/\[[^\]]*\]/g, 'C');  // chord = one note
+    var m = clean.match(/[A-Ga-g]/g);
+    return m ? m.length : 0;
+  }
+
+  /**
+   * Split lyric text into note slots (ABC 2.1, section "Lyrics"):
+   *   space or "-"  next syllable ("Al-le mei-ne")
+   *   "_"           hold the previous syllable for one more note
+   *   "*"           skip a note
+   *   "~"           several words on one note ("a~b")
+   *   "\-"          literal hyphen on one note
+   *   "-" after a space or another "-" is a syllable of its own
+   *   "|"           advance to the next bar (reported as hasBarAdvance)
+   * @returns {{slots: Array<{text:string, sep:string}>, hasBarAdvance: boolean}}
+   *   sep is "-" if the word continues with the next syllable, otherwise " ".
+   */
+  function lyricSlots(text) {
+    var s = String(text == null ? '' : text).replace(/\\-/g, '\u0000');
+    var slots = [];
+    var cur = '';
+    var hasBar = false;
+    function flush(sep) {
+      if (!cur) return false;
+      slots.push({ text: cur.replace(/\u0000/g, '\\-'), sep: sep });
+      cur = '';
+      return true;
+    }
+    for (var i = 0; i < s.length; i++) {
+      var ch = s.charAt(i);
+      if (ch === ' ' || ch === '\t' || ch === '\n' || ch === '\r') flush(' ');
+      else if (ch === '-') { if (!flush('-')) slots.push({ text: '-', sep: ' ' }); }
+      else if (ch === '_' || ch === '*') { flush(' '); slots.push({ text: ch, sep: ' ' }); }
+      else if (ch === '|') { flush(' '); hasBar = true; }
+      else cur += ch;
+    }
+    flush(' ');
+    return { slots: slots, hasBarAdvance: hasBar };
+  }
+
+  function joinSlots(slots, continues) {
+    var out = '';
+    for (var i = 0; i < slots.length; i++) {
+      out += slots[i].text;
+      if (i < slots.length - 1) out += slots[i].sep === '-' ? '-' : ' ';
+    }
+    if (continues && slots.length && slots[slots.length - 1].sep === '-') out += '-';
+    return out;
+  }
+
+  function isMusicLine(line) {
+    return !!line && line.trim() !== '' && !/^\s*%/.test(line) && !/^[A-Za-z]:/.test(line);
+  }
+
+  /**
+   * Add song text to a tune: the syllables are distributed over the music
+   * lines (one w: line per music line). Notes left over on the last line get
+   * "*" (no text); lines after the end of the text get no w: line.
+   *
+   * @param {string} abc
+   * @param {string} text  lyrics with syllables separated by "-" ("Al-le mei-ne Ent-chen")
+   * @param {object} [opts] { mode: 'replace' (default, replaces existing lyrics) | 'verse' (adds a further verse) }
+   * @returns {{ok:boolean, abc:string, syllables:number, notes:number, lines:Array<{notes:number, syllables:number}>,
+   *            errors:Array, warnings:Array}}
+   */
+  function addLyrics(abc, text, opts) {
+    opts = opts || {};
+    var verse = opts.mode === 'verse';
+    var normalized = normalizeAbc(abc);
+    var lines = normalized.split('\n');
+    var k = -1;
+    for (var h = 0; h < lines.length; h++) { if (/^K:/.test(lines[h])) { k = h; break; } }
+    var tok = lyricSlots(text);
+    var slots = tok.slots;
+    var result = { ok: false, abc: normalized, syllables: slots.length, notes: 0, lines: [], errors: [], warnings: [] };
+    if (!slots.length) { result.errors.push({ code: 'no_text', error: 'No lyrics given.' }); return result; }
+    if (tok.hasBarAdvance) result.warnings.push({ code: 'bar_advance_ignored', error: '"|" in the lyrics is ignored – syllables are distributed note by note.' });
+
+    var music = [];
+    for (var i = k + 1; i < lines.length; i++) {
+      if (isMusicLine(lines[i])) {
+        var n = countLyricNotes(lines[i]);
+        if (n) music.push({ index: i, notes: n });
+      }
+    }
+    var totalNotes = music.reduce(function (sum, m) { return sum + m.notes; }, 0);
+    result.notes = totalNotes;
+    if (!totalNotes) { result.errors.push({ code: 'no_notes', error: 'The tune contains no notes for lyrics.' }); return result; }
+    if (slots.length > totalNotes) {
+      result.errors.push({
+        code: 'too_many_syllables', syllables: slots.length, notes: totalNotes,
+        error: 'The text has ' + slots.length + ' syllables but the melody only ' + totalNotes + ' notes. Hold a syllable over several notes with "_" or put words on one note with "~".'
+      });
+      return result;
+    }
+
+    // New w: line per music line
+    var add = {};
+    var pos = 0;
+    music.forEach(function (m) {
+      if (pos >= slots.length) return;
+      var chunk = slots.slice(pos, pos + m.notes);
+      pos += chunk.length;
+      var used = chunk.length;
+      while (chunk.length < m.notes) chunk.push({ text: '*', sep: ' ' });
+      add[m.index] = 'w: ' + joinSlots(chunk, pos < slots.length);
+      result.lines.push({ notes: m.notes, syllables: used });
+    });
+    if (slots.length < totalNotes) {
+      result.warnings.push({
+        code: 'too_few_syllables', syllables: slots.length, notes: totalNotes,
+        error: 'The text covers ' + slots.length + ' of ' + totalNotes + ' notes; the remaining notes have no text.'
+      });
+    }
+
+    // Rebuild: in replace mode drop existing w: lines (lower-case, under the music).
+    var out = [];
+    for (var j = 0; j < lines.length; j++) {
+      var line = lines[j];
+      if (j > k && /^w:/.test(line) && !verse) continue;
+      out.push(line);
+      var addition = add[j];
+      if (addition !== undefined) {
+        // after the music line and (verse mode) after its existing w: lines
+        if (verse) {
+          while (j + 1 < lines.length && /^w:/.test(lines[j + 1])) { j++; out.push(lines[j]); }
+        }
+        out.push(addition);
+      }
+    }
+    result.abc = out.join('\n');
+    result.ok = true;
+    return result;
+  }
+
+  /**
+   * Split a music line into measures (each with its closing bar line).
+   * Quoted text, decorations and inline fields are not searched for bar lines.
+   */
+  function splitMeasures(line) {
+    var measures = [];
+    var cur = '';
+    var i = 0;
+    while (i < line.length) {
+      var ch = line.charAt(i);
+      if (ch === '"' || ch === '!' || (ch === '+' && line.indexOf('+', i + 1) !== -1)) {
+        var end = line.indexOf(ch, i + 1);
+        if (end === -1) end = line.length - 1;
+        cur += line.slice(i, end + 1);
+        i = end + 1;
+        continue;
+      }
+      if (ch === '[' && /^\[[A-Za-z]:/.test(line.slice(i))) {
+        var close = line.indexOf(']', i);
+        if (close === -1) close = line.length - 1;
+        cur += line.slice(i, close + 1);
+        i = close + 1;
+        continue;
+      }
+      if (ch === '|' || (ch === '[' && line.charAt(i + 1) === '|')) {
+        var bar = line.slice(i).match(/^(\[\|\]|\[\||\|[|\]:]*)/)[0];
+        cur += bar;
+        i += bar.length;
+        while (i < line.length && line.charAt(i) === ':') { cur += ':'; i++; }
+        if (cur.trim()) measures.push(cur);
+        cur = '';
+        continue;
+      }
+      cur += ch;
+      i++;
+    }
+    if (cur.trim()) measures.push(cur);
+    return measures.map(function (m) { return { text: m, notes: countLyricNotes(m) }; });
+  }
+
+  /** Largest number of measures in one music line. */
+  function maxMeasuresPerLine(abc) {
+    var lines = normalizeAbc(abc).split('\n');
+    var inBody = false;
+    var max = 0;
+    lines.forEach(function (l) {
+      if (/^K:/.test(l)) { inBody = true; return; }
+      if (inBody && isMusicLine(l) && !/\\\s*$/.test(l)) max = Math.max(max, splitMeasures(l).length);
+    });
+    return max;
+  }
+
+  /**
+   * Re-break music lines that have more than `maxMeasures` measures into
+   * evenly sized lines (e.g. 6 measures, max 4 -> 3 + 3). The w: lines under a
+   * music line are split accordingly (syllables follow their notes).
+   * Lines with "|" in the lyrics or a line continuation are left unchanged.
+   */
+  function reflowAbc(abc, maxMeasures) {
+    var lines = normalizeAbc(abc).split('\n');
+    var out = [];
+    var inBody = false;
+    for (var i = 0; i < lines.length; i++) {
+      var line = lines[i];
+      if (!inBody) { out.push(line); if (/^K:/.test(line)) inBody = true; continue; }
+      if (!isMusicLine(line) || /\\\s*$/.test(line)) { out.push(line); continue; }
+      var verses = [];
+      while (i + 1 < lines.length && /^w:/.test(lines[i + 1])) { i++; verses.push(lines[i].replace(/^w:\s*/, '')); }
+      var measures = splitMeasures(line);
+      var parsedVerses = verses.map(lyricSlots);
+      var blocked = parsedVerses.some(function (v) { return v.hasBarAdvance; });
+      if (measures.length <= maxMeasures || blocked) {
+        out.push(line);
+        verses.forEach(function (v) { out.push('w: ' + v); });
+        continue;
+      }
+      var nLines = Math.ceil(measures.length / maxMeasures);
+      var base = Math.floor(measures.length / nLines);
+      var extra = measures.length % nLines;
+      var start = 0;
+      var verseSlots = parsedVerses.map(function (v) { return v.slots; });
+      var versePos = verses.map(function () { return 0; });
+      for (var c = 0; c < nLines; c++) {
+        var size = base + (c < extra ? 1 : 0);
+        var chunk = measures.slice(start, start + size);
+        start += size;
+        out.push(chunk.map(function (m) { return m.text.trim(); }).join(' '));
+        var notes = chunk.reduce(function (sum, m) { return sum + m.notes; }, 0);
+        var last = c === nLines - 1;
+        var wLines = verseSlots.map(function (slots, v) {
+          var take = last ? slots.length - versePos[v] : notes;
+          var part = slots.slice(versePos[v], versePos[v] + take);
+          versePos[v] += part.length;
+          return { part: part, continues: versePos[v] < slots.length };
+        });
+        // Keep verse order: an empty verse before a non-empty one gets "*" placeholders.
+        var lastNonEmpty = -1;
+        wLines.forEach(function (w, v) { if (w.part.length) lastNonEmpty = v; });
+        wLines.forEach(function (w, v) {
+          if (v > lastNonEmpty) return;
+          var part = w.part.length ? w.part : [{ text: '*', sep: ' ' }];
+          out.push('w: ' + joinSlots(part, w.continues));
+        });
+      }
+    }
+    return out.join('\n');
   }
 
   // ---------------------------------------------------------------------------
@@ -736,6 +1007,12 @@
     formatValidationErrors: formatValidationErrors,
     buildAbc: buildAbc,
     emptyStavesAbc: emptyStavesAbc,
-    looksLikeAbc: looksLikeAbc
+    looksLikeAbc: looksLikeAbc,
+    countLyricNotes: countLyricNotes,
+    lyricSlots: lyricSlots,
+    addLyrics: addLyrics,
+    splitMeasures: splitMeasures,
+    maxMeasuresPerLine: maxMeasuresPerLine,
+    reflowAbc: reflowAbc
   };
 });

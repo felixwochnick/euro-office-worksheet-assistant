@@ -116,7 +116,36 @@ export class MockProvider implements LLMProvider {
     const digits = /notenwert|ganze|halbe|viertel/i.test(userText) ? 'duration' : /oktav|gestrichen/i.test(userText) ? 'octave' : 'auto';
     const list = extractNoteList(userText);
 
-    // 0) "Ändere Zeile N: statt X Y" -> read outline, then replace_staff
+    // 0a) "Füge zu Zeile N den Text hinzu: Al-le mei-ne …" -> outline, add_lyrics, replace_staff
+    const lyricsReq = /text/i.test(userText) ? /(?:noten)?zeile\s*(\d+)[^:]*:\s*([\s\S]+)$/i.exec(userText) : null;
+    if (lyricsReq) {
+      const staffNo = Number(lyricsReq[1]);
+      const lyrics = lyricsReq[2].trim().replace(/^[„"]|[“"]$/g, '');
+      if (done('get_document_outline').length === 0) {
+        return { content: '', tool_calls: [{ id: nextId(), name: 'get_document_outline', arguments: {} }] };
+      }
+      const outline = parseResult(done('get_document_outline')[0]).outline ?? {};
+      const el = (outline.elements ?? []).find((e: any) => e.staff_number === staffNo);
+      if (!el) return { content: `Mock-Modus: Ich finde Notenzeile ${staffNo} nicht im Dokument.`, tool_calls: [] };
+      if (done('add_lyrics').length === 0) {
+        return { content: '', tool_calls: [{ id: nextId(), name: 'add_lyrics', arguments: { abc: el.abc, lyrics } }] };
+      }
+      const added = parseResult(done('add_lyrics')[0]);
+      if (!added.ok) {
+        return { content: `Mock-Modus: Der Text passt nicht: ${(added.errors ?? []).map((e: any) => e.error).join(' ')}`, tool_calls: [] };
+      }
+      if (done('replace_staff').length === 0) {
+        return { content: '', tool_calls: [{ id: nextId(), name: 'replace_staff', arguments: { index: el.index, abc: added.abc } }] };
+      }
+      const res = parseResult(done('replace_staff')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Ändern fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      return {
+        content: `Fertig (Mock-Modus): Notenzeile ${staffNo} hat jetzt Text (${added.syllables} Silben für ${added.notes} Noten).`,
+        tool_calls: [],
+      };
+    }
+
+    // 0b) "Ändere Zeile N: statt X Y" -> read outline, then replace_staff
     const edit = parseEditRequest(userText);
     if (edit) {
       if (done('get_document_outline').length === 0) {

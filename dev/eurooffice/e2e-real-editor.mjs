@@ -135,6 +135,15 @@ try {
   assert.match(o2.elements[h2 + 1].abc || '', /C \^F G/);
   step(`chat changed Notenzeile ${staffNo} in place (replace_staff): ` + o2.elements[h2 + 1].abc.split('\n').pop());
 
+  // Lyrics via chat: add_lyrics (server) + replace_staff
+  await plugin.locator('#chat-text').fill(`Füge zu Zeile ${staffNo} den Text hinzu: Hal-lo du`);
+  await plugin.locator('#chat-send').click();
+  await plugin.locator('.msg.assistant', { hasText: /hat jetzt Text|passt nicht|nicht/ }).waitFor({ timeout: 60000 });
+  await page.waitForTimeout(1000);
+  o2 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+  assert.match(o2.elements[h2 + 1].abc || '', /C \^F G \|\]\nw: Hal-lo du$/);
+  step(`chat added lyrics to Notenzeile ${staffNo}`);
+
   // Load + replace a selected image: select the melody via the builder API
   const selected = await plugin.evaluate(() => window.MusicEditor.callCommand(function () {
     var d = Api.GetDocument().GetElement(2).GetAllDrawingObjects()[0];
@@ -194,12 +203,12 @@ try {
   const listing = execFileSync('unzip', ['-l', file]).toString();
   const xml = execFileSync('unzip', ['-p', file, 'word/document.xml']).toString();
   const media = listing.split('\n').filter((l) => /word\/media\//.test(l)).map((l) => l.trim().split(/\s+/).slice(-1)[0] + ' ' + l.trim().split(/\s+/)[0] + 'B');
-  const descrs = [...xml.matchAll(/<wp:docPr [^>]*descr="([^"]*)"/g)].map((m) => m[1].replace(/&#xA;|&#10;/g, '\\n').slice(0, 50));
+  const descrs = [...xml.matchAll(/<wp:docPr [^>]*descr="([^"]*)"/g)].map((m) => m[1].replace(/&#xA;|&#10;/g, '\\n').slice(0, 200));
   console.log('   saved:', file);
   console.log('   media:', media.join(', '));
   console.log('   docPr descr:', descrs);
   assert.ok(media.length >= 6, 'images are embedded in the saved .docx');
-  assert.ok(descrs.some((d) => /Geändert/.test(d)) && descrs.some((d) => /C \^F G/.test(d)), 'ABC alt text survives saving');
+  assert.ok(descrs.some((d) => /Geändert/.test(d)) && descrs.some((d) => /C \^F G/.test(d)) && descrs.some((d) => /Hal-lo du/.test(d)), 'ABC alt text survives saving');
   step('saved .docx contains the PNG images and the ABC alt texts');
 
   assert.deepEqual(errors, []);

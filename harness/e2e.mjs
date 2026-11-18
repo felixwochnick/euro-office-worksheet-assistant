@@ -77,6 +77,15 @@ try {
   assert.equal(d[heading + 1].alts.length, 1, 'replaced, not added');
   console.log('ok - chat changes an existing staff (replace_staff)');
 
+  // 1c) add lyrics to an existing staff via chat (add_lyrics + replace_staff)
+  await frame.locator('#chat-text').fill('Füge zu Zeile 1 den Text hinzu: Hal-lo du');
+  await frame.locator('#chat-send').click();
+  await frame.locator('.card button.primary:not([disabled])').first().click({ timeout: 15000 });
+  await frame.locator('.msg.assistant', { hasText: 'hat jetzt Text' }).waitFor({ timeout: 15000 });
+  d = await doc();
+  assert.equal(d[heading + 1].alts[0], 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC ^F G |]\nw: Hal-lo du');
+  console.log('ok - chat adds lyrics to an existing staff');
+
   // 2) manual mode: template after element 0, load + replace selected image
   await frame.locator('.tab[data-tab=manual]').click();
   await frame.locator('#m-template').selectOption('melody');
@@ -86,6 +95,22 @@ try {
   d = await doc();
   assert.match(d[1].alts[0], /Alle meine Entchen/);
   console.log('ok - manual insert after element 0');
+
+  // 2a) manual lyrics: scale + "Do re mi …", then a second verse
+  await frame.locator('#m-template').selectOption('scale');
+  await frame.locator('#m-lyrics').fill('Do re mi fa sol la ti do');
+  await frame.locator('#m-add-lyrics').click();
+  assert.match(await frame.locator('#m-status').textContent(), /8 Silben auf 8 Noten verteilt/);
+  await frame.locator('#m-lyrics').fill('c d e f');
+  await frame.locator('#m-verse').check();
+  await frame.locator('#m-add-lyrics').click();
+  assert.match(await frame.locator('#m-status').textContent(), /4 Silben auf 8 Noten[\s\S]*übrigen Noten bleiben ohne Text/);
+  assert.equal(await frame.locator('#m-abc').inputValue(), 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC D E F G A B c |]\nw: Do re mi fa sol la ti do\nw: c d e f * * * *');
+  await frame.locator('#m-verse').uncheck();
+  await frame.locator('#m-lyrics').fill('eins zwei drei vier fünf sechs sie-ben acht neun');
+  await frame.locator('#m-add-lyrics').click();
+  assert.match(await frame.locator('#m-status').textContent(), /Zu viele Silben: 10 Silben für 8 Noten/);
+  console.log('ok - manual lyrics (distribute, verse, too many syllables)');
 
   await page.locator('#mock-doc .el').nth(1).locator('img').click();
   await frame.locator('#m-abc').fill('');
@@ -128,6 +153,12 @@ try {
 
   assert.deepEqual(errors, []);
   console.log('ok - no console errors');
+} catch (err) {
+  try {
+    const msgs = await page.frameLocator('#panel').locator('.msg').allTextContents();
+    console.error('last chat messages:\n  ' + msgs.slice(-6).join('\n  '));
+  } catch (e) { /* ignore */ }
+  throw err;
 } finally {
   await browser.close();
 }

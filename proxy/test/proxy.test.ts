@@ -158,6 +158,34 @@ test('agent: mock edits an existing staff ("ändere Zeile 1: statt bc #c")', asy
   assert.match((r3.messages[0] as { content: string }).content, /Notenzeile 1 steht jetzt „#c“ statt „bc“/);
 });
 
+test('tools: add_lyrics distributes syllables, insert_staff rejects misaligned lyrics', () => {
+  const tune = 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\nC D E F | G2 G2 |\nA A A A | G4 |]';
+  const r = executeServerTool({ id: 'l', name: 'add_lyrics', arguments: { abc: tune, lyrics: 'Al-le mei-ne Ent-chen schwim-men auf dem See' } }) as any;
+  assert.equal(r.ok, true);
+  assert.equal(r.abc, 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\nC D E F | G2 G2 |\nw: Al-le mei-ne Ent-chen\nA A A A | G4 |]\nw: schwim-men auf dem See');
+  const tooMany = executeServerTool({ id: 'm', name: 'add_lyrics', arguments: { abc: tune, lyrics: 'a b c d e f g h i j k l' } }) as any;
+  assert.equal(tooMany.ok, false);
+  assert.equal(tooMany.errors[0].code, 'too_many_syllables');
+  const bad = checkClientToolCall({ id: 'n', name: 'insert_staff', arguments: { abc: tune.replace('G2 G2 |', 'G2 G2 |\nw: Al-le mei-ne'), position: 'cursor' } });
+  assert.equal(bad.ok, false);
+  assert.match(bad.error!, /Lyrics do not fit/);
+  assert.equal(checkClientToolCall({ id: 'o', name: 'insert_staff', arguments: { abc: r.abc, position: 'cursor' } }).ok, true);
+});
+
+test('agent: mock adds lyrics to an existing staff', async () => {
+  const provider = new MockProvider();
+  const messages: ChatMessage[] = [{ role: 'user', content: 'Füge zu Zeile 1 den Text hinzu: Al-le mei-ne Ent-chen' }];
+  const r1 = await runTurn({ provider, messages, maxIterations: 6 });
+  const c1 = r1.pending_tool_calls[0];
+  assert.equal(c1.name, 'get_document_outline');
+  const outline = { ok: true, outline: { elements: [{ index: 2, has_image: true, staff_number: 1, abc: 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC D E F G2 G2 |]' }] } };
+  messages.push(...r1.messages, { role: 'tool', tool_call_id: c1.id, name: c1.name, content: JSON.stringify(outline) });
+  const r2 = await runTurn({ provider, messages, maxIterations: 6 });
+  const replace = r2.pending_tool_calls[0];
+  assert.equal(replace.name, 'replace_staff');
+  assert.equal(replace.arguments.abc, 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC D E F G2 G2 |]\nw: Al-le mei-ne Ent-chen');
+});
+
 test('prompt: outline shows staff numbers and selection', () => {
   const p = buildSystemPrompt({ elements: [{ index: 4, has_image: true, staff_number: 2, selected: true, abc: 'X:1' }], cursor_index: 4 });
   assert.match(p, /\[4\] \(empty\) \[STAFF 2, SELECTED, abc: "X:1"\] <-- CURSOR/);
@@ -198,6 +226,38 @@ test('agent: iteration limit forces a final text answer', async () => {
   assert.match(provider.requests[3].system, /maximum number of tool steps/);
   assert.equal((r.messages.at(-1) as { content: string }).content, 'Zusammenfassung');
   assert.equal(countToolRounds([...r.messages]), 3);
+});
+
+test('providers: reasoning_effort is sent and dropped automatically if unsupported', async () => {
+  const bodies: any[] = [];
+  const realFetch = globalThis.fetch;
+  globalThis.fetch = (async (_url: string, init: { body: string }) => {
+    const body = JSON.parse(init.body);
+    bodies.push(body);
+    if (body.reasoning_effort) {
+      return new Response(JSON.stringify({ message: 'reasoning_effort medium is not supported for this model' }), { status: 400 });
+    }
+    return new Response(JSON.stringify({ choices: [{ message: { content: 'ok' }, finish_reason: 'stop' }] }), { status: 200 });
+  }) as typeof fetch;
+  try {
+    const p = new OpenAICompatibleProvider({ name: 'mistral', baseUrl: 'http://x', model: 'm', temperature: 0, maxTokens: 10, timeoutMs: 1000, reasoningEffort: 'medium' });
+    const req = { system: 's', messages: [{ role: 'user' as const, content: 'hi' }], tools: [], toolChoice: 'auto' as const };
+    assert.equal((await p.complete(req)).content, 'ok');
+    assert.equal((await p.complete(req)).content, 'ok');
+    assert.deepEqual(bodies.map((b) => b.reasoning_effort ?? null), ['medium', null, null]); // retried once, then never sent again
+  } finally {
+    globalThis.fetch = realFetch;
+  }
+  assert.equal(cfg({ LLM_PROVIDER: 'mistral', MISTRAL_API_KEY: 'k' }).reasoningEffort, 'medium');
+  assert.equal(cfg({ LLM_PROVIDER: 'mistral', MISTRAL_API_KEY: 'k', LLM_REASONING_EFFORT: 'off' }).reasoningEffort, '');
+  assert.equal(cfg({ LLM_PROVIDER: 'openai', LLM_BASE_URL: 'http://ollama:11434/v1' }).reasoningEffort, '');
+});
+
+test('agent: truncated empty answers are reported as such', async () => {
+  const provider = new ScriptedProvider([{ content: '', tool_calls: [], truncated: true }]);
+  const r = await runTurn({ provider, messages: [{ role: 'user', content: 'x' }], maxIterations: 6 });
+  assert.match((r.messages[0] as { content: string }).content, /Antwortlimit erreicht/);
+  assert.equal(cfg().maxTokens, 8192);
 });
 
 test('providers: OpenAI-compatible wire format', () => {

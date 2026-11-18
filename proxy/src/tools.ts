@@ -4,7 +4,7 @@
  * Client tools are executed by the plugin inside the editor:
  *   insert_staff, insert_empty_staves, replace_staff, get_document_outline
  * Server tools are executed directly by the proxy (no round trip):
- *   convert_german_notes
+ *   convert_german_notes, add_lyrics
  *
  * Arguments of client tools are validated here first. Invalid ABC never
  * reaches the plugin – the model gets the validation errors as tool result
@@ -110,6 +110,28 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     parameters: { type: 'object', properties: {}, additionalProperties: false },
   },
   {
+    name: 'add_lyrics',
+    description:
+      'Put song text (lyrics) under the notes of a tune: distributes the syllables over the music lines as ABC "w:" ' +
+      'lines (one syllable per note). Write the text with German syllable breaks marked by "-" ("Al-le mei-ne ' +
+      'Ent-chen"); "_" holds the previous syllable for one more note (melisma), "*" leaves a note without text, "~" puts ' +
+      'two words on one note. Returns the new tune in "abc" – then call insert_staff or replace_staff with it.',
+    parameters: {
+      type: 'object',
+      properties: {
+        abc: { type: 'string', description: 'The complete tune (e.g. the "abc" of a staff from the outline).' },
+        lyrics: { type: 'string', description: 'The text with syllables separated by "-".' },
+        mode: {
+          type: 'string',
+          enum: ['replace', 'verse'],
+          description: '"replace" (default) replaces existing lyrics, "verse" adds another verse below.',
+        },
+      },
+      required: ['abc', 'lyrics'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'convert_german_notes',
     description:
       'Convert German note names into ABC. Understands c d e f g a h, b = B flat, -is/-es suffixes (fis, es, as), ' +
@@ -144,7 +166,18 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
 ];
 
 export const CLIENT_TOOLS = new Set(['insert_staff', 'insert_empty_staves', 'replace_staff', 'get_document_outline']);
-export const SERVER_TOOLS = new Set(['convert_german_notes']);
+export const SERVER_TOOLS = new Set(['convert_german_notes', 'add_lyrics']);
+
+/** Lyrics that do not fit the notes are rejected for the AI (the manual mode only warns). */
+function lyricsProblem(v: { warnings: Array<{ code: string; line?: number; syllables?: number; notes?: number }> }): string | null {
+  const bad = v.warnings.filter((w) => w.code === 'lyrics_mismatch');
+  if (!bad.length) return null;
+  return (
+    bad.map((w) => `w: line ${w.line} has ${w.syllables} syllables for ${w.notes} notes`).join('; ') +
+    '. Every note of the music line above needs exactly one slot: separate syllables with "-", hold a syllable with "_", ' +
+    'skip a note with "*". Easiest: call add_lyrics with the plain hyphenated text.'
+  );
+}
 
 export interface ToolCheck {
   ok: boolean;
@@ -212,6 +245,8 @@ export function checkClientToolCall(call: ToolCall): ToolCheck {
           error: `Invalid ABC notation – nothing was inserted. Fix these problems and call insert_staff again: ${abcTools.formatValidationErrors(v)}`,
         };
       }
+      const lyr = lyricsProblem(v);
+      if (lyr) return { ok: false, args: a, error: `Lyrics do not fit the notes – nothing was inserted. ${lyr}` };
       return { ok: true, args: withWidth({ abc: v.normalized, position }, width) };
     }
 
@@ -228,6 +263,8 @@ export function checkClientToolCall(call: ToolCall): ToolCheck {
           error: `Invalid ABC notation – nothing was changed. Fix these problems and call replace_staff again: ${abcTools.formatValidationErrors(v)}`,
         };
       }
+      const lyr = lyricsProblem(v);
+      if (lyr) return { ok: false, args: a, error: `Lyrics do not fit the notes – nothing was changed. ${lyr}` };
       return { ok: true, args: withWidth({ index, abc: v.normalized }, width) };
     }
 
@@ -278,6 +315,26 @@ export function executeServerTool(call: ToolCall): unknown {
       hint: r.errors.length
         ? 'Some tokens could not be converted. Do not insert a staff without them – ask the user or correct them.'
         : 'Insert "tune" with insert_staff (adjust title/meter if needed).',
+    };
+  }
+  if (call.name === 'add_lyrics') {
+    if (typeof a.abc !== 'string' || typeof a.lyrics !== 'string' || !a.lyrics.trim()) {
+      return { ok: false, error: '"abc" and "lyrics" must be non-empty strings.' };
+    }
+    const v = abcTools.validateAbc(a.abc);
+    if (!v.valid) return { ok: false, error: 'The tune is not valid ABC: ' + abcTools.formatValidationErrors(v) };
+    const r = abcTools.addLyrics(v.normalized, a.lyrics.slice(0, 5000), { mode: a.mode === 'verse' ? 'verse' : 'replace' });
+    return {
+      ok: r.ok,
+      abc: r.ok ? r.abc : undefined,
+      syllables: r.syllables,
+      notes: r.notes,
+      lines: r.lines,
+      errors: r.errors,
+      warnings: r.warnings,
+      hint: r.ok
+        ? 'Insert "abc" with insert_staff (new staff) or replace_staff (existing staff). Mention warnings to the user.'
+        : 'Fix the lyrics (syllable breaks with "-", "_" to hold a syllable) and call add_lyrics again, or ask the user.',
     };
   }
   return { ok: false, error: `Unknown server tool "${call.name}".` };

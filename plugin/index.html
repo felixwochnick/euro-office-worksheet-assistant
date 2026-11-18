@@ -64,6 +64,15 @@
       </select>
     </div>
 
+    <div class="field">
+      <span data-i18n="manual.lyrics">Liedtext</span>
+      <textarea id="m-lyrics" rows="2" data-i18n-placeholder="manual.lyricsPlaceholder"></textarea>
+      <div class="row">
+        <label class="check grow"><input type="checkbox" id="m-verse"> <span data-i18n="manual.lyricsVerse">als weitere Strophe</span></label>
+        <button id="m-add-lyrics" class="secondary" data-i18n="manual.addLyrics">Text hinzufügen</button>
+      </div>
+    </div>
+
     <label class="field"><span data-i18n="manual.abc">ABC-Notation</span>
       <textarea id="m-abc" rows="7" spellcheck="false" class="mono"></textarea>
     </label>

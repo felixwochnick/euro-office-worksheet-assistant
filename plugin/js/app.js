@@ -17,7 +17,10 @@
     // "Alle meine Entchen" – traditional German children's song (public domain)
     melody: function () {
       return 'X:1\nT:Alle meine Entchen\nM:4/4\nL:1/4\nK:C clef=treble\n' +
-        'C D E F | G2 G2 | A A A A | G4 | A A A A | G4 |\nF F F F | E2 E2 | D D D D | C4 |]';
+        'C D E F | G2 G2 | A A A A | G4 | A A A A | G4 |\n' +
+        'w: Al-le mei-ne Ent-chen schwim-men auf dem See, schwim-men auf dem See,\n' +
+        'F F F F | E2 E2 | D D D D | C4 |]\n' +
+        "w: Köpf-chen in das Was-ser, Schwänz-chen in die Höh'.";
     },
     scale: function () { return 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC D E F G A B c |]'; },
     bassScale: function () { return 'X:1\nM:none\nL:1/4\nK:C clef=bass\nC, D, E, F, G, A, B, C |]'; }
@@ -226,7 +229,12 @@
   function manualErrors(abc) {
     var v = Abc.validateAbc(abc, { requireClef: false });
     var box = $('m-errors');
-    if (v.valid) {
+    var lyricIssues = v.warnings.filter(function (w) { return w.code === 'lyrics_mismatch'; });
+    if (v.valid && lyricIssues.length) {
+      // Not blocking: the text is shown, but some notes have no / too many syllables.
+      box.classList.remove('hidden');
+      box.textContent = lyricIssues.map(function (w) { return t('lyrics.mismatch', w); }).join('\n');
+    } else if (v.valid) {
       box.classList.add('hidden');
     } else {
       box.classList.remove('hidden');
@@ -334,6 +342,20 @@
         $('m-abc').value = r.tune;
         updatePreview();
       }
+      show($('m-status'), lines.join('\n'), r.warnings.length ? 'warn' : 'ok');
+    });
+    $('m-add-lyrics').addEventListener('click', function () {
+      var text = $('m-lyrics').value.trim();
+      if (!text) { show($('m-status'), t('lyrics.no_text'), 'error'); return; }
+      var r = Abc.addLyrics($('m-abc').value, text, { mode: $('m-verse').checked ? 'verse' : 'replace' });
+      if (!r.ok) {
+        show($('m-status'), r.errors.map(function (e) { return conversionIssue(Object.assign({}, e, { code: 'lyrics_' + e.code })); }).join('\n'), 'error');
+        return;
+      }
+      $('m-abc').value = r.abc;
+      updatePreview();
+      var lines = [t('lyrics.added', { syllables: r.syllables, notes: r.notes })];
+      r.warnings.forEach(function (w) { lines.push('⚠ ' + conversionIssue(Object.assign({}, w, { code: 'lyrics_' + w.code }))); });
       show($('m-status'), lines.join('\n'), r.warnings.length ? 'warn' : 'ok');
     });
     $('m-outline').addEventListener('click', loadOutlineOptions);

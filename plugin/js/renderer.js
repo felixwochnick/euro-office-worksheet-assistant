@@ -38,15 +38,7 @@
     return el;
   }
 
-  /**
-   * Render ABC to an SVG string.
-   * @returns {{svg:string, width:number, height:number, warnings:string[]}}
-   */
-  function renderSvg(abc, opts) {
-    if (!window.ABCJS) throw new Error('abcjs is not loaded');
-    opts = opts || {};
-    var widthCm = Math.min(19, Math.max(3, Number(opts.widthCm) || 16));
-    var totalPx = cmToPx(widthCm);
+  function renderOnce(abc, totalPx) {
     var host = getSandbox();
     var tunes = window.ABCJS.renderAbc(host, prepareAbc(abc), {
       staffwidth: Math.round(totalPx - 2 * PADDING),
@@ -61,11 +53,9 @@
     var warnings = (tunes && tunes[0] && tunes[0].warnings) || [];
     var svgEl = host.querySelector('svg');
     if (!svgEl) throw new Error('abcjs produced no SVG');
-
     var w = parseFloat(svgEl.getAttribute('width')) || svgEl.getBoundingClientRect().width;
     var h = parseFloat(svgEl.getAttribute('height')) || svgEl.getBoundingClientRect().height;
     if (!w || !h) throw new Error('empty SVG');
-
     svgEl.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
     svgEl.setAttribute('xmlns:xlink', 'http://www.w3.org/1999/xlink');
     svgEl.setAttribute('width', String(w));
@@ -80,6 +70,37 @@
       height: h,
       warnings: warnings.map(function (x) { return String(x).replace(/<[^>]+>/g, ''); })
     };
+  }
+
+  /**
+   * Render ABC to an SVG string.
+   *
+   * If a line is too dense for the width (abcjs then makes the SVG wider than
+   * requested, typically with lyrics), the music is re-rendered with evenly
+   * broken lines (MusicAbc.reflowAbc: whole measures, syllables move along).
+   * The stored ABC is not changed – the same reflow happens on every render.
+   *
+   * @returns {{svg:string, width:number, height:number, warnings:string[], targetWidth:number, reflowed:boolean}}
+   */
+  function renderSvg(abc, opts) {
+    if (!window.ABCJS) throw new Error('abcjs is not loaded');
+    opts = opts || {};
+    var widthCm = Math.min(19, Math.max(3, Number(opts.widthCm) || 16));
+    var totalPx = cmToPx(widthCm);
+    var r = renderOnce(abc, totalPx);
+    var reflowed = false;
+    // abcjs overshoots by a pixel or two with lyrics; up to 2 % is scaled away invisibly.
+    var limit = totalPx * 1.02;
+    if (r.width > limit && window.MusicAbc && window.MusicAbc.reflowAbc) {
+      var maxMeasures = window.MusicAbc.maxMeasuresPerLine(abc);
+      for (var m = maxMeasures - 1; m >= 1 && r.width > limit; m--) {
+        r = renderOnce(window.MusicAbc.reflowAbc(abc, m), totalPx);
+        reflowed = true;
+      }
+    }
+    r.targetWidth = totalPx;
+    r.reflowed = reflowed;
+    return r;
   }
 
   function loadImage(src) {
@@ -107,8 +128,11 @@
     }
     var dpi = Math.min(600, Math.max(96, Number(opts.dpi) || 300));
     var factor = dpi / CSS_DPI;
-    var pw = Math.round(r.width * factor);
-    var ph = Math.round(r.height * factor);
+    // Never wider than requested: scale down if the music still does not fit.
+    var displayW = Math.min(r.width, r.targetWidth);
+    var displayH = r.height * (displayW / r.width);
+    var pw = Math.round(displayW * factor);
+    var ph = Math.round(displayH * factor);
     var src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(r.svg);
     return loadImage(src).then(function (img) {
       var canvas = document.createElement('canvas');
@@ -121,8 +145,9 @@
       return {
         dataUrl: canvas.toDataURL('image/png'),
         svg: r.svg,
-        widthMm: pxToMm(r.width),
-        heightMm: pxToMm(r.height),
+        widthMm: pxToMm(displayW),
+        heightMm: pxToMm(displayH),
+        reflowed: r.reflowed,
         pixelWidth: pw,
         pixelHeight: ph,
         warnings: r.warnings
