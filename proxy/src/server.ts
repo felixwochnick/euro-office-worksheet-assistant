@@ -114,6 +114,10 @@ export interface ServerDeps {
   extend?: (app: FastifyInstance) => void | Promise<void>;
   /** Shown to users when the chat is switched off (e.g. the companion's settings page). */
   settingsUrl?: string;
+  /** The chat is set up in the desktop app's window (no page to link to). */
+  settingsInApp?: boolean;
+  /** Where the log goes (default stdout; the companion's app mode keeps stdout for its handshake with the app). */
+  logStream?: { write(msg: string): void };
 }
 
 declare module 'fastify' {
@@ -125,7 +129,11 @@ declare module 'fastify' {
 export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<FastifyInstance> {
   const provider = deps.provider ?? createProvider(cfg);
   const app = Fastify({
-    logger: { level: cfg.logLevel, redact: ['req.headers.authorization', 'req.headers.cookie'] },
+    logger: {
+      level: cfg.logLevel,
+      redact: ['req.headers.authorization', 'req.headers.cookie'],
+      ...(deps.logStream ? { stream: deps.logStream } : {}),
+    },
     bodyLimit: cfg.bodyLimit,
     trustProxy: cfg.trustProxy,
   });
@@ -216,6 +224,7 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
     auth_mode: cfg.authMode,
     chat: provider.name !== 'none',
     settings_url: deps.settingsUrl ?? null,
+    settings_in_app: !!deps.settingsInApp,
     mcp: cfg.mcpEnabled
       ? {
           url: cfg.publicUrl ? `${cfg.publicUrl}/mcp` : null,

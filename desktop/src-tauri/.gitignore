@@ -1,0 +1,6 @@
+/target/
+/gen/schemas
+# Created by scripts/build-desktop.mjs
+/binaries/
+/resources/
+/tauri.updater.gen.json

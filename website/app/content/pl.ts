@@ -49,7 +49,7 @@ const pl: SiteContent = {
       {
         title: 'Nextcloud, serwer lub komputer',
         description:
-          'Jedno polecenie dla Nextcloud AIO, plik Docker Compose dla własnego Document Server albo aplikacja towarzysząca dla wersji desktopowej (Windows, macOS, Linux).'
+          'Jedno polecenie dla Nextcloud AIO, plik Docker Compose dla własnego Document Server albo aplikacja Worksheet Assistant dla aplikacji desktopowej Euro-Office (Windows, macOS, Linux).'
       }
     ]
   },
@@ -68,9 +68,9 @@ const pl: SiteContent = {
       {
         title: 'Na twoim komputerze',
         badge: 'Windows · macOS · Linux',
-        description: 'Aplikacja desktopowa Euro-Office lub Nextcloud Office z aplikacją towarzyszącą – bez własnego serwera.',
-        bullets: ['Sama instaluje wtyczkę', 'Własny klucz API albo lokalny model', 'MCP dla Claude Desktop w zestawie'],
-        link: 'Pobierz aplikację towarzyszącą'
+        description: 'Aplikacja desktopowa Euro-Office lub Nextcloud Office z aplikacją Worksheet Assistant – instalujesz ją jak każdą inną aplikację, bez własnego serwera.',
+        bullets: ['Sama instaluje i aktualizuje wtyczkę', 'Własny klucz API albo lokalny model', 'Claude Desktop podłączony jednym kliknięciem'],
+        link: 'Pobierz aplikację'
       },
       {
         title: 'Z twoim asystentem AI',
@@ -118,14 +118,14 @@ const pl: SiteContent = {
   },
   companion: {
     headline: 'Desktop',
-    title: 'Aplikacja towarzysząca dla edytorów desktopowych',
+    title: 'Aplikacja Worksheet Assistant na twój komputer',
     description:
-      'Aplikacje desktopowe Euro-Office i Nextcloud Office nie mają menedżera wtyczek ani serwera. Aplikacja towarzysząca zapewnia jedno i drugie na twoim komputerze – jeden program, bez instalacji.',
-    imageAlt: 'Strona ustawień aplikacji towarzyszącej: wtyczka zainstalowana, dostawca AI Mistral, konfiguracja dla Claude Desktop',
+      'Aplikacje desktopowe Euro-Office i Nextcloud Office nie mają menedżera wtyczek ani serwera. Aplikacja Worksheet Assistant zapewnia jedno i drugie: instalujesz ją jak każdą inną aplikację, uruchamiasz raz – a potem działa niewidocznie w tle. Bez terminala, bez przeglądarki.',
+    imageAlt: 'Okno aplikacji Worksheet Assistant, strona „Übersicht” (przegląd): wszystkie trzy kroki wykonane – wtyczka w aplikacji desktopowej, czat AI we wtyczce, Claude podłączony',
     items: [
-      { title: 'Wtyczka konfiguruje się sama', description: 'Instaluje, aktualizuje i podłącza wtyczkę – bez żadnych ustawień w edytorze.' },
+      { title: 'Wtyczka konfiguruje się sama', description: 'Instaluje wtyczkę w Euro-Office i Nextcloud Office, podłącza ją i dba o jej aktualizacje – bez żadnych ustawień w edytorze.' },
       { title: 'Twoja AI', description: 'Mistral, OpenAI, Anthropic, Ollama lub dowolne API zgodne z OpenAI – klucz zostaje na twoim komputerze.' },
-      { title: 'MCP w zestawie', description: 'Gotowe wpisy dla Claude Desktop i Claude Code; jeśli chcesz, uruchamia się razem z komputerem.' }
+      { title: 'Claude jednym kliknięciem', description: 'Podłącza Claude Desktop lub Claude Code jednym kliknięciem. Aplikacja sama informuje o nowych wersjach i, jeśli chcesz, uruchamia się razem z komputerem.' }
     ]
   },
   music: {
@@ -175,7 +175,7 @@ const pl: SiteContent = {
   parts: {
     headline: 'Co działa gdzie',
     title: 'Jedna wtyczka, jeden mały serwer – i AI, którą wybierzesz',
-    description: 'Wtyczka nie potrzebuje własnego serwera. Czat AI i MCP wymagają dodatkowo małej usługi – na serwerze albo w postaci aplikacji towarzyszącej.',
+    description: 'Wtyczka nie potrzebuje własnego serwera. Czat AI i MCP wymagają dodatkowo małej usługi – na serwerze albo w aplikacji Worksheet Assistant na twoim komputerze.',
     items: [
       {
         title: 'Wtyczka',
@@ -186,7 +186,7 @@ const pl: SiteContent = {
       {
         title: 'Serwer',
         badge: 'do czatu AI i MCP',
-        description: 'Mała usługa (Docker, ≈ 30 MB RAM) obok Nextcloud – albo aplikacja towarzysząca na twoim komputerze.',
+        description: 'Mała usługa (Docker, ≈ 30 MB RAM) obok Nextcloud – albo w tle aplikacji Worksheet Assistant na twoim komputerze.',
         bullets: ['Klucz API zostaje na serwerze', 'Logowanie przez Nextcloud, limit zapytań', 'Sprawdza treści, zanim trafią do dokumentu']
       },
       {
@@ -219,15 +219,14 @@ const pl: SiteContent = {
       }
     ],
     desktop: [
-      { title: 'Zainstaluj aplikację desktopową', description: 'Zainstaluj Euro-Office lub Nextcloud Office (desktop) dla Windows, macOS lub Linux i uruchom ją jeden raz.' },
+      { title: 'Zainstaluj Euro-Office', description: 'Zainstaluj aplikację desktopową Euro-Office lub Nextcloud Office dla Windows, macOS lub Linux i uruchom ją jeden raz.' },
       {
-        title: 'Uruchom aplikację towarzyszącą',
-        description: 'Pobierz `worksheet-assistant` dla swojego systemu ze strony Releases, rozpakuj i uruchom. Program zainstaluje wtyczkę i otworzy swoje ustawienia w przeglądarce. macOS: przy pierwszym uruchomieniu prawy przycisk myszy → **Otwórz**; Windows: **Więcej informacji → Uruchom mimo to**.',
-        codeLabel: 'Linux / macOS'
+        title: 'Zainstaluj aplikację Worksheet Assistant',
+        description: 'Pobierz instalator dla swojego systemu i zainstaluj aplikację jak każdą inną (macOS: przeciągnij ją do folderu **Aplikacje**); nazywa się **Arbeitsblatt-Assistent**. Po uruchomieniu otwiera się jej okno: aplikacja konfiguruje wtyczkę i działa niewidocznie w tle. Aplikacja nie jest jeszcze podpisana – jeśli macOS jej nie otworzy: **Ustawienia systemowe → Prywatność i ochrona → Otwórz mimo to**; Windows: **Więcej informacji → Uruchom mimo to**.'
       },
       {
         title: 'Wybierz AI',
-        description: 'W ustawieniach (`http://127.0.0.1:8787`) wpisz dostawcę i klucz API – albo wybierz lokalny model przez Ollama lub samo MCP. Potem otwórz dokument w aplikacji desktopowej: **Plugins → Worksheet Assistant**.'
+        description: 'W aplikacji na stronie **KI-Chat** (czat AI) wpisz dostawcę i klucz API – albo wybierz lokalny model przez Ollama lub samo MCP. Potem otwórz dokument w Euro-Office: **Plugins → Worksheet Assistant**. Okno możesz zamknąć – aplikacja działa dalej w zasobniku systemowym (macOS: na pasku menu). Wskazówka: włącz autostart w **Einstellungen** (ustawienia).'
       }
     ],
     docker: [
@@ -242,11 +241,11 @@ const pl: SiteContent = {
     mcp: [
       {
         title: 'Połącz dokument',
-        description: 'W otwartym dokumencie włącz **Plugins → Worksheet Assistant → Settings → Allow MCP access** (z aplikacją towarzyszącą jest już włączone). Panel pokazuje adres MCP.'
+        description: 'W otwartym dokumencie włącz **Plugins → Worksheet Assistant → Settings → Allow MCP access** (z aplikacją Worksheet Assistant jest już włączone). Panel pokazuje adres MCP.'
       },
       {
         title: 'Połącz asystenta AI',
-        description: 'Dodaj adres MCP: w Claude, ChatGPT lub Le Chat jako własny konektor (logowanie przez Nextcloud), w Claude Code poleceniem, w Claude Desktop przez aplikację towarzyszącą (`mcp-stdio`).',
+        description: 'Dodaj adres MCP: w Claude, ChatGPT lub Le Chat jako własny konektor (logowanie przez Nextcloud), w Claude Code poleceniem. Aplikacja Worksheet Assistant podłącza Claude Desktop i Claude Code jednym kliknięciem (strona **Claude & MCP**).',
         codeLabel: 'Claude Code'
       },
       { title: 'Do dzieła', description: '„Przygotuj w otwartym dokumencie kartę pracy o ułamkach dla klasy 6” – zmiany od razu pojawią się w edytorze.' }
@@ -260,7 +259,7 @@ const pl: SiteContent = {
       {
         label: 'Czy wtyczka potrzebuje własnego serwera?',
         content:
-          'Sama wtyczka nie – to tylko pliki udostępniane przez Euro-Office. Czat AI i MCP wymagają małego serwera; w aplikacji desktopowej jego rolę przejmuje aplikacja towarzysząca. Zakładka muzyczna działa całkowicie bez serwera.'
+          'Sama wtyczka nie – to tylko pliki udostępniane przez Euro-Office. Czat AI i MCP wymagają małego serwera; na twoim komputerze jego rolę przejmuje aplikacja Worksheet Assistant. Zakładka muzyczna działa całkowicie bez serwera.'
       },
       {
         label: 'Z jakiej AI korzysta wtyczka?',
@@ -284,7 +283,7 @@ const pl: SiteContent = {
       },
       {
         label: 'Czy to działa bez Nextcloud?',
-        content: 'Tak: z aplikacją desktopową i aplikacją towarzyszącą albo z własnym Euro-Office Document Server i wspólnym tokenem dostępu.'
+        content: 'Tak: z aplikacją desktopową Euro-Office lub Nextcloud Office i aplikacją Worksheet Assistant albo z własnym Euro-Office Document Server i wspólnym tokenem dostępu.'
       },
       {
         label: 'Czy mogę później zmienić wstawione treści?',
@@ -297,14 +296,19 @@ const pl: SiteContent = {
           'AIO tworzy kontener Euro-Office od nowa, przez co znikają własne wtyczki. Z opcją `--watch` skrypt instalacyjny konfiguruje małą usługę, która po każdym restarcie automatycznie instaluje wtyczkę ponownie.'
       },
       {
+        label: 'Jak aktualizuje się aplikacja?',
+        content:
+          'Aplikacja Worksheet Assistant regularnie sprawdza, czy jest nowa wersja, i pokazuje ją w swoim oknie oraz w zasobniku systemowym (macOS: na pasku menu). Jedno kliknięcie pobiera ją i instaluje – w przypadku pakietu .deb dostajesz zamiast tego link do strony pobierania. Nowa wersja automatycznie aktualizuje wtyczkę w Euro-Office.'
+      },
+      {
         label: 'Z czym to przetestowano?',
         content:
-          'Z Euro-Office 9.3.8 (Document Server i aplikacja desktopowa w systemie Linux), Nextcloud 34 i Mistral – automatycznie w prawdziwym edytorze. Aplikacja towarzysząca jest automatycznie budowana i sprawdzana dla Windows i macOS. Hostowani asystenci, tacy jak claude.ai, nie zostali jeszcze przetestowani z publiczną instalacją.'
+          'Z Euro-Office 9.3.8 (Document Server i aplikacja desktopowa w systemie Linux), Nextcloud 34 i Mistral – automatycznie w prawdziwym edytorze. Aplikacja Worksheet Assistant jest automatycznie budowana i sprawdzana dla Windows, macOS i Linux. Hostowani asystenci, tacy jak claude.ai, nie zostali jeszcze przetestowani z publiczną instalacją.'
       },
       {
         label: 'Czy to open source?',
         content:
-          'Tak, na licencji MIT. W zestawie są abcjs (MIT) i pliki wtyczek ONLYOFFICE (AGPL-3.0); aplikacja towarzysząca zawiera Node.js i pakiety npm – wszystko wraz z tekstami licencji.'
+          'Tak, na licencji MIT. W zestawie są abcjs (MIT) i pliki wtyczek ONLYOFFICE (AGPL-3.0); aplikacja Worksheet Assistant zawiera Node.js i pakiety npm – wszystko wraz z tekstami licencji.'
       }
     ]
   },

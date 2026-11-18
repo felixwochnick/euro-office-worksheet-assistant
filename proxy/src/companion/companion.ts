@@ -7,7 +7,8 @@ import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
 import { buildServer } from '../server.js';
 import { VERSION } from '../version.js';
-import { autostartEnabled, launchCommand, setAutostart } from './autostart.js';
+import { autostartEnabled, setAutostart, stdioCommand } from './autostart.js';
+import { claudeAction, ClaudeError, claudeStatus, type ClaudeContext, type Probe, type Runner } from './claude.js';
 import { installedInfo, installPlugin, loadPluginFiles, pluginDir, pluginVersion, type PluginFiles } from './install.js';
 import { configDir as defaultConfigDir, desktopApps, detectedApps, type DesktopApp, type Env, currentEnv } from './paths.js';
 import {
@@ -30,6 +31,37 @@ export interface CompanionOptions {
   /** Override the port from the settings (tests). */
   port?: number;
   onQuit?: () => void;
+  /**
+   * Secret of the settings API (at least 16 characters). Default: a random one per process, which only the
+   * settings page knows; the desktop app chooses its own so that its window can call the API.
+   */
+  secret?: string;
+  /** Running inside the desktop app (`--app`): reported in state(); the page at / does not carry the API secret. */
+  app?: boolean;
+  /**
+   * The app runs from a temporary place (macOS: the mounted .dmg or App Translocation): autostart and Claude entries
+   * would point to a path that is gone after ejecting or a restart, so they are refused.
+   */
+  temporary?: boolean;
+  /** Called whenever the server listens: after start() and after every restart with new settings. */
+  onListening?: () => void;
+  /** Restarting with new settings failed: the server is down. */
+  onRestartError?: (err: Error) => void;
+  /** Where the server log goes (default stdout). */
+  logStream?: { write(msg: string): void };
+  /** Claude Desktop / Claude Code integration: tests replace the file lookups and the `claude` command. */
+  claude?: { probe?: Probe; run?: Runner };
+}
+
+const TEMPORARY = 'Die App läuft noch aus dem Download (Disk-Image). Ziehe sie zuerst in den Ordner „Programme“ und starte sie von dort.';
+
+/** The page at / inside the desktop app: no settings here (and no API secret). */
+function appPage(): string {
+  return '<!doctype html><html lang="de"><head><meta charset="utf-8"><title>Arbeitsblatt-Assistent</title></head>' +
+    '<body style="font-family:system-ui,sans-serif;max-width:40rem;margin:3rem auto;padding:0 1rem;line-height:1.5">' +
+    '<h1 style="font-size:1.3rem">Arbeitsblatt-Assistent</h1>' +
+    '<p>Der Server läuft. Die Einstellungen findest du im Fenster der App <b>Arbeitsblatt-Assistent</b> ' +
+    '(Symbol in der Taskleiste bzw. Menüleiste, oder die App erneut starten).</p></body></html>';
 }
 
 const LOOPBACK_ORIGIN = /^http:\/\/(127\.0\.0\.1|localhost|\[::1\])(:\d+)?$/;
@@ -43,10 +75,13 @@ export class Companion {
   chatError = '';
   private app: FastifyInstance | null = null;
   private files: PluginFiles | null = null;
-  private readonly secret = crypto.randomBytes(24).toString('base64url');
+  private readonly secret: string;
   private restarting: Promise<void> | null = null;
+  /** Claude actions run one after another (they rewrite the same files). */
+  private claudeQueue: Promise<unknown> = Promise.resolve();
 
   constructor(private readonly opts: CompanionOptions = {}) {
+    this.secret = opts.secret && opts.secret.length >= 16 ? opts.secret : crypto.randomBytes(24).toString('base64url');
     this.env = opts.env ?? currentEnv();
     this.configDir = opts.configDir ?? defaultConfigDir(this.env);
     const { settings, created } = loadSettings(this.configDir);
@@ -119,9 +154,18 @@ export class Companion {
     }
     this.app = await buildServer(cfg, {
       settingsUrl: `${this.url}/`,
+      settingsInApp: !!this.opts.app,
       extend: (app) => this.routes(app),
+      logStream: this.opts.logStream,
     });
-    await this.app.listen({ host: '127.0.0.1', port: this.settings.port });
+    try {
+      await this.app.listen({ host: '127.0.0.1', port: this.settings.port });
+    } catch (err) {
+      await this.app.close().catch(() => {});
+      this.app = null;
+      throw err;
+    }
+    this.opts.onListening?.();
   }
 
   async stop(): Promise<void> {
@@ -161,9 +205,14 @@ export class Companion {
       providers: Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label, model: p.model, needs_key: p.needsKey, base_url: p.baseUrl })),
       chat_error: this.chatError,
       autostart: autostartEnabled(this.configDir, this.env),
-      stdio_command: launchCommand().slice(0, -1).concat('mcp-stdio'),
+      stdio_command: stdioCommand(this.env),
       platform: this.env.platform,
+      app: !!this.opts.app,
     };
+  }
+
+  claudeContext(): ClaudeContext {
+    return { stdio: stdioCommand(this.env), mcpUrl: `${this.url}/mcp`, env: this.env, ...this.opts.claude };
   }
 
   /** Validate and store new AI settings; returns an error message or null. */
@@ -204,14 +253,23 @@ export class Companion {
         .header('cache-control', 'no-store')
         .header('x-frame-options', 'DENY')
         .header('content-security-policy', "default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; connect-src 'self'; frame-ancestors 'none'")
-        .send(settingsPage(this.secret)),
+        // In the desktop app the settings live in its window, and the API secret stays with the app: other local
+        // programs (or other users of this computer) could read it from this page.
+        .send(this.opts.app ? appPage() : settingsPage(this.secret)),
     );
     app.get('/companion/api/state', { preHandler: guard }, async () => this.state());
     app.post('/companion/api/settings', { preHandler: guard }, async (req, reply) => {
       const error = this.updateSettings((req.body ?? {}) as Record<string, unknown>);
       if (error) return reply.code(400).send({ ok: false, error });
       // Answer first, then restart the server with the new settings.
-      setTimeout(() => void this.restart(), 50);
+      setTimeout(
+        () =>
+          void this.restart().catch((err: Error) => {
+            if (this.opts.onRestartError) this.opts.onRestartError(err);
+            else process.stderr.write(`Neustart fehlgeschlagen: ${err.message}\n`);
+          }),
+        50,
+      );
       return { ok: true };
     });
     app.post('/companion/api/install', { preHandler: guard }, async (req, reply) => {
@@ -223,8 +281,10 @@ export class Companion {
       }
     });
     app.post('/companion/api/autostart', { preHandler: guard }, async (req, reply) => {
+      const enabled = !!(req.body as { enabled?: boolean } | undefined)?.enabled;
+      if (enabled && this.opts.temporary) return reply.code(400).send({ ok: false, error: TEMPORARY });
       try {
-        setAutostart(!!(req.body as { enabled?: boolean } | undefined)?.enabled, this.configDir, this.env);
+        setAutostart(enabled, this.configDir, this.env);
         return { ok: true, autostart: autostartEnabled(this.configDir, this.env) };
       } catch (err) {
         return reply.code(500).send({ ok: false, error: (err as Error).message });
@@ -233,6 +293,22 @@ export class Companion {
     app.post('/companion/api/quit', { preHandler: guard }, async () => {
       setTimeout(() => this.opts.onQuit?.(), 100);
       return { ok: true };
+    });
+    app.get('/companion/api/claude', { preHandler: guard }, async () => claudeStatus(this.claudeContext()));
+    app.post('/companion/api/claude', { preHandler: guard }, async (req, reply) => {
+      const { client, action } = (req.body ?? {}) as { client?: unknown; action?: unknown };
+      if ((client !== 'desktop' && client !== 'code') || (action !== 'add' && action !== 'remove')) {
+        return reply.code(400).send({ ok: false, error: 'Ungültige Anfrage (client: desktop|code, action: add|remove).' });
+      }
+      if (action === 'add' && this.opts.temporary) return reply.code(400).send({ ok: false, error: TEMPORARY });
+      const run = this.claudeQueue.then(() => claudeAction(this.claudeContext(), client, action));
+      this.claudeQueue = run.catch(() => {});
+      try {
+        return { ok: true, status: await run };
+      } catch (err) {
+        const known = err instanceof ClaudeError;
+        return reply.code(known ? err.statusCode : 500).send({ ok: false, error: known ? err.message : `Unerwarteter Fehler: ${(err as Error).message}` });
+      }
     });
   }
 

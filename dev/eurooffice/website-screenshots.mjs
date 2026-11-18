@@ -8,10 +8,12 @@
  *
  * 1. worksheet-chat.png – a complete worksheet created by the AI chat
  * 2. mcp.png            – an MCP client adds a task with a staff; the panel logs the calls
- * 3. companion.png      – settings page of the companion app (rendered with example data)
+ * 3. companion.png      – window of the desktop app (desktop/, its built UI with the simulated backend)
  * 4. music.png          – the music tab with a template, on the test worksheet
  *
  * ONLY=music takes only the music tab screenshot (no model needed).
+ * ONLY=companion takes only the desktop app screenshot (no editor needed; build it first with
+ * `npm --prefix desktop run generate`).
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -28,6 +30,30 @@ const out = process.argv[2] || '.';
 fs.mkdirSync(out, { recursive: true });
 
 const browser = await chromium.launch({ executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium', args: ['--no-sandbox'] });
+
+/** The desktop app's window: its built UI (desktop/.output/public) with the simulated backend, everything set up. */
+async function desktopAppShot() {
+  const dist = path.join(root, 'desktop/.output/public');
+  const types = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.svg': 'image/svg+xml', '.json': 'application/json' };
+  const page2 = await browser.newPage({ viewport: { width: 980, height: 700 }, deviceScaleFactor: 2, colorScheme: 'light' });
+  await page2.route('http://app.local/**', (route) => {
+    const file = path.join(dist, decodeURIComponent(new URL(route.request().url()).pathname));
+    const target = fs.existsSync(file) && fs.statSync(file).isFile() ? file : path.join(dist, 'index.html');
+    return route.fulfill({ contentType: types[path.extname(target)] || 'application/octet-stream', body: fs.readFileSync(target) });
+  });
+  await page2.goto('http://app.local/?scenario=ready#/');
+  await page2.getByText('Claude kann das geöffnete Dokument bearbeiten.').waitFor();
+  await page2.waitForTimeout(500);
+  await page2.screenshot({ path: path.join(out, 'companion.png') });
+  console.log('companion.png');
+}
+
+if (process.env.ONLY === 'companion') {
+  await desktopAppShot();
+  await browser.close();
+  process.exit(0);
+}
+
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 2 });
   await fetch(new URL('/reset', EDITOR_URL));
@@ -124,37 +150,8 @@ try {
   await page.screenshot({ path: path.join(out, 'mcp.png') });
   console.log('mcp.png');
 
-  // 3. companion settings page with example data (the real page, API answers mocked)
-  const { settingsPage } = await import(pathToFileURL(path.join(root, 'proxy/build/src/companion/ui.js')).href);
-  const page2 = await browser.newPage({ viewport: { width: 860, height: 1200 }, deviceScaleFactor: 2, colorScheme: 'light' });
-  const home = '/home/lehrer';
-  await page2.route('http://127.0.0.1:8787/**', (route) => {
-    const url = route.request().url();
-    if (url.endsWith('/companion/api/state')) {
-      return route.fulfill({
-        contentType: 'application/json',
-        body: JSON.stringify({
-          version: '0.4.0', url: 'http://127.0.0.1:8787', mcp_url: 'http://127.0.0.1:8787/mcp', config_dir: `${home}/.config/worksheet-assistant`,
-          plugin_version: '0.4.0',
-          apps: [{ id: 'desktop-editors', name: 'Euro-Office / Nextcloud Office', detected: true, installed: true, configured: true, version: '0.4.0', plugin_dir: `${home}/.local/share/euro-office/desktopeditors/sdkjs-plugins/{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}` }],
-          settings: { provider: 'mistral', model: '', base_url: '', has_key: true, extra_origins: [] },
-          providers: [
-            { id: 'none', label: 'Kein KI-Chat (nur MCP)', model: '', needs_key: false, base_url: '' },
-            { id: 'mistral', label: 'Mistral', model: 'mistral-large-latest', needs_key: true, base_url: '' },
-            { id: 'openai', label: 'OpenAI', model: 'gpt-4o-mini', needs_key: true, base_url: '' },
-            { id: 'anthropic', label: 'Anthropic (Claude)', model: 'claude-sonnet-5-5', needs_key: true, base_url: '' },
-            { id: 'ollama', label: 'Ollama (lokales Modell)', model: 'qwen2.5:7b', needs_key: false, base_url: 'http://127.0.0.1:11434/v1' },
-          ],
-          chat_error: '', autostart: true, stdio_command: ['/opt/worksheet-assistant/worksheet-assistant', 'mcp-stdio'], platform: 'linux',
-        }),
-      });
-    }
-    return route.fulfill({ contentType: 'text/html', body: settingsPage('demo') });
-  });
-  await page2.goto('http://127.0.0.1:8787/');
-  await page2.locator('#apps .app').first().waitFor();
-  await page2.screenshot({ path: path.join(out, 'companion.png'), fullPage: true });
-  console.log('companion.png');
+  // 3. the desktop app's window
+  await desktopAppShot();
 } finally {
   await browser.close();
 }

@@ -11,6 +11,7 @@ import { McpServer, type CallToolResult, type StandardSchemaWithJSON } from '@mo
 import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import { VERSION } from '../version.js';
 import { launchCommand } from './autostart.js';
+import { currentEnv, type Env } from './paths.js';
 
 function passthrough(schema: Record<string, unknown>): StandardSchemaWithJSON<Record<string, unknown>> {
   return {
@@ -33,12 +34,15 @@ async function running(url: string): Promise<boolean> {
   }
 }
 
-export async function ensureCompanionRunning(url: string): Promise<void> {
+export async function ensureCompanionRunning(url: string, e: Env = currentEnv()): Promise<void> {
   if (await running(url)) return;
-  const [cmd, ...args] = launchCommand();
+  const [cmd, ...args] = launchCommand(e);
   const child = spawn(cmd, args, { detached: true, stdio: 'ignore', windowsHide: true });
+  child.on('error', (err) => process.stderr.write(`mcp-stdio: cannot start ${cmd}: ${err.message}\n`));
   child.unref();
-  for (let i = 0; i < 40; i++) {
+  // The desktop app first starts its window process, then this program: give it more time than the bare program.
+  const tries = e.env.WORKSHEET_ASSISTANT_APP ? 80 : 40;
+  for (let i = 0; i < tries; i++) {
     await new Promise((r) => setTimeout(r, 250));
     if (await running(url)) return;
   }

@@ -1,0 +1,95 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "Arbeitsblatt-Assistent",
+  "mainBinaryName": "worksheet-assistant-app",
+  "version": "../package.json",
+  "identifier": "io.github.felixwochnick.worksheet-assistant",
+  "build": {
+    "frontendDist": "../.output/public",
+    "devUrl": "http://localhost:3000",
+    "beforeDevCommand": "npm run dev",
+    "beforeBuildCommand": "npm run generate"
+  },
+  "app": {
+    "windows": [
+      {
+        "label": "main",
+        "title": "Arbeitsblatt-Assistent",
+        "width": 980,
+        "height": 700,
+        "minWidth": 760,
+        "minHeight": 540,
+        "center": true,
+        "visible": false
+      }
+    ],
+    "security": {
+      "csp": "default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; font-src 'self' data:; script-src 'self'; connect-src ipc: http://ipc.localhost"
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": [
+      "app",
+      "dmg",
+      "nsis",
+      "deb",
+      "appimage"
+    ],
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": [
+      "binaries/worksheet-assistant"
+    ],
+    "category": "Education",
+    "shortDescription": "Arbeitsblatt-Assistent für die Euro-Office-Desktop-App",
+    "longDescription": "Installiert das Plugin Arbeitsblatt-Assistent in die Euro-Office- und Nextcloud-Office-Desktop-App und stellt KI-Chat und MCP (für Claude & Co.) auf diesem Computer bereit.",
+    "copyright": "© Felix Wochnick, MIT-Lizenz",
+    "license": "MIT",
+    "publisher": "Felix Wochnick",
+    "homepage": "https://felixwochnick.github.io/euro-office-worksheet-assistant/",
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0",
+      "entitlements": "macos/entitlements.plist"
+    },
+    "windows": {
+      "nsis": {
+        "installMode": "currentUser",
+        "languages": [
+          "German",
+          "English"
+        ],
+        "displayLanguageSelector": false,
+        "installerHooks": "windows/hooks.nsh"
+      }
+    },
+    "linux": {
+      "deb": {
+        "depends": [
+          "libayatana-appindicator3-1"
+        ]
+      }
+    },
+    "resources": [
+      "resources/**/*"
+    ]
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "",
+      "endpoints": [
+        "https://github.com/felixwochnick/euro-office-worksheet-assistant/releases/latest/download/latest.json"
+      ],
+      "requireSignedVersion": true,
+      "windows": {
+        "installMode": "passive"
+      }
+    }
+  }
+}
