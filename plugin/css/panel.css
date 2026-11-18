@@ -1,0 +1,94 @@
+/* Panel styles. Colours are CSS variables, updated from the editor theme (onThemeChanged). */
+:root {
+  --bg: #ffffff;
+  --bg-alt: #f3f3f3;
+  --text: #333333;
+  --text-muted: #777777;
+  --border: #c0c0c0;
+  --accent: #446995;
+  --accent-text: #ffffff;
+  --error: #c0392b;
+  --ok: #2e7d32;
+  --user-bubble: #e3ecf6;
+  --font: Arial, Helvetica, sans-serif;
+}
+
+* { box-sizing: border-box; }
+html, body { height: 100%; }
+body {
+  margin: 0;
+  font: 12px/1.4 var(--font);
+  color: var(--text);
+  background: var(--bg);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.hidden { display: none !important; }
+
+.tabs { display: flex; border-bottom: 1px solid var(--border); flex: 0 0 auto; }
+.tab {
+  flex: 1; padding: 8px 4px; border: 0; background: transparent; color: var(--text-muted);
+  font: inherit; cursor: pointer; border-bottom: 2px solid transparent;
+}
+.tab.active { color: var(--text); border-bottom-color: var(--accent); font-weight: bold; }
+
+.view { display: none; flex: 1 1 auto; flex-direction: column; padding: 8px; overflow-y: auto; min-height: 0; gap: 8px; }
+.view.active { display: flex; }
+#view-chat { overflow: hidden; }
+
+button { font: inherit; border-radius: 3px; padding: 5px 10px; cursor: pointer; border: 1px solid var(--border); background: var(--bg); color: var(--text); }
+button:disabled { opacity: .5; cursor: default; }
+button.primary { background: var(--accent); border-color: var(--accent); color: var(--accent-text); }
+button.link { border: 0; background: none; color: var(--accent); text-decoration: underline; padding: 0 4px; }
+button.icon { padding: 4px 8px; align-self: flex-end; }
+
+input[type=text], input[type=url], input[type=password], input[type=number], select, textarea {
+  font: inherit; color: var(--text); background: var(--bg); border: 1px solid var(--border);
+  border-radius: 3px; padding: 4px 6px; width: 100%; min-width: 0;
+}
+textarea { resize: vertical; }
+.mono { font-family: Consolas, "DejaVu Sans Mono", monospace; font-size: 11px; }
+
+.row { display: flex; gap: 6px; align-items: center; }
+.row.wrap { flex-wrap: wrap; }
+.row > input[type=text] { flex: 1; }
+.row > select { width: auto; min-width: 0; }
+.row > select.grow { flex: 1; }
+.spacer { flex: 1; }
+.field { display: flex; flex-direction: column; gap: 3px; }
+.field > span { color: var(--text-muted); }
+.field.small { width: 90px; flex: 0 0 auto; }
+.field.grow { flex: 1; }
+.check { display: flex; align-items: center; gap: 4px; }
+.check.grow { flex: 1; }
+.hint { color: var(--text-muted); }
+.hint code { font-family: Consolas, "DejaVu Sans Mono", monospace; user-select: all; }
+.about { color: var(--text-muted); font-size: 10px; margin-top: auto; }
+
+.message { padding: 6px 8px; border-radius: 3px; background: var(--bg-alt); white-space: pre-wrap; }
+.message.error { color: var(--error); }
+.message.ok { color: var(--ok); }
+.message.warn { color: var(--text); border-left: 3px solid #e6a23c; }
+
+/* Chat */
+.chat-log { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; min-height: 0; }
+.msg { max-width: 92%; padding: 6px 8px; border-radius: 6px; white-space: pre-wrap; word-wrap: break-word; }
+.msg.user { align-self: flex-end; background: var(--user-bubble); }
+.msg.assistant { align-self: flex-start; background: var(--bg-alt); }
+.msg.error { align-self: stretch; color: var(--error); background: transparent; border: 1px solid var(--error); }
+.msg.tool { align-self: flex-start; color: var(--text-muted); font-size: 11px; padding: 2px 8px; }
+.msg.tool::before { content: "♪ "; }
+.card { align-self: stretch; border: 1px solid var(--border); border-radius: 6px; padding: 6px; display: flex; flex-direction: column; gap: 6px; }
+.card .title { font-weight: bold; }
+.chat-input { flex: 0 0 auto; display: flex; flex-direction: column; gap: 6px; border-top: 1px solid var(--border); padding-top: 6px; }
+.loading { display: flex; align-items: center; gap: 6px; color: var(--text-muted); }
+.dots i { display: inline-block; width: 5px; height: 5px; margin: 0 1px; border-radius: 50%; background: var(--accent); animation: blink 1.2s infinite both; }
+.dots i:nth-child(2) { animation-delay: .2s; }
+.dots i:nth-child(3) { animation-delay: .4s; }
+@keyframes blink { 0%, 80%, 100% { opacity: .2; } 40% { opacity: 1; } }
+
+/* Preview: always black on white like the printed result */
+.preview { background: #fff; border: 1px solid var(--border); border-radius: 3px; min-height: 40px; overflow-x: auto; padding: 2px; }
+.preview img, .preview svg { display: block; max-width: 100%; height: auto; }

@@ -1,0 +1,60 @@
+# Permanent setup: Euro-Office Document Server as its own container (e.g. in Coolify)
+# with this plugin mounted as a volume, plus the LLM proxy.
+# Nextcloud then uses this server as an external Document Server.
+#
+#   bash scripts/build.sh              # creates dist/music-notation
+#   cd deploy && cp .env.example .env  # edit secrets / domains
+#   docker compose up -d
+#
+# Put a TLS reverse proxy in front of both services (Coolify/Traefik does this for you):
+#   https://office.example.org  -> eurooffice:80
+#   https://notes-proxy.example.org -> music-proxy:8787
+services:
+  eurooffice:
+    # Pin a version in production (see the Nextcloud admin manual, "Euro-Office" → "Installing via Docker").
+    image: ghcr.io/euro-office/documentserver:${EUROOFFICE_VERSION:-latest}
+    restart: unless-stopped
+    environment:
+      JWT_ENABLED: "true"
+      JWT_SECRET: ${JWT_SECRET:?set JWT_SECRET in .env}
+      JWT_HEADER: Authorization
+    volumes:
+      - eurooffice-data:/var/lib/euro-office/documentserver
+      - eurooffice-logs:/var/log/euro-office/documentserver
+      # The plugin, read-only. Only the plugin's own sub-folder is mounted so that
+      # other plugins shipped with the image (if any) stay visible.
+      # The path is the one used by Nextcloud AIO's Euro-Office container – verify it
+      # for your image version: docker exec <container> ls /var/www/euro-office/documentserver/sdkjs-plugins
+      - ${PLUGIN_DIR:-../dist/music-notation}:/var/www/euro-office/documentserver/sdkjs-plugins/music-notation:ro
+    ports:
+      # Bound to localhost: the TLS reverse proxy forwards to it. Remove "ports" when the
+      # reverse proxy reaches the container via the Docker network (e.g. Coolify).
+      - "127.0.0.1:${EUROOFFICE_PUBLISH_PORT:-8090}:80"
+
+  music-proxy:
+    build:
+      context: ..
+      dockerfile: proxy/Dockerfile
+    image: music-notation-proxy:local
+    restart: unless-stopped
+    environment:
+      PROXY_TOKEN: ${PROXY_TOKEN:?set PROXY_TOKEN in .env}
+      # Origin of the page that hosts the editor iframe (the Euro-Office domain;
+      # add the Nextcloud domain as well if your setup serves the editor from there).
+      CORS_ORIGINS: ${CORS_ORIGINS:?set CORS_ORIGINS in .env}
+      LLM_PROVIDER: ${LLM_PROVIDER:-mistral}
+      # empty = provider default (mistral-large-latest, claude-…, …)
+      LLM_MODEL: ${LLM_MODEL:-}
+      LLM_API_KEY: ${LLM_API_KEY:-}
+      LLM_BASE_URL: ${LLM_BASE_URL:-}
+      # Only trust X-Forwarded-For from your reverse proxy (IP/CIDR, e.g. 10.0.0.0/8);
+      # "true" would let clients spoof their IP and bypass the rate limit.
+      TRUST_PROXY: ${TRUST_PROXY:-false}
+      RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-30}
+    read_only: true
+    ports:
+      - "127.0.0.1:${PROXY_PUBLISH_PORT:-8787}:8787"
+
+volumes:
+  eurooffice-data:
+  eurooffice-logs:

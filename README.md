@@ -1,0 +1,464 @@
+# Euro-Office Music Notation Plugin ("Noten-Assistent")
+
+A panel plugin for the **Euro-Office** web editor (a fork of ONLYOFFICE Docs, same plugin API) that inserts
+music staves into text documents – for example worksheets for music lessons.
+
+- **AI chat in the side panel** – e.g. *"Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein
+  und darunter eine leere Zeile zum Nachschreiben"*. The AI sees the document outline and the cursor position and
+  calls tools that the plugin executes locally in the editor.
+- **Manual mode without AI** – ABC editor with live preview, templates (empty treble/bass staff, example melody
+  with lyrics, scales), a converter for German note names (`c – f – g`, `fis' g' a' h'`, …) and a **lyrics field**
+  that distributes syllables over the notes (also as additional verses).
+- **Song text (lyrics)** – by chat („Füge zu Zeile 1 den Text hinzu: Hänschen klein ging allein“) or manually; the
+  syllables are placed under the notes (ABC `w:` lines), dense lines are broken evenly by whole measures.
+- **Printable images** – ABC is rendered with [abcjs](https://www.abcjs.net/) to SVG and rasterised to PNG at
+  300 dpi. The **ABC source is stored as the image alt text**, so a staff can be selected later, loaded back into the
+  panel, edited and replaced.
+- **Change existing staves by chat** – „Bitte ändere Zeile 2: statt bc #c“ or „in der markierten Zeile …“: the AI
+  edits the ABC of that staff and replaces it in place (tool `replace_staff`).
+- **Small LLM proxy** (Node/TypeScript, Fastify) that keeps the API key on the server, solves CORS and runs the
+  tool-calling agent loop. Providers: **Mistral** (default), any **OpenAI-compatible** API (e.g. Ollama),
+  **Anthropic**, plus a deterministic **mock** for tests and demos.
+
+The UI language is German (i18n-ready, English included).
+
+```
+┌──────────── Euro-Office editor (browser) ─────────────┐        ┌──────── proxy/ ────────┐
+│  document  ◄── callCommand / executeMethod ──┐        │        │  POST /v1/chat         │
+│                                              │        │ HTTPS  │  system prompt + tools │
+│  plugin panel (iframe)                       │        │ token  │  ABC validation        │──► Mistral /
+│   chat · manual ABC · settings ──────────────┼────────┼──────► │  convert_german_notes  │    OpenAI-compatible /
+│   abcjs → SVG → canvas → PNG (300 dpi)       │        │ CORS   │  agent loop (max N)    │    Anthropic / mock
+└──────────────────────────────────────────────┘────────┘        └────────────────────────┘
+```
+
+## What runs where
+
+The plugin itself needs **no server of its own**. Only the AI chat needs a small additional service, the proxy.
+
+| Component | What it is | Where it runs | Needed for | Resources |
+|-----------|-----------|---------------|------------|-----------|
+| **Plugin** (`music-notation/`) | Static files (HTML, JavaScript, icons, abcjs) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: rendering, inserting, editing staves, lyrics, manual mode | ≈ 0.8 MB of files, no process |
+| **Proxy** (`proxy/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy | **Only the AI chat** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
+| **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat | Billed by the provider / your hardware |
+
+- **Without the proxy** the plugin works completely in the *Manuell* tab (ABC editor, templates, German note names,
+  lyrics, load/replace staves). The chat tab then asks for a proxy URL.
+- **Why a proxy at all?**
+  - It keeps the API key on the server. In the browser it would be readable by every user and could be used at
+    your expense.
+  - It protects access with a token, an origin allowlist (CORS) and a rate limit.
+  - It holds the system prompt and the tools, validates ABC before it reaches the document, and converts German
+    note names deterministically.
+  - It lets you switch the model (Mistral, OpenAI-compatible such as Ollama, Anthropic) without touching the plugin.
+- The proxy keeps no conversations or documents; its log contains request metadata (time, path, status, client IP)
+  and errors. With each chat request the plugin sends the chat history and the document outline (paragraph texts,
+  staff ABC); the proxy forwards them to the configured model provider – choose the provider accordingly (e.g. an EU
+  provider such as Mistral, or a local model via Ollama).
+
+## Repository layout
+
+| Path | Content |
+|------|---------|
+| `plugin/` | Plugin source: `config.json`, `index.html`, `css/`, `js/`, icons |
+| `shared/abc-tools.js` | ABC validation/normalisation and German note names → ABC (used by plugin **and** proxy) |
+| `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js` (see `vendor/SOURCES.md`) |
+| `proxy/` | LLM proxy (TypeScript), `Dockerfile`, `docker-compose.yml`, `.env.example` |
+| `deploy/` | Example compose: Euro-Office as its own container with the plugin as a volume, plus the proxy |
+| `harness/` | Local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
+| `scripts/build.sh` | Builds `dist/music-notation/`, `.plugin`, `.tar.gz` and `.zip` |
+| `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
+| `.github/workflows/` | CI (tests, build, e2e, Docker) and release (packages + proxy image on GHCR) |
+| `tests/` | Unit tests (ABC validation, German note names) |
+
+## Build
+
+Requirements: bash, Node.js ≥ 22 (only for the config check and tests), `zip` or `python3`.
+
+```bash
+bash scripts/build.sh                  # uses the pinned copies in vendor/ (checksums are verified)
+bash scripts/build.sh --update-vendor  # re-downloads abcjs and plugins.js/plugins-ui.js, then builds
+```
+
+Result:
+
+- `dist/music-notation/` – the plugin folder (copy this into `sdkjs-plugins/`)
+- `dist/music-notation.plugin` – the same as ZIP with `config.json` at the root (for editors with a plugin manager)
+- `dist/music-notation.tar.gz` / `.zip` – archives with the `music-notation/` folder (for `install-aio.sh --archive`)
+
+## Installation
+
+There are three parts: the **plugin** (in the Euro-Office Document Server), the **proxy** (holds the AI key) and the
+**settings** in the plugin. Without the proxy the manual mode works; the AI chat needs it.
+
+| Setup | Effort | Survives updates | Recommended for |
+|-------|--------|------------------|-----------------|
+| **A – Nextcloud AIO + install script with `--watch`** | one command | ✅ (re-installed automatically after every AIO update) | AIO users |
+| B – own Euro-Office container, plugin as volume (`deploy/`) | own Document Server + reverse proxy | ✅ | if you run the Document Server yourself anyway |
+| C – `docker cp` by hand | one command | ❌ (gone after every AIO update) | quick tests |
+
+Prebuilt packages are attached to each [GitHub release](https://github.com/felixwochnick/eurooffice-music-notation-plugin/releases)
+(`music-notation.tar.gz`, `.zip`, `.plugin`); the proxy image is `ghcr.io/felixwochnick/eurooffice-music-notation-proxy`.
+Releases are created by pushing a tag (`git tag v0.1.0 && git push origin v0.1.0`, see `.github/workflows/release.yml`).
+Until the first release exists, build locally with `bash scripts/build.sh` and use `--source dist/music-notation`.
+
+### A – Nextcloud AIO (recommended)
+
+In AIO the Euro-Office container (`nextcloud-aio-eurooffice`) has no plugin manager, its plugin folder
+`/var/www/euro-office/documentserver/sdkjs-plugins` is empty, and **AIO updates re-create the container**, which
+removes plugins copied into it. AIO offers no supported way to mount own plugins. Therefore:
+
+**1. Plugin** – on the AIO host:
+
+```bash
+# latest release
+curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/scripts/install-aio.sh \
+  | sudo bash -s -- --watch
+
+# or from a checkout / local build
+bash scripts/build.sh
+sudo scripts/install-aio.sh --source dist/music-notation --watch
+```
+
+The script copies the plugin into the running container, checks that the Document Server lists it, stores a copy
+in `/opt/eurooffice-plugins/` and – with `--watch` – installs the systemd service `eurooffice-music-notation`, which
+waits for the container to start (`docker events`) and copies the plugin in again. AIO updates therefore need no
+manual step. Then reopen the document in Nextcloud: *Plugins* → **Noten-Assistent**. No container restart is needed.
+
+```bash
+systemctl status eurooffice-music-notation       # watcher
+sudo scripts/install-aio.sh --print-unit         # show the unit before installing
+sudo scripts/install-aio.sh --version v0.2.0 --watch   # update to another release
+sudo scripts/install-aio.sh --uninstall          # remove plugin and service
+```
+
+Options: `--container NAME`, `--plugin-dir PATH` (if your container differs), `--archive FILE` (a downloaded
+`.tar.gz`/`.zip`). Tested with a fresh `ghcr.io/euro-office/documentserver` 9.3.8 container, including a simulated
+update (container removed and re-created → plugin re-installed by the watcher within ~15 s).
+
+**2. Proxy** – on any host with Docker that is reachable via **HTTPS** (the editor runs on HTTPS; browsers block
+plain HTTP from there). On the AIO host itself, put it behind your reverse proxy (e.g. `https://noten-proxy.example.org`
+→ `localhost:8787`):
+
+```bash
+mkdir music-proxy && cd music-proxy
+curl -fsSLO https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/proxy/compose.release.yml
+curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/proxy/.env.example -o .env
+nano .env        # PROXY_TOKEN (openssl rand -hex 24), CORS_ORIGINS, LLM_API_KEY
+docker compose -f compose.release.yml up -d
+```
+
+(From a checkout: `cd proxy && docker compose up -d --build`. If pulling the image fails with "denied", set the
+package `eurooffice-music-notation-proxy` to *public* once under GitHub → Packages → Package settings.)
+
+**3. Settings** – in the editor: *Plugins* → *Noten-Assistent* → *Einstellungen*: enter the proxy URL and the token.
+Below the token field the plugin shows **the origin to add to `CORS_ORIGINS`** (the address of the Document Server
+as seen by the browser). Add it to the proxy's `.env`, restart the proxy (`docker compose … up -d`) and click
+*Verbindung testen*. The settings are stored per browser (`localStorage`).
+
+### B – Euro-Office as its own container
+
+Run the Euro-Office Document Server yourself (e.g. in [Coolify](https://coolify.io/) or plain Docker Compose) and
+mount the plugin folder as a volume. Nextcloud uses it as an **external Document Server**.
+
+```bash
+bash scripts/build.sh
+cd deploy
+cp .env.example .env      # set JWT_SECRET, PROXY_TOKEN, CORS_ORIGINS, LLM_API_KEY
+docker compose up -d
+```
+
+`deploy/docker-compose.yml` starts
+
+- `eurooffice` – image `ghcr.io/euro-office/documentserver` (pin `EUROOFFICE_VERSION` in production) with
+  JWT enabled, data/log volumes and `dist/music-notation` mounted read-only into
+  `/var/www/euro-office/documentserver/sdkjs-plugins/music-notation`,
+- `music-proxy` – the LLM proxy (see below).
+
+Both ports are published on `127.0.0.1` only; remove the `ports:` entries when the reverse proxy reaches the
+containers through the Docker network (as in Coolify). Set `TRUST_PROXY` to the reverse proxy's IP/CIDR – not to
+`true` – so clients cannot spoof `X-Forwarded-For` to bypass the rate limit.
+
+Put a TLS reverse proxy in front (Coolify does this automatically), e.g. `https://office.example.org` → `eurooffice:80`
+and `https://notes-proxy.example.org` → `music-proxy:8787`. In Nextcloud, disable the AIO-internal office
+integration and enter the Document Server URL (`https://office.example.org/`) and the same JWT secret in the
+Euro-Office/ONLYOFFICE connector settings (*Administration settings → Office*). Both sides must use the same
+`JWT_SECRET`.
+
+In Coolify you can use the compose file as a "Docker Compose" resource; set `PLUGIN_DIR` to an absolute host path
+(e.g. `/opt/eurooffice-plugins/music-notation`) and copy `dist/music-notation` there. Updating the plugin = replacing
+that folder and reloading the editor – no container rebuild needed.
+
+### C – manual copy (quick test)
+
+```bash
+bash scripts/build.sh
+docker cp dist/music-notation nextcloud-aio-eurooffice:/var/www/euro-office/documentserver/sdkjs-plugins/
+```
+
+Reopen the document. The plugin is gone after the next AIO update – use A to avoid that.
+
+## Proxy configuration
+
+```bash
+cd proxy
+cp .env.example .env      # edit: PROXY_TOKEN, CORS_ORIGINS, LLM_* (never commit .env)
+docker compose up -d --build
+curl http://localhost:8787/healthz           # {"ok":true}
+curl -H "Authorization: Bearer $TOKEN" http://localhost:8787/v1/info
+```
+
+The image is built from the repository root (the proxy uses `shared/abc-tools.js`); `docker compose` handles that.
+Without Docker: `cd proxy && npm ci && npm run build && node --env-file=.env build/src/server.js`.
+
+| Variable | Default | Meaning |
+|----------|---------|---------|
+| `PROXY_TOKEN` | – (required) | Shared secret, min. 16 characters. The plugin sends it as `Authorization: Bearer …`. `openssl rand -hex 24` |
+| `CORS_ORIGINS` | – | Comma-separated allowlist of browser origins, i.e. the origin that serves the editor (your Euro-Office / Nextcloud domain, e.g. `https://cloud.example.org`). `*` only for testing |
+| `RATE_LIMIT_MAX` / `RATE_LIMIT_WINDOW` | `30` / `1 minute` | Requests per IP and window |
+| `TRUST_PROXY` | `false` | IP/CIDR of your reverse proxy (e.g. `172.16.0.0/12`) so the rate limit sees real client IPs. Avoid `true` when the port is reachable directly – clients could spoof `X-Forwarded-For` |
+| `LLM_PROVIDER` | `mistral` | `mistral`, `openai` (any OpenAI-compatible API), `anthropic`, `mock` |
+| `LLM_MODEL` | provider default | e.g. `mistral-large-latest`, `qwen2.5:7b`, `claude-sonnet-5-5` |
+| `LLM_API_KEY` | – | Provider key (alternatively `MISTRAL_API_KEY`, `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`) |
+| `LLM_BASE_URL` | provider default | e.g. `http://ollama:11434/v1` for Ollama |
+| `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_MS` | `0.2`, `8192`, `120000` | Model parameters. Reasoning models (current `mistral-large-latest`) spend part of `LLM_MAX_TOKENS` on "thinking" – values that are too low end in empty answers |
+| `LLM_REASONING_EFFORT` | `medium` for Mistral, otherwise not sent | `reasoning_effort` for reasoning models (`low`/`medium`/`high`, `off` = not sent). Without it `mistral-large-latest` can "think" for minutes and run out of tokens. Models that reject it are retried automatically without the parameter |
+| `MAX_ITERATIONS` | `6` | Max. tool rounds per user message; afterwards the model must answer in text |
+| `BODY_LIMIT_BYTES`, `PORT`, `HOST`, `LOG_LEVEL` | `1000000`, `8787`, `0.0.0.0`, `info` | Server settings |
+
+Local model with Ollama: `docker compose --profile ollama up -d`, `docker compose exec ollama ollama pull qwen2.5:7b`,
+then `LLM_PROVIDER=openai`, `LLM_BASE_URL=http://ollama:11434/v1`, `LLM_MODEL=qwen2.5:7b`. Small local models are
+noticeably less reliable with tool calls and ABC than large hosted models.
+
+Serve the proxy via HTTPS: the editor runs on HTTPS and browsers block requests from HTTPS pages to plain HTTP
+(mixed content), except to `localhost`.
+
+### Protocol
+
+The plugin keeps the conversation; the proxy is stateless.
+
+```
+POST /v1/chat   Authorization: Bearer <PROXY_TOKEN>
+{ "messages": [ {role:"user", content} | {role:"assistant", content, tool_calls:[{id,name,arguments}]}
+                | {role:"tool", tool_call_id, name, content:"<json>"} ],
+  "document_context": { "elements": [{index, type, text, style, is_heading, heading_level, has_image, abc}],
+                        "cursor_index": 3, "total_elements": 12 } }
+→ { "messages": [...new messages...], "pending_tool_calls": [...], "done": false, "iterations": 1, "max_iterations": 6 }
+```
+
+Tools offered to the model (JSON Schema in `proxy/src/tools.ts`):
+
+| Tool | Executed by | Purpose |
+|------|-------------|---------|
+| `insert_staff({abc, width_cm, position})` | plugin | render ABC and insert it as an image; `position` = `"cursor"` \| `{after_heading}` \| `{after_paragraph_index}` |
+| `insert_empty_staves({clef, count, measures, width_cm, position})` | plugin | empty staves made of invisible rests (`x`) |
+| `replace_staff({index, abc, width_cm})` | plugin | change an existing staff in place (keeps its width); the outline numbers staves ("Notenzeile 1, 2, …") and marks a selected one |
+| `get_document_outline()` | plugin | headings/paragraphs with indices, cursor, ABC of existing staves |
+| `convert_german_notes({notes, clef, digits})` | proxy | deterministic German note names → ABC |
+| `add_lyrics({abc, lyrics, mode})` | proxy | distribute hyphenated text over the notes (`w:` lines); `mode: "verse"` adds a verse |
+
+ABC in `insert_staff` is validated on the proxy (headers `X: M: L: K:` incl. `clef=`, no German `h`/`fis` in the
+body, balanced brackets …). Invalid ABC is sent back to the model with the errors instead of reaching the editor.
+
+## Plugin settings
+
+Tab **Einstellungen** (stored in the browser's `localStorage`; falls back to in-memory if storage is blocked):
+
+- **Proxy-URL** and **Zugangs-Token** – "Verbindung testen" calls `/v1/info`
+- **Automatisch einfügen** – otherwise every AI insertion is shown as a preview with *Einfügen* / *Verwerfen*
+- default width (cm), resolution (dpi), **Einfügemethode** (see Known limitations), language
+
+## Example prompts for teachers
+
+- „Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein und darunter eine leere Zeile zum Nachschreiben.“
+- „Setze an die Cursorposition die C-Dur-Tonleiter aufwärts in Vierteln, 4/4-Takt.“
+- „Schreibe den Anfang von ‚Alle meine Entchen‘ in G-Dur unter die Überschrift ‚Transponieren‘.“
+- „Füge nach Aufgabe 3 drei leere Notenzeilen im Bassschlüssel ohne Taktstriche ein.“
+- „Erstelle eine 12 cm breite Notenzeile mit den Tönen fis' – a' – cis'' – e''.“
+- „Welche Töne stehen in der Notenzeile unter Aufgabe 1?“ (the AI reads the ABC from the alt text)
+- „Bitte ändere Zeile 1: statt bc #c“ (changes the existing staff in place – staves are counted in document order)
+- „In der markierten Zeile soll das große C am Ende ein c' werden.“ (select the staff image first)
+- „Füge zu Zeile 1 den Text hinzu: Hänschen klein ging allein“ (the AI adds the syllable breaks)
+- „Und darunter als zweite Strophe: Stock und Hut steht ihm gut“
+- „Schreibe die Tonnamen als Lösung unter Notenzeile 2.“
+- „Schreibe einen Rhythmus im 3/4-Takt: Halbe, Viertel | punktierte Halbe – alles auf g'.“
+
+## ABC notation cheat sheet
+
+```
+X:1                 tune number (always first)
+T:Aufgabe 2         title (optional)
+M:4/4               meter: 3/4, 6/8, C, none
+L:1/4               unit note length (here: quarter note)
+K:C clef=treble     key + clef (always last header line); clef=bass for Bassschlüssel
+C D E F | G2 G2 |]  the music
+```
+
+| German | ABC | | German | ABC |
+|--------|-----|-|--------|-----|
+| c' (eingestrichenes c, middle C) | `C` | | große Oktave C | `C,,` |
+| c'' | `c` | | kleine Oktave c | `C,` |
+| c''' | `c'` | | h' | `B` |
+| fis' / cis' | `^F` / `^C` | | b' (= B flat) | `_B` |
+| es' / as' / des' | `_E` / `_A` / `_D` | | Auflösungszeichen | `=F` |
+
+Durations relative to `L:1/4`: `C` quarter, `C2` half, `C4` whole, `C/2` or `C/` eighth, `C3` dotted half,
+`C>D` dotted rhythm. Rests: `z` (visible), `x` (invisible). Bar lines: `|`, double `||`, final `|]`, repeat `:|`.
+Chords: `[CEG]`. Ties: `C2-C`. Chord symbols above a note: `"Am"A`; free text above/below: `"^Text"C` / `"_Text"C`.
+
+**Lyrics** – a `w:` line directly below a music line, one syllable per note (rests are skipped):
+
+```
+C D E F | G2 G2 |
+w: Al-le mei-ne Ent-chen
+w: Hän-schen klein ging al-lein     ← second verse
+```
+
+`-` between syllables of a word · `_` hold the previous syllable for one more note · `*` note without text ·
+`~` two words on one note (`a~b`). In the manual tab you only type the hyphenated text into *Liedtext*; the plugin
+distributes it over all music lines and reports if syllables and notes do not match.
+
+### German note names (converter in the manual tab and AI tool `convert_german_notes`)
+
+| Input | Meaning |
+|-------|---------|
+| `c d e f g a h`, `b` | note names (`h` = B, `b` = B flat) |
+| `fis`, `cis`, `es`, `as`, `des`, `heses` | German accidental suffixes |
+| `bc`, `♭e`, `#f`, `♯g` | accidental written **in front** of the note (`bc` = ces, `be` = es) |
+| `c'`, `c''`, `c¹`, `C`, `C,` | Helmholtz octaves; bare lower-case names: treble → one-line (`c` = c'), bass → small octave |
+| `4/4`, `3/4-Takt` | time signature; bar lines are added automatically (unless the input contains `\|`) |
+| `\|` | bar line |
+| `p`, `pause` | rest |
+
+**Digits are ambiguous** – German school notation uses them as octave marks (`c1` = c'), others write note values
+(`c1` = whole note, `g2` = half, `c4` = quarter, `c8` = eighth, `.` = dotted). The setting *Ziffern* chooses:
+
+- **Oktave** – `c1` = c', `c2` = c''
+- **Notenwert** – `c1` = whole note …; a note without value repeats the previous value; octaves with `'`/`,`
+- **automatisch** (default) – note values if the digits include 4/8/16, if apostrophes and digits are combined
+  (`c'4`), or if a time signature is given and two or more different values fill whole bars. Otherwise octave marks.
+  Example: `4/4 bc1, f1, g2, be2, c1, C` → note values (5 full bars: ces' 𝅝 | f' 𝅝 | g' 𝅗𝅥 es' 𝅗𝅥 | c' 𝅝 | C 𝅝).
+
+The converter always reports how it read the digits, the bars, and warnings (e.g. `C` = great octave, far below the
+treble staff). Unknown entries are listed; the converter then inserts nothing instead of a partial staff. Commas
+separate notes only in lists of lower-case names (`c, f, g`); after upper-case names they are Helmholtz octave marks
+(`G, A, H,` = Kontra-Oktave). Within a bar, naturals are added automatically (`bc c` → `_C =C`).
+
+## Development
+
+```bash
+npm install                 # root: playwright-core for the e2e test (no browser download)
+(cd proxy && npm install)
+npm test                    # unit tests (shared ABC helpers) + proxy tests (agent loop, providers, server)
+```
+
+### Local test harness (no Euro-Office needed)
+
+```bash
+bash scripts/build.sh
+node scripts/serve.mjs 8080          # http://localhost:8080/harness/
+cd proxy && cp .env.example .env     # set LLM_PROVIDER=mock, PROXY_TOKEN=dev-token-change-me-0123,
+docker compose up -d                 #     CORS_ORIGINS=http://localhost:8080
+```
+
+`harness/index.html` loads the built plugin in an iframe, answers the `plugin_init` handshake of `plugins.js` and
+installs mocked `callCommand`/`executeMethod` plus a fake builder API (`Api.GetDocument`, `CreateImage`, …) backed by
+an in-memory document shown on the left. Commands are re-created from their source and run with a JSON copy of
+`Asc.scope`, like in the real editor. Checkboxes simulate a failing `Api.CreateImage` and an older API without
+`SetDescription`/`GetCurrentParagraph` to exercise the fallbacks. With the mock provider the chat understands requests
+like the example above; with a real provider key the harness talks to the real model.
+
+Note: with `LLM_PROVIDER=mock` the chat is **not an AI** – the mock only recognises a note list (the longest run of
+note names in the message), a task heading ("Aufgabe 2") and "leere Zeile". Use a real provider to test free-form requests.
+
+`npm run e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
+`/usr/bin/chromium`).
+
+### Testing in a real Euro-Office editor (without Nextcloud)
+
+`dev/eurooffice/` starts a real Euro-Office Document Server (JWT off – development only) with the built plugin
+mounted, plus a tiny document storage (`server.mjs`) that serves a test worksheet (`files/arbeitsblatt.docx`,
+generated by `make-worksheet.py`), the editor page and the save callback (saved versions go to `dev/eurooffice/out/`).
+
+```bash
+bash scripts/build.sh
+(cd dev/eurooffice && docker compose up -d)   # first start takes ~40 s (font generation); image ~4 GB
+open http://localhost:8099/                   # Plugins → Noten-Assistent
+# for the chat: proxy with CORS_ORIGINS=http://localhost:8090 (origin of the plugin iframe)
+node dev/eurooffice/e2e-real-editor.mjs       # automated test incl. saving and inspecting the .docx
+```
+
+After a rebuild the mounted plugin is updated in place; just reload the editor page. `GET /reset` on the storage
+starts again from the original worksheet with a new document key.
+
+## Known limitations
+
+### Tested with Euro-Office 9.3.8
+
+The plugin was tested end-to-end in a real Euro-Office Document Server
+(`ghcr.io/euro-office/documentserver:latest`, version 9.3.8, see `dev/eurooffice/`). Results:
+
+| Feature | Result in 9.3.8 |
+|---------|-----------------|
+| Plugin discovery from `sdkjs-plugins/` | ✅ automatic (`/plugins.json` is generated per request – `docker cp` into a running container works without restart) |
+| Panel + `plugins.js` handshake | ✅ |
+| `Api.CreateImage(dataUrl, …)` | ✅ image is embedded as PNG in the saved `.docx` |
+| `after_paragraph_index` / `after_heading` / cursor | ✅ |
+| Alt text (ABC source) | ✅ via the internal `docPr.setDescr` fallback (`ApiDrawing.SetDescription` exists only from ONLYOFFICE 10.0); survives saving (`<wp:docPr descr="X:1…" title="ABC-Notation">`) |
+| `GetCurrentParagraph`, `GetSelectedDrawings`, `GetParentParagraph` | ✅ available |
+| Load + replace a selected staff | ✅ |
+| Fallbacks `PutImageDataToSelection`, `PasteHtml` | ✅ both work, incl. alt text |
+
+Other versions may differ. Every call that is not guaranteed has a **primary path plus fallbacks**:
+
+- **Images from data URLs.** Primary: `Api.CreateImage(dataUrl, w, h)` inside `callCommand`. Fallbacks, in order:
+  `executeMethod("PutImageDataToSelection")` and `executeMethod("PasteHtml", ['<img src="data:…">'])`. If
+  `CreateImage` *succeeds* in another build but the picture stays empty or is lost after saving, choose another
+  **Einfügemethode** in the settings – such failures cannot be detected by the plugin.
+- **Fallback positions.** The fallbacks can only insert at the cursor. The plugin therefore first inserts an empty
+  paragraph after the target (or after the current paragraph), clears any drawing selection (otherwise
+  `PutImageDataToSelection` would *replace* the selected image) and moves the cursor there using internal editor
+  functions; if that fails the image ends up at the cursor and the chat says so.
+- **Alt text.** Set via `ApiDrawing.SetDescription` (ONLYOFFICE ≥ 10.0) or the internal `docPr.setDescr`. Without alt
+  text, staves can't be loaded back for editing.
+- **"At the cursor"** means: as a new paragraph *after* the paragraph containing the cursor (or the selected image);
+  an empty paragraph at the cursor is used directly. The staff never splits a paragraph and never replaces selected
+  text (found in testing: inserting at the exact cursor position replaced a selected sentence).
+- **Cursor position.** `ApiDocument.GetCurrentParagraph` (≥ 9.0), otherwise the internal `CurPos.ContentPos`. The
+  position is reported as a top-level element index (a table counts as one element); inside headers/footers it is
+  unknown.
+- **Saving.** Co-editing changes reach the Document Server asynchronously; a save triggered within a second of the
+  last change may not contain it yet (normal editor behaviour, relevant for scripted tests).
+- **"Current page".** The builder API exposes no reliable page numbers. The AI gets the document outline (up to 300
+  top-level elements around the cursor, text truncated), not a page view.
+- **"unter Aufgabe 2".** `after_heading` inserts directly after the matching paragraph. Whether the staff should go
+  after the task's instruction text is decided by the model from the outline.
+- **Replace selected image** deletes the old drawing and appends the new one to the same paragraph; images that
+  share a paragraph with text may move to its end.
+- **Plugin discovery.** Plugins are picked up from `sdkjs-plugins` when the editor loads. If the plugin does not
+  show up, reload the editor with a cleared browser cache.
+- **Rendering.** abcjs fonts for titles/lyrics come from the browser; the PNG is a raster image (300 dpi by default,
+  adjustable up to 600 dpi). Staves always span the full chosen width (`%%stretchlast`). If a line is too dense for
+  the width (typically with lyrics), the image is rendered with lines broken evenly by whole measures (syllables move
+  along); the ABC stored in the alt text is not changed. The image is never wider than the chosen width.
+- **Lyrics.** German syllable breaks are not computed by the plugin: in the manual tab type them with `-`
+  (`Al-le mei-ne`); the AI hyphenates itself. Lyrics with `|` (bar advance) are not re-broken.
+- **AI quality.** Even with validation the model may choose unexpected rhythms or octaves; check the preview (or
+  disable *Automatisch einfügen*). Small local models often fail at tool calling. Melodies "from memory" (e.g.
+  „Alle meine Entchen“) are not reliable – in tests Mistral produced the right melody once and a variant once; give
+  the notes (or use the manual template) when exactness matters.
+- **Security.** The token is stored in the browser and therefore visible to the user of that browser – it protects
+  the proxy against strangers, not against your own users. Use the rate limit and provider-side spending limits.
+
+## Licenses
+
+- This project: **MIT** (`LICENSE`).
+- `vendor/onlyoffice/plugins.js`, `vendor/onlyoffice/plugins-ui.js`: © Ascensio System SIA, from
+  [ONLYOFFICE/onlyoffice.github.io](https://github.com/ONLYOFFICE/onlyoffice.github.io/tree/master/sdkjs-plugins/v1),
+  licensed under **AGPL-3.0** (`vendor/onlyoffice/LICENSE`). They are bundled unmodified as separate files and are
+  *not* covered by the MIT license. If you distribute the built plugin, you distribute these AGPL files too – keep the
+  license text (the build copies it to `dist/music-notation/licenses/`) and point to the source.
+- `vendor/abcjs/abcjs-basic-min.js`: [abcjs](https://github.com/paulrosen/abcjs) © Paul Rosen and Gregory Dyke,
+  **MIT** (`vendor/abcjs/LICENSE.md`).
+
+Exact versions and checksums: `vendor/SOURCES.md`.
