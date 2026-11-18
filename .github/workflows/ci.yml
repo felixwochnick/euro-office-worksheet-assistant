@@ -103,11 +103,13 @@ jobs:
             "$exe" --no-browser --port 8799 > companion.log 2>&1 &
           for i in $(seq 1 30); do curl -fs http://127.0.0.1:8799/v1/meta && break; sleep 1; done
           echo
-          curl -fs -X POST http://127.0.0.1:8799/mcp -H 'content-type: application/json' \
+          out="$(curl -fs -X POST http://127.0.0.1:8799/mcp -H 'content-type: application/json' \
             -H 'accept: application/json, text/event-stream' -H 'mcp-protocol-version: 2025-06-18' \
-            -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"convert_german_notes","arguments":{"notes":"c fis g"}}}' \
-            | grep -q '"tune"'
+            -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"convert_german_notes","arguments":{"notes":"c fis g"}}}')"
+          echo "${out:0:300}"
           cat companion.log
+          # the tool result contains the converted tune (^F = fis)
+          case "$out" in *'^F'*) echo "MCP ok" ;; *) echo "MCP call failed"; exit 1 ;; esac
 
       - uses: actions/upload-artifact@v4
         with:
