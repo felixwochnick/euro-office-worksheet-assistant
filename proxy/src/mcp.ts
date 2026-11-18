@@ -40,9 +40,11 @@ const TITLES: Record<string, string> = {
   replace_staff: 'Change music staff',
   convert_german_notes: 'Convert German note names to ABC',
   add_lyrics: 'Add lyrics to a tune',
+  setup_page: 'Page setup, header and footer',
+  check_worksheet: 'Check the worksheet',
 };
 
-const READ_ONLY = new Set(['list_open_documents', 'get_document_outline', 'get_elements', 'convert_german_notes', 'add_lyrics']);
+const READ_ONLY = new Set(['list_open_documents', 'get_document_outline', 'get_elements', 'convert_german_notes', 'add_lyrics', 'check_worksheet']);
 const DESTRUCTIVE = new Set(['replace_elements', 'delete_elements', 'replace_staff']);
 
 /**
