@@ -116,6 +116,54 @@ export class MockProvider implements LLMProvider {
     const digits = /notenwert|ganze|halbe|viertel/i.test(userText) ? 'duration' : /oktav|gestrichen/i.test(userText) ? 'octave' : 'auto';
     const list = extractNoteList(userText);
 
+    // W1) "Erstelle ein Arbeitsblatt zu <Thema>" -> one insert_blocks call at the end
+    const worksheet = /(erstell|mach|create)/i.test(userText) && /(arbeitsblatt|worksheet)/i.test(userText);
+    if (worksheet) {
+      if (done('insert_blocks').length === 0) {
+        const topic = (/(?:zum|zur|zu|über|about|on)\s+(?:dem\s+|der\s+|das\s+|the\s+)?([^.,!?]+?)(?:\s+für\s+|\s+for\s+|[.,!?]|$)/i.exec(userText)?.[1] ?? 'Thema').trim();
+        const blocks = [
+          { type: 'heading', level: 1, text: `Arbeitsblatt: ${topic}` },
+          { type: 'paragraph', text: 'Name: ____________  Klasse: ______  Datum: __________' },
+          { type: 'heading', level: 2, text: 'Aufgabe 1' },
+          { type: 'paragraph', text: `Lies den Text über **${topic}** und beantworte die Fragen.` },
+          { type: 'list', ordered: true, items: ['Was ist das Wichtigste?', 'Nenne ein Beispiel.'] },
+          { type: 'lines', count: 3 },
+          { type: 'heading', level: 2, text: 'Aufgabe 2' },
+          { type: 'paragraph', text: 'Ergänze die Tabelle.' },
+          { type: 'table', rows: [['Begriff', 'Erklärung'], ['', ''], ['', '']] },
+          { type: 'box', title: 'Merke', text: `${topic} ist wichtig.` },
+        ];
+        return { content: '', tool_calls: [{ id: nextId(), name: 'insert_blocks', arguments: { position: 'end', blocks } }] };
+      }
+      const res = parseResult(done('insert_blocks')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Einfügen fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      if (res.inserted === false) return { content: 'Mock-Modus: Arbeitsblatt verworfen.', tool_calls: [] };
+      return { content: `Fertig (Mock-Modus): Arbeitsblatt mit ${res.count} Elementen eingefügt.`, tool_calls: [] };
+    }
+
+    // W2) "Lösche Element 3" / "Lösche Element 3 bis 5" -> delete_elements
+    const del = /l[öo]sch\w*\s+(?:das\s+)?element\s+(\d+)(?:\s*(?:bis|-|–)\s*(\d+))?/i.exec(userText);
+    if (del) {
+      if (done('delete_elements').length === 0) {
+        return { content: '', tool_calls: [{ id: nextId(), name: 'delete_elements', arguments: { from: Number(del[1]), to: Number(del[2] ?? del[1]) } }] };
+      }
+      const res = parseResult(done('delete_elements')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Löschen fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      return { content: res.deleted === false ? 'Mock-Modus: Nichts gelöscht.' : `Fertig (Mock-Modus): ${res.removed_count} Element(e) gelöscht.`, tool_calls: [] };
+    }
+
+    // W3) "Ersetze Element 3 durch: neuer Text" -> replace_elements with one paragraph
+    const repl = /ersetz\w*\s+(?:das\s+)?element\s+(\d+)\s+durch:?\s*([\s\S]+)$/i.exec(userText);
+    if (repl) {
+      if (done('replace_elements').length === 0) {
+        const idx = Number(repl[1]);
+        return { content: '', tool_calls: [{ id: nextId(), name: 'replace_elements', arguments: { from: idx, to: idx, blocks: [{ type: 'paragraph', text: repl[2].trim() }] } }] };
+      }
+      const res = parseResult(done('replace_elements')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Ersetzen fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      return { content: `Fertig (Mock-Modus): Element ${res.first_index} ersetzt.`, tool_calls: [] };
+    }
+
     // 0a) "Füge zu Zeile N den Text hinzu: Al-le mei-ne …" -> outline, add_lyrics, replace_staff
     const lyricsReq = /text/i.test(userText) ? /(?:noten)?zeile\s*(\d+)[^:]*:\s*([\s\S]+)$/i.exec(userText) : null;
     if (lyricsReq) {

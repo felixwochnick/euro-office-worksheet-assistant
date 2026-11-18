@@ -1,21 +1,21 @@
 #!/usr/bin/env bash
 # Build the Euro-Office plugin.
 #
-#   scripts/build.sh                  build dist/music-notation/ and dist/music-notation.plugin
+#   scripts/build.sh                  build dist/worksheet-assistant/ and dist/worksheet-assistant.plugin
 #   scripts/build.sh --update-vendor  re-download abcjs and the ONLYOFFICE v1 SDK files into vendor/
 #                                     (versions below), then build
 #
 # Output:
-#   dist/music-notation/          plugin folder – copy into .../documentserver/sdkjs-plugins/
-#   dist/music-notation.plugin    ZIP with config.json at the root (for plugin managers)
-#   dist/music-notation.tar.gz    archive with the music-notation/ folder (scripts/install-aio.sh --archive)
-#   dist/music-notation.zip       the same as ZIP
+#   dist/worksheet-assistant/          plugin folder – copy into .../documentserver/sdkjs-plugins/
+#   dist/worksheet-assistant.plugin    ZIP with config.json at the root (for plugin managers)
+#   dist/worksheet-assistant.tar.gz    archive with the worksheet-assistant/ folder (scripts/install-aio.sh --archive)
+#   dist/worksheet-assistant.zip       the same as ZIP
 #
 # PLUGIN_VERSION=1.2.3 sets the version in config.json (used by the release workflow).
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
-NAME="music-notation"
+NAME="worksheet-assistant"
 OUT="$ROOT/dist/$NAME"
 VENDOR="$ROOT/vendor"
 
@@ -74,7 +74,7 @@ if [[ -n "${PLUGIN_VERSION:-}" ]]; then
 fi
 cp "$VENDOR/onlyoffice/plugins.js" "$VENDOR/onlyoffice/plugins-ui.js" "$OUT/vendor/"
 cp "$VENDOR/abcjs/abcjs-basic-min.js" "$OUT/vendor/"
-cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE-music-notation-plugin.txt"
+cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE-worksheet-assistant.txt"
 cp "$VENDOR/abcjs/LICENSE.md" "$OUT/licenses/LICENSE-abcjs.txt"
 cp "$VENDOR/onlyoffice/LICENSE" "$OUT/licenses/LICENSE-onlyoffice-plugin-sdk-AGPL-3.0.txt"
 cp "$VENDOR/SOURCES.md" "$OUT/licenses/THIRD-PARTY.md"

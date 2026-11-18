@@ -217,6 +217,12 @@
     }
 
     if (call.name === 'replace_staff') return this.replaceStaff(call, signal);
+    if (call.name === 'insert_blocks' || call.name === 'replace_elements') return this.editBlocks(call, signal);
+    if (call.name === 'delete_elements') return this.deleteElements(call, signal);
+    if (call.name === 'get_elements') {
+      return window.WorksheetDoc.getElements(Number(args.from), args.to == null ? Number(args.from) : Number(args.to))
+        .then(function (r) { return { ok: true, total_elements: r.total_elements, elements: r.elements }; });
+    }
 
     var abc;
     if (call.name === 'insert_staff') {
@@ -249,6 +255,61 @@
           if (r.warnings && r.warnings.indexOf('cursor') !== -1) out.note = 'Inserted at the cursor because the requested position could not be reached.';
           if (rendered.warnings && rendered.warnings.length) out.render_warnings = rendered.warnings.slice(0, 5);
           return out;
+        });
+      });
+    });
+  };
+
+  /** insert_blocks / replace_elements: worksheet content (headings, lists, tables, lines, staves …). */
+  ChatAgent.prototype.editBlocks = function (call, signal) {
+    var self = this;
+    var args = call.arguments || {};
+    var settings = this.hooks.getSettings();
+    var replacing = call.name === 'replace_elements';
+    return window.WorksheetDoc.prepareImages(args.blocks, settings).then(function (blocks) {
+      if (signal && signal.aborted) return { ok: false, error: 'aborted by user' };
+      var confirm = settings.autoInsert
+        ? Promise.resolve(true)
+        : self.hooks.confirmInsert(call, { element: window.WorksheetDoc.renderPreview(blocks) }, null, signal);
+      return confirm.then(function (accepted) {
+        if (signal && signal.aborted) return { ok: false, error: 'aborted by user' };
+        if (!accepted) return replacing ? { ok: true, replaced: false, reason: 'The user discarded the preview.' } : { ok: true, inserted: false, reason: 'The user discarded the preview.' };
+        var req = replacing
+          ? { op: 'replace', from: args.from, to: args.to, blocks: blocks }
+          : { op: 'insert', position: args.position, blocks: blocks };
+        return window.WorksheetDoc.editBlocks(req).then(function (r) {
+          if (!r.ok) return { ok: false, error: r.error };
+          var out = { ok: true, count: r.count, first_index: r.first_index, last_index: r.last_index };
+          if (replacing) { out.replaced = true; out.removed = r.removed; } else { out.inserted = true; }
+          out.note = 'Indices of later elements have shifted. Call get_document_outline before further edits further down.';
+          return out;
+        });
+      });
+    });
+  };
+
+  /** delete_elements: always asks for confirmation unless auto insert is on. */
+  ChatAgent.prototype.deleteElements = function (call, signal) {
+    var self = this;
+    var args = call.arguments || {};
+    var settings = this.hooks.getSettings();
+    var from = Number(args.from);
+    var to = args.to == null ? from : Number(args.to);
+    return window.WorksheetDoc.getElements(from, to).then(function (info) {
+      var list = document.createElement('ul');
+      list.className = 'delete-list';
+      (info.elements || []).forEach(function (e) {
+        var li = document.createElement('li');
+        li.textContent = '[' + e.index + '] ' + (e.text ? e.text.slice(0, 80) : e.abc ? '♪ ' + e.abc.split('\n').pop() : e.rows ? 'Tabelle ' + e.rows.length + '×' + ((e.rows[0] || []).length) : '(leer)');
+        list.appendChild(li);
+      });
+      var confirm = settings.autoInsert ? Promise.resolve(true) : self.hooks.confirmInsert(call, { element: list }, null, signal);
+      return confirm.then(function (accepted) {
+        if (signal && signal.aborted) return { ok: false, error: 'aborted by user' };
+        if (!accepted) return { ok: true, deleted: false, reason: 'The user did not confirm the deletion.' };
+        return window.WorksheetDoc.editBlocks({ op: 'delete', from: from, to: to }).then(function (r) {
+          if (!r.ok) return { ok: false, error: r.error };
+          return { ok: true, deleted: true, removed_count: r.removed.length, removed: r.removed, note: 'Indices of later elements have shifted.' };
         });
       });
     });

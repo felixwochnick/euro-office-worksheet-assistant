@@ -95,7 +95,29 @@
   ApiParagraph.prototype.GetText = function () { return this._el.text; };
   ApiParagraph.prototype.GetStyle = function () { var n = this._el.style; return { GetName: function () { return n; } }; };
   ApiParagraph.prototype.GetPosInParent = function () { return state.elements.indexOf(this._el); };
-  ApiParagraph.prototype.AddText = function (t) { this._el.text += t; };
+  ApiParagraph.prototype.AddText = function (t) {
+    var el = this._el;
+    el.text += t;
+    var run = { text: t, b: false, i: false, u: false };
+    // Like the real editor: a new run inherits the previous run's formatting.
+    var prevRun = el.runs && el.runs[el.runs.length - 1];
+    if (prevRun) { run.b = prevRun.b; run.i = prevRun.i; run.u = prevRun.u; }
+    (el.runs = el.runs || []).push(run);
+    return {
+      SetBold: function (v) { run.b = !!v; },
+      SetItalic: function (v) { run.i = !!v; },
+      SetUnderline: function (v) { run.u = !!v; },
+      SetFontSize: function () {}
+    };
+  };
+  ApiParagraph.prototype.AddLineBreak = function () { this._el.text += '\n'; (this._el.runs = this._el.runs || []).push({ text: '\n' }); };
+  ApiParagraph.prototype.SetStyle = function (st) { if (st) this._el.style = st.GetName(); };
+  ApiParagraph.prototype.SetNumbering = function (lvl) { this._el.list = lvl && lvl._type; };
+  ApiParagraph.prototype.GetNumbering = function () { return this._el.list ? { type: this._el.list } : null; };
+  ApiParagraph.prototype.SetBottomBorder = function () { this._el.line = true; };
+  ApiParagraph.prototype.SetSpacingBefore = function () {};
+  ApiParagraph.prototype.SetSpacingAfter = function () {};
+  ApiParagraph.prototype.AddPageBreak = function () { this._el.pageBreak = true; };
   ApiParagraph.prototype.AddDrawing = function (img) { this._el.drawings.push(img._d); return true; };
   ApiParagraph.prototype.SetJc = function () { return true; };
   ApiParagraph.prototype.GetAllDrawingObjects = function () { return this._el.drawings.map(function (d) { return new ApiDrawing(d); }); };
@@ -107,9 +129,44 @@
     };
   };
 
+  // Tables: element { type: 'table', rows: [[cell]] }, cell = { paras: [paragraph element], shd }
+  function ApiTable(el) { this._el = el; }
+  ApiTable.prototype.GetClassType = function () { return 'table'; };
+  ApiTable.prototype.GetRowsCount = function () { return this._el.rows.length; };
+  ApiTable.prototype.GetRow = function (r) {
+    var row = this._el.rows[r];
+    return {
+      GetCellsCount: function () { return row.length; },
+      GetCell: function (c) {
+        var cell = row[c];
+        return {
+          SetShd: function () { cell.shd = true; },
+          GetContent: function () {
+            return {
+              GetElementsCount: function () { return cell.paras.length; },
+              GetElement: function (i) { return new ApiParagraph(cell.paras[i]); },
+              Push: function (p) { cell.paras.push(p._el); }
+            };
+          }
+        };
+      }
+    };
+  };
+  ApiTable.prototype.GetText = function () {
+    return this._el.rows.map(function (r) { return r.map(function (c) { return c.paras.map(function (p) { return p.text; }).join(' '); }).join('\t'); }).join(' ');
+  };
+  ['SetWidth', 'SetStyle', 'SetTableBorderTop', 'SetTableBorderBottom', 'SetTableBorderLeft', 'SetTableBorderRight'].forEach(function (m) {
+    ApiTable.prototype[m] = function () { if (m === 'SetTableBorderTop') this._el.box = true; };
+  });
+
+  function wrap(el) { return el.type === 'table' ? new ApiTable(el) : new ApiParagraph(el); }
+
   function ApiDocument() { this.Document = LOGIC_DOC; }
   ApiDocument.prototype.GetElementsCount = function () { return state.elements.length; };
-  ApiDocument.prototype.GetElement = function (i) { var el = state.elements[i]; return el ? new ApiParagraph(el) : null; };
+  ApiDocument.prototype.GetElement = function (i) { var el = state.elements[i]; return el ? wrap(el) : null; };
+  ApiDocument.prototype.RemoveElement = function (i) { state.elements.splice(i, 1); return true; };
+  ApiDocument.prototype.GetStyle = function (name) { return { GetName: function () { return name; } }; };
+  ApiDocument.prototype.CreateNumbering = function (type) { return { GetLevel: function () { return { _type: type }; } }; };
   ApiDocument.prototype.AddElement = function (pos, p) {
     state.elements.splice(Math.max(0, Math.min(pos, state.elements.length)), 0, p._el);
     return true;
@@ -138,6 +195,11 @@
         return doc;
       },
       CreateParagraph: function () { return new ApiParagraph(para('', 'Normal')); },
+      CreateTable: function (cols, rows) {
+        var r = [];
+        for (var i = 0; i < rows; i++) { var row = []; for (var j = 0; j < cols; j++) row.push({ paras: [para('', 'Normal')] }); r.push(row); }
+        return new ApiTable({ type: 'table', rows: r, drawings: [], id: Math.random().toString(36).slice(2) });
+      },
       CreateImage: function (src, w, h) {
         if (state.options.failCreateImage) throw new Error('CreateImage: data URLs not supported (simulated)');
         var img = new ApiDrawing({ src: src, wMm: w / EMU_PER_MM, hMm: h / EMU_PER_MM, descr: null, title: null });
@@ -221,6 +283,15 @@
   // ---------------------------------------------------------------------------
   // Rendering of the mock document
   // ---------------------------------------------------------------------------
+  function renderRuns(target, p) {
+    (p.runs || [{ text: p.text }]).forEach(function (r) {
+      if (r.text === '\n') { target.appendChild(document.createElement('br')); return; }
+      var node = document.createElement(r.b ? 'strong' : r.i ? 'em' : r.u ? 'u' : 'span');
+      node.textContent = r.text;
+      target.appendChild(node);
+    });
+  }
+
   function render() {
     var root = document.getElementById('mock-doc');
     if (!root) return;
@@ -232,9 +303,29 @@
       idx.className = 'idx';
       idx.textContent = i;
       div.appendChild(idx);
-      var text = document.createElement('span');
-      text.textContent = el.text || (el.drawings.length ? '' : '¶');
-      div.appendChild(text);
+      if (el.type === 'table') {
+        var table = document.createElement('table');
+        table.className = el.box ? 'box' : '';
+        el.rows.forEach(function (row) {
+          var tr = document.createElement('tr');
+          row.forEach(function (cell) {
+            var td = document.createElement('td');
+            if (cell.shd) td.className = 'shd';
+            cell.paras.forEach(function (p, k) { if (k) td.appendChild(document.createElement('br')); renderRuns(td, p); });
+            tr.appendChild(td);
+          });
+          table.appendChild(tr);
+        });
+        div.appendChild(table);
+      } else {
+        var text = document.createElement('span');
+        if (el.list) text.className = 'list ' + el.list;
+        if (el.line) div.className += ' line';
+        if (el.pageBreak) div.className += ' page-break';
+        if (el.runs && el.runs.length) renderRuns(text, el);
+        else text.textContent = el.text || (el.drawings.length || el.line ? '' : '¶');
+        div.appendChild(text);
+      }
       el.drawings.forEach(function (d) {
         var img = document.createElement('img');
         img.src = d.src;

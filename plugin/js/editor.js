@@ -186,6 +186,9 @@
           item.abc = staffAbc.length > 2000 ? staffAbc.slice(0, 2000) + '…' : staffAbc;
         }
         if (i === selectedIndex) item.selected = true;
+        try { if (el.GetNumbering && el.GetNumbering()) item.list_item = true; } catch (e) {}
+      } else if (type === 'table') {
+        try { item.rows = el.GetRowsCount(); item.cols = el.GetRow(0).GetCellsCount(); } catch (e) {}
       }
       res.elements.push(item);
     }

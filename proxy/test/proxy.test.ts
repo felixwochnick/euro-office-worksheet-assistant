@@ -186,9 +186,68 @@ test('agent: mock adds lyrics to an existing staff', async () => {
   assert.equal(replace.arguments.abc, 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC D E F G2 G2 |]\nw: Al-le mei-ne Ent-chen');
 });
 
+test('tools: insert_blocks / replace / delete validation', () => {
+  const ok = checkClientToolCall({
+    id: 'b1',
+    name: 'insert_blocks',
+    arguments: {
+      position: 'end',
+      blocks: [
+        { type: 'heading', text: 'Arbeitsblatt', level: 7 },
+        { type: 'paragraph', text: 'Hallo **Welt**', align: 'center' },
+        { type: 'list', items: ['a', 'b'], ordered: true },
+        { type: 'table', rows: [['A', 'B'], ['1']] },
+        { type: 'lines', count: 3, label: 'Antwort:' },
+        { type: 'box', title: 'Merke', text: 'Wichtig' },
+        { type: 'staff', abc: VALID_ABC },
+        { type: 'empty_staves', clef: 'bass', count: 2 },
+        { type: 'page_break' },
+        { type: 'spacer' },
+      ],
+    },
+  });
+  assert.equal(ok.ok, true, ok.error);
+  const blocks = ok.args.blocks as any[];
+  assert.equal(blocks[0].level, 3); // clamped
+  assert.deepEqual(blocks[3].rows, [['A', 'B'], ['1']]);
+  assert.equal(blocks[6].abc, VALID_ABC);
+  assert.deepEqual(blocks[7], { type: 'empty_staves', clef: 'bass', count: 2, measures: 4 });
+  assert.equal(ok.args.position, 'end');
+
+  const badAbc = checkClientToolCall({ id: 'b2', name: 'insert_blocks', arguments: { position: 'cursor', blocks: [{ type: 'paragraph', text: 'x' }, { type: 'staff', abc: 'X:1\nK:C\nc fis' }] } });
+  assert.equal(badAbc.ok, false);
+  assert.match(badAbc.error!, /blocks\[1\]: invalid ABC/);
+  assert.match(checkClientToolCall({ id: 'b3', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'image' }] } }).error!, /unknown type/);
+  assert.match(checkClientToolCall({ id: 'b4', name: 'insert_blocks', arguments: { position: 'end', blocks: [] } }).error!, /non-empty/);
+  assert.equal(checkClientToolCall({ id: 'b5', name: 'insert_blocks', arguments: { position: 'somewhere', blocks: [{ type: 'spacer' }] } }).ok, false);
+
+  assert.deepEqual(checkClientToolCall({ id: 'r1', name: 'replace_elements', arguments: { from: 2, to: 3, blocks: [{ type: 'paragraph', text: 'neu' }] } }).args, { from: 2, to: 3, blocks: [{ type: 'paragraph', text: 'neu' }] });
+  assert.equal(checkClientToolCall({ id: 'r2', name: 'replace_elements', arguments: { from: 3, to: 2, blocks: [{ type: 'spacer' }] } }).ok, false);
+  assert.deepEqual(checkClientToolCall({ id: 'd1', name: 'delete_elements', arguments: { from: 4, to: 4 } }).args, { from: 4, to: 4 });
+  assert.deepEqual(checkClientToolCall({ id: 'g1', name: 'get_elements', arguments: { from: 1 } }).args, { from: 1, to: 1 });
+});
+
+test('agent: mock creates a worksheet with insert_blocks', async () => {
+  const provider = new MockProvider();
+  const messages: ChatMessage[] = [{ role: 'user', content: 'Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 5' }];
+  const r1 = await runTurn({ provider, messages, maxIterations: 6 });
+  const call = r1.pending_tool_calls[0];
+  assert.equal(call.name, 'insert_blocks');
+  const blocks = call.arguments.blocks as any[];
+  assert.equal(blocks[0].text, 'Arbeitsblatt: Wasserkreislauf');
+  assert.ok(blocks.some((b) => b.type === 'table') && blocks.some((b) => b.type === 'lines'));
+  messages.push(...r1.messages, { role: 'tool', tool_call_id: call.id, name: call.name, content: JSON.stringify({ ok: true, inserted: true, count: 12, first_index: 0, last_index: 11 }) });
+  const r2 = await runTurn({ provider, messages, maxIterations: 6 });
+  assert.match((r2.messages[0] as { content: string }).content, /12 Elementen/);
+});
+
 test('prompt: outline shows staff numbers and selection', () => {
   const p = buildSystemPrompt({ elements: [{ index: 4, has_image: true, staff_number: 2, selected: true, abc: 'X:1' }], cursor_index: 4 });
   assert.match(p, /\[4\] \(empty\) \[STAFF 2, SELECTED, abc: "X:1"\] <-- CURSOR/);
+  const t = buildSystemPrompt({ elements: [{ index: 2, type: 'table', rows: 3, cols: 2, text: 'A B' }, { index: 3, list_item: true, text: 'eins' }] });
+  assert.match(t, /\[2\] \(table 3×2\) "A B"/);
+  assert.match(t, /\[3\] LIST "eins"/);
+  assert.match(buildSystemPrompt({ elements: [{ index: 0, text: '' }], cursor_index: 0 }), /document is EMPTY/);
 });
 
 test('tools: convert_german_notes returns tune, meter and digits interpretation', () => {

@@ -75,6 +75,11 @@ export interface DocumentContext {
     staff_number?: number;
     /** The staff image in this element is currently selected. */
     selected?: boolean;
+    /** Paragraph is a list item (numbered or bullet). */
+    list_item?: boolean;
+    /** Table size. */
+    rows?: number;
+    cols?: number;
   }>;
   cursor_index?: number | null;
   total_elements?: number;

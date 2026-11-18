@@ -13,7 +13,7 @@ services:
       JWT_ENABLED: "false"
       ALLOW_PRIVATE_IP_ADDRESS: "true"
     volumes:
-      - ../../dist/music-notation:/var/www/euro-office/documentserver/sdkjs-plugins/music-notation:ro
+      - ../../dist/worksheet-assistant:/var/www/euro-office/documentserver/sdkjs-plugins/worksheet-assistant:ro
     ports:
       - "127.0.0.1:8090:80"
 
