@@ -52,7 +52,12 @@ node -e '
 ' "$ROOT/plugin/config.json"
 
 echo "==> Building $OUT"
-rm -rf "$OUT" "$ROOT/dist/$NAME.plugin"
+# Empty the folder instead of deleting it: it may be bind-mounted into a
+# Document Server container (deploy/, dev/eurooffice/), and a re-created
+# directory would not be visible there.
+mkdir -p "$OUT"
+find "$OUT" -mindepth 1 -delete
+rm -f "$ROOT/dist/$NAME.plugin"
 mkdir -p "$OUT/vendor" "$OUT/licenses"
 cp -R "$ROOT/plugin/." "$OUT/"
 cp "$ROOT/shared/abc-tools.js" "$OUT/js/abc-tools.js"

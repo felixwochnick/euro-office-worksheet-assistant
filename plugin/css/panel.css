@@ -54,7 +54,8 @@ textarea { resize: vertical; }
 .row { display: flex; gap: 6px; align-items: center; }
 .row.wrap { flex-wrap: wrap; }
 .row > input[type=text] { flex: 1; }
-.row > select { width: auto; }
+.row > select { width: auto; min-width: 0; }
+.row > select.grow { flex: 1; }
 .spacer { flex: 1; }
 .field { display: flex; flex-direction: column; gap: 3px; }
 .field > span { color: var(--text-muted); }

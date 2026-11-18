@@ -141,7 +141,8 @@
       if (!el) continue;
       var type = el.GetClassType ? el.GetClassType() : 'unknown';
       var item = { index: i, type: type };
-      var text = textOf(el).replace(/\r/g, ' ');
+      // GetText() of a real editor paragraph ends with the paragraph mark ("\r\n").
+      var text = textOf(el).replace(/[\r\n]+$/, '').replace(/[\r\n]+/g, ' ');
       item.text = text.length > maxText ? text.slice(0, maxText) + '…' : text;
       if (type === 'paragraph') {
         var styleName = '';
@@ -268,7 +269,12 @@
     return res;
   }
 
-  /** Place the cursor in a new empty paragraph after the target element (for cursor-only fallbacks). */
+  /**
+   * Place the cursor in a new empty paragraph after the target element (for
+   * the cursor-only fallbacks). pos "cursor" = after the paragraph containing
+   * the cursor or the selected drawing. This also clears a drawing selection,
+   * which PutImageDataToSelection would otherwise replace.
+   */
   function cmdPrepareCursor() {
     var pos = Asc.scope.pos;
     var res = { ok: false };
@@ -276,7 +282,22 @@
       var doc = Api.GetDocument();
       var count = doc.GetElementsCount();
       var target = null;
-      if (pos && pos.after_paragraph_index != null) target = Number(pos.after_paragraph_index);
+      if (pos === 'cursor') {
+        try {
+          var sel = doc.GetSelectedDrawings ? doc.GetSelectedDrawings() : [];
+          var pp = sel && sel.length && sel[0].GetParentParagraph ? sel[0].GetParentParagraph() : null;
+          if (pp && pp.GetPosInParent && pp.Paragraph && pp.Paragraph.GetParent && pp.Paragraph.GetParent() === doc.Document) target = pp.GetPosInParent();
+        } catch (e) {}
+        if (target === null || target < 0) {
+          try {
+            var cp = doc.GetCurrentParagraph ? doc.GetCurrentParagraph() : null;
+            if (cp && cp.GetPosInParent && cp.Paragraph && cp.Paragraph.GetParent && cp.Paragraph.GetParent() === doc.Document) target = cp.GetPosInParent();
+          } catch (e) {}
+        }
+        if (target === null || target < 0) {
+          try { var ld = doc.Document; if (ld && ld.CurPos) target = ld.CurPos.ContentPos; } catch (e) {}
+        }
+      } else if (pos && pos.after_paragraph_index != null) target = Number(pos.after_paragraph_index);
       else if (pos && pos.after_heading) {
         var needle = String(pos.after_heading).toLowerCase().trim();
         for (var i = 0; i < count; i++) {
@@ -285,6 +306,12 @@
         }
       }
       if (target === null || !(target >= 0 && target < count)) return { ok: false, error: 'target not found' };
+      // Clear a drawing selection first – PutImageDataToSelection would replace it.
+      try { if (doc.RemoveSelection) doc.RemoveSelection(); } catch (e) {}
+      try {
+        var dObj = doc.Document && doc.Document.DrawingObjects;
+        if (dObj && dObj.resetSelection) dObj.resetSelection();
+      } catch (e) {}
       var p = Api.CreateParagraph();
       doc.AddElement(target + 1, p);
       var moved = false;
@@ -424,9 +451,7 @@
       if (r) return r;
       // Cursor-only fallbacks: move the cursor to the requested place first.
       var warnings = [];
-      var prep = isCursor(req.position)
-        ? Promise.resolve({ ok: true, index: null })
-        : callCommand(cmdPrepareCursor, { pos: req.position }, true).catch(function () { return { ok: false }; });
+      var prep = callCommand(cmdPrepareCursor, { pos: req.position }, true).catch(function () { return { ok: false }; });
       return prep.then(function (p) {
         if (!isCursor(req.position) && !(p && p.ok)) warnings.push('cursor');
         var index = p && p.ok ? p.index : null;
