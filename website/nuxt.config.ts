@@ -1,19 +1,41 @@
-// Project website for GitHub Pages (static, prerendered).
+// Project website for GitHub Pages (static, prerendered) in 7 languages.
 // The base URL is set by the Pages workflow: NUXT_APP_BASE_URL=/<repository>/
+const SITE = 'https://felixwochnick.github.io/eurooffice-music-notation-plugin'
+
 export default defineNuxtConfig({
-  modules: ['@nuxt/ui'],
+  modules: ['@nuxt/ui', '@nuxtjs/i18n'],
   css: ['~/assets/css/main.css'],
   compatibilityDate: '2026-11-01',
   devtools: { enabled: false },
 
   app: {
     head: {
-      htmlAttrs: { lang: 'de' },
-      title: 'Noten-Assistent für Euro-Office',
-      meta: [
-        { name: 'description', content: 'Notenzeilen für Arbeitsblätter in Euro-Office – per KI-Chat oder von Hand. Open-Source-Plugin für Nextcloud.' },
-        { name: 'theme-color', content: '#4f46e5' }
-      ]
+      meta: [{ name: 'theme-color', content: '#4f46e5' }]
+    }
+  },
+
+  // German at /, the other languages under /en/, /fr/ … – all prerendered.
+  i18n: {
+    strategy: 'prefix_except_default',
+    defaultLocale: 'de',
+    baseUrl: SITE,
+    locales: [
+      { code: 'de', language: 'de-DE', name: 'Deutsch' },
+      { code: 'en', language: 'en-US', name: 'English' },
+      { code: 'fr', language: 'fr-FR', name: 'Français' },
+      { code: 'es', language: 'es-ES', name: 'Español' },
+      { code: 'it', language: 'it-IT', name: 'Italiano' },
+      { code: 'nl', language: 'nl-NL', name: 'Nederlands' },
+      { code: 'pl', language: 'pl-PL', name: 'Polski' }
+    ],
+    // Static hosting: suggest the browser language once (client side), never force it.
+    detectBrowserLanguage: { useCookie: true, cookieKey: 'i18n_lang', redirectOn: 'root', alwaysRedirect: false }
+  },
+
+  nitro: {
+    prerender: {
+      crawlLinks: true,
+      routes: ['/', '/en', '/fr', '/es', '/it', '/nl', '/pl']
     }
   },
 

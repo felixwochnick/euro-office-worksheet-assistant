@@ -72,7 +72,7 @@ service, the proxy.
   provider such as Mistral, or a local model via Ollama).
 
 **Website:** https://felixwochnick.github.io/eurooffice-music-notation-plugin/ – overview, live demo of the German
-note converter and installation guide (German).
+note converter and installation guide in German, English, French, Spanish, Italian, Dutch and Polish.
 
 ## Repository layout
 
@@ -519,7 +519,10 @@ NUXT_APP_BASE_URL=/eurooffice-music-notation-plugin/ npm run build   # static si
 
 The live demo imports `shared/abc-tools.js` directly, so it always uses the same converter as the plugin. The site is
 deployed by `.github/workflows/pages.yml` on pushes to `main` (one-time setup: *Settings → Pages → Source: GitHub
-Actions*). The screenshots in `website/public/img/` were taken in a real Euro-Office 9.3.8 with Mistral.
+Actions*). Texts live in `website/app/content/<language>.ts` (typed by `types.ts`, so a missing text fails the build);
+German is served at `/`, the other languages at `/en/`, `/fr/`, `/es/`, `/it/`, `/nl/`, `/pl/` (`@nuxtjs/i18n`, with
+hreflang links). The screenshots in `website/public/img/` were taken in a real Euro-Office 9.3.8 with Mistral by
+`dev/eurooffice/website-screenshots.mjs`.
 
 ### Local test harness (no Euro-Office needed)
 

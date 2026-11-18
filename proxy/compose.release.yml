@@ -1,4 +1,4 @@
-# Proxy from the released image (no build needed):
+# Server (AI chat + MCP) from the released image (no build needed):
 #   cp .env.example .env    # edit
 #   docker compose -f compose.release.yml up -d
 services:
@@ -12,6 +12,12 @@ services:
       PORT: "8787"
     ports:
       - "${PROXY_PUBLISH_PORT:-8787}:8787"
+    volumes:
+      # sign-ins, OAuth clients and grants (AUTH_MODE=nextcloud)
+      - proxy-data:/data
     read_only: true
     security_opt:
       - no-new-privileges:true
+
+volumes:
+  proxy-data:

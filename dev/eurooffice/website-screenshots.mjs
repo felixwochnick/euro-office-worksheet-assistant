@@ -9,6 +9,9 @@
  * 1. worksheet-chat.png – a complete worksheet created by the AI chat
  * 2. mcp.png            – an MCP client adds a task with a staff; the panel logs the calls
  * 3. companion.png      – settings page of the companion app (rendered with example data)
+ * 4. music.png          – the music tab with a template, on the test worksheet
+ *
+ * ONLY=music takes only the music tab screenshot (no model needed).
  */
 import { chromium } from 'playwright-core';
 import fs from 'node:fs';
@@ -44,6 +47,23 @@ try {
   await plugin.locator('#s-token').fill(PROXY_TOKEN);
   await plugin.locator('#s-save').click();
   await page.waitForTimeout(500);
+
+  if (process.env.ONLY === 'music') {
+    await plugin.locator('.tab[data-tab=manual]').click();
+    await plugin.locator('#m-template').selectOption('melody');
+    await plugin.locator('#m-outline').click();
+    await page.waitForTimeout(500);
+    await plugin.locator('#m-position').selectOption('after:3');
+    await plugin.locator('#m-insert').click();
+    await plugin.locator('#m-status.ok, #m-status.error').waitFor({ timeout: 20000 });
+    await plugin.evaluate(() => window.MusicEditor.callCommand(function () {
+      Api.GetDocument().GetElement(0).GetRange(0, 0).Select();
+    }, {}, false));
+    await page.waitForTimeout(1500);
+    await page.screenshot({ path: path.join(out, 'music.png') });
+    console.log('music.png');
+    process.exit(0);
+  }
 
   // empty document
   await plugin.evaluate(() => window.MusicEditor.callCommand(function () {
