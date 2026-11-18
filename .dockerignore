@@ -1,0 +1,11 @@
+**/node_modules
+**/build
+dist
+.git
+.claude
+proxy/.env
+vendor
+plugin
+harness
+deploy
+tests
