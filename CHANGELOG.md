@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.4.1 – companion app runs on more Linux systems
+
+- The Linux builds of the companion app (`worksheet-assistant-linux-*.zip`) of 0.4.0 needed the system library
+  `libatomic.so.1` (dependency of the Node.js 26 runtime) and did not start on systems without it ("error while
+  loading shared libraries: libatomic.so.1"). The companion app is now built with Node.js 24 LTS, which does not
+  need it; CI checks that the executable starts on a minimal Ubuntu.
+
+
 ## 0.4.0 – companion app for the desktop editors
 
 - **New names:** the repository is now `euro-office-worksheet-assistant` (old links redirect; the website moved to

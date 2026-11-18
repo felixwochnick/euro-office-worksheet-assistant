@@ -247,9 +247,10 @@ needed) does both on the user's computer:
 
 Commands: `worksheet-assistant [--background] [--port n]`, `install-plugin [--force]`, `uninstall`,
 `autostart on|off`, `mcp-stdio`, `status`, `help`. Build it yourself with `bash scripts/build.sh &&
-(cd proxy && npm ci) && npm ci && node scripts/build-companion.mjs` (an official Node.js ≥ 25.5 from nodejs.org,
-nvm or fnm – distribution packages link system libraries and the executable would only run on that system; CI
-builds Linux x64/arm64, Windows x64 and macOS arm64/x64).
+(cd proxy && npm ci) && npm ci && node scripts/build-companion.mjs` with the official **Node.js 24 LTS** from
+nodejs.org, nvm or fnm (newer official Linux builds need `libatomic.so.1`, distribution packages link system
+libraries – the executable would not run everywhere; CI builds Linux x64/arm64, Windows x64 and macOS arm64/x64 and
+checks that it starts on a minimal Ubuntu).
 
 ## Proxy configuration
 
