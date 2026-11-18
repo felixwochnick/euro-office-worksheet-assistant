@@ -1,6 +1,6 @@
 {
   "name": "worksheet-assistant-proxy",
-  "version": "0.4.1",
+  "version": "0.4.2",
   "private": true,
   "description": "Server for the Euro-Office worksheet assistant: AI chat proxy (keeps API keys server-side, runs the tool-calling agent loop) and MCP endpoint.",
   "license": "MIT",

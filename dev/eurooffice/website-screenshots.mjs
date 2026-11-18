@@ -134,9 +134,9 @@ try {
       return route.fulfill({
         contentType: 'application/json',
         body: JSON.stringify({
-          version: '0.4.1', url: 'http://127.0.0.1:8787', mcp_url: 'http://127.0.0.1:8787/mcp', config_dir: `${home}/.config/worksheet-assistant`,
-          plugin_version: '0.4.1',
-          apps: [{ id: 'desktop-editors', name: 'Euro-Office / Nextcloud Office', detected: true, installed: true, configured: true, version: '0.4.1', plugin_dir: `${home}/.local/share/euro-office/desktopeditors/sdkjs-plugins/{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}` }],
+          version: '0.4.2', url: 'http://127.0.0.1:8787', mcp_url: 'http://127.0.0.1:8787/mcp', config_dir: `${home}/.config/worksheet-assistant`,
+          plugin_version: '0.4.2',
+          apps: [{ id: 'desktop-editors', name: 'Euro-Office / Nextcloud Office', detected: true, installed: true, configured: true, version: '0.4.2', plugin_dir: `${home}/.local/share/euro-office/desktopeditors/sdkjs-plugins/{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}` }],
           settings: { provider: 'mistral', model: '', base_url: '', has_key: true, extra_origins: [] },
           providers: [
             { id: 'none', label: 'Kein KI-Chat (nur MCP)', model: '', needs_key: false, base_url: '' },

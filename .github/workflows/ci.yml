@@ -78,8 +78,8 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          # node --build-sea needs Node >= 25.5
-          node-version: 26
+          # Node 24 LTS: its Linux build does not need libatomic (Node >= 25 does)
+          node-version: 24
 
       - uses: actions/download-artifact@v4
         with:
@@ -110,6 +110,10 @@ jobs:
           cat companion.log
           # the tool result contains the converted tune (^F = fis)
           case "$out" in *'^F'*) echo "MCP ok" ;; *) echo "MCP call failed"; exit 1 ;; esac
+
+      - name: Runs on a minimal Linux (no extra libraries)
+        if: runner.os == 'Linux'
+        run: docker run --rm -v "$PWD/dist/companion:/wa:ro" ubuntu:24.04 /wa/worksheet-assistant version
 
       - uses: actions/upload-artifact@v4
         with:

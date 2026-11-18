@@ -1,12 +1,21 @@
 # Changelog
 
-## 0.4.1 – full-width tables in Google Docs and Pages
+## 0.4.2 – full-width tables in Google Docs and Pages
 
 - **Fix:** tables and info boxes ("Merke") from the assistant were shown extremely narrow in Google Docs and Apple
   Pages (only as wide as their content, text wrapping after almost every word); Word was fine. They only had a
   percentage width, while the column grid and the cell widths stayed at defaults. Now every table and box gets the
   text width of the page (page width minus margins, fallback 16 cm) in twips, a fixed layout, equal column widths
   in the grid (`w:gridCol`) and in every cell (`w:tcW`). Checked in the exported `.docx` of the real editor.
+
+
+## 0.4.1 – companion app runs on more Linux systems
+
+- The Linux builds of the companion app (`worksheet-assistant-linux-*.zip`) of 0.4.0 needed the system library
+  `libatomic.so.1` (dependency of the Node.js 26 runtime) and did not start on systems without it ("error while
+  loading shared libraries: libatomic.so.1"). The companion app is now built with Node.js 24 LTS, which does not
+  need it; CI checks that the executable starts on a minimal Ubuntu.
+
 
 ## 0.4.0 – companion app for the desktop editors
 
