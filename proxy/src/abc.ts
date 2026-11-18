@@ -23,11 +23,24 @@ export interface AbcValidation {
   normalized: string;
 }
 
+export interface ConversionIssue {
+  code: string;
+  error: string;
+  token?: string;
+  [key: string]: unknown;
+}
+
 export interface GermanConversion {
   ok: boolean;
   abc: string;
-  notes: Array<{ input: string; abc: string; letter: string; accidental: number; octave: number | null }>;
-  errors: Array<{ token: string; error: string }>;
+  /** Complete tune (X:, M:, L:, K: with clef) or '' if no notes. */
+  tune: string;
+  notes: Array<{ input: string; abc: string; letter: string; accidental: number; octave: number | null; duration: number | null }>;
+  errors: ConversionIssue[];
+  warnings: ConversionIssue[];
+  meter: string | null;
+  digits: 'octave' | 'duration';
+  bars: number | null;
 }
 
 export interface AbcTools {
@@ -35,7 +48,10 @@ export interface AbcTools {
   validateAbc(abc: unknown, opts?: { requireClef?: boolean }): AbcValidation;
   normalizeAbc(abc: string): string;
   formatValidationErrors(result: AbcValidation): string;
-  germanToAbc(text: string, opts?: { clef?: string; bareOctave?: number; explicitNatural?: boolean }): GermanConversion;
+  germanToAbc(
+    text: string,
+    opts?: { clef?: string; bareOctave?: number; explicitNatural?: boolean; digits?: 'auto' | 'octave' | 'duration' },
+  ): GermanConversion;
   buildAbc(o: { notes: string; clef?: string; meter?: string; length?: string; key?: string; title?: string }): string;
   emptyStavesAbc(o: { clef?: string; count?: number; measures?: number }): string;
 }

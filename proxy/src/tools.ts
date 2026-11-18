@@ -90,15 +90,29 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   {
     name: 'convert_german_notes',
     description:
-      'Convert German note names (c d e f g a h, b = B flat, fis/cis = sharp, es/as/des = flat, octave marks c\' c\'\' or C, ; bar lines |) into ABC note tokens. Use this whenever the user gives note names, then build the ABC tune from the result.',
+      'Convert German note names into ABC. Understands c d e f g a h, b = B flat, -is/-es suffixes (fis, es, as), ' +
+      'accidentals written in front ("bc"/"♭c" = ces, "#f" = fis), octave marks (c\' c\'\' C C,), bar lines | and a time ' +
+      'signature token such as "4/4" (bar lines are then added automatically). Digits after a note are ambiguous: ' +
+      'octave marks in German school notation (c1 = c\') or note values (c1 = whole, g2 = half, c4 = quarter). ' +
+      'Use this whenever the user gives note names. Insert the returned "tune" (or build your own from "abc_notes"), ' +
+      'and tell the user how digits were read ("digits") and about any "warnings" or "errors" – never drop notes silently.',
     parameters: {
       type: 'object',
       properties: {
-        notes: { type: 'string', description: 'German note names, e.g. "c – f – g" or "fis\' g\' a\' h\'".' },
+        notes: { type: 'string', description: 'The user\'s note list verbatim, incl. a time signature, e.g. "4/4 bc1, f1, g2, be2, c1, C" or "c – f – g".' },
         clef: {
           type: 'string',
           enum: ['treble', 'bass'],
           description: 'Clef; decides the octave of note names without octave marks (treble: c = c\', bass: c = small c).',
+        },
+        digits: {
+          type: 'string',
+          enum: ['auto', 'octave', 'duration'],
+          description:
+            'Meaning of digits after note names: "octave" (c1 = c\', c2 = c\'\'), "duration" (1 = whole, 2 = half, 4 = quarter, 8 = eighth, "." = dotted; ' +
+            'a note without value repeats the previous value) or "auto" (default: note values if the digits include 4/8/16, or a ' +
+            'time signature is given and two or more different values fill whole bars; otherwise octave marks). If the user ' +
+            'says what the digits mean, pass it explicitly.',
         },
       },
       required: ['notes'],
@@ -206,14 +220,26 @@ export function executeServerTool(call: ToolCall): unknown {
       return { ok: false, error: '"notes" must be a non-empty string.' };
     }
     const clef = a.clef === 'bass' ? 'bass' : 'treble';
-    const r = abcTools.germanToAbc(a.notes.slice(0, 2000), { clef });
+    const digits = a.digits === 'octave' || a.digits === 'duration' ? a.digits : 'auto';
+    const r = abcTools.germanToAbc(a.notes.slice(0, 2000), { clef, digits });
     return {
       ok: r.ok,
       clef,
+      meter: r.meter,
+      digits: r.digits,
+      digits_explanation:
+        r.digits === 'duration'
+          ? 'Digits were read as note values (1 = whole, 2 = half, 4 = quarter, 8 = eighth).'
+          : 'Digits (if any) were read as Helmholtz octave marks (c1 = c\', c2 = c\'\').',
+      bars: r.bars,
       abc_notes: r.abc,
+      tune: r.tune,
       notes: r.notes.map((n) => ({ german: n.input, abc: n.abc })),
       errors: r.errors,
-      hint: 'Wrap abc_notes into a full tune, e.g. X:1 / M:... / L:1/4 / K:C clef=' + clef + ' / <abc_notes> |]',
+      warnings: r.warnings,
+      hint: r.errors.length
+        ? 'Some tokens could not be converted. Do not insert a staff without them – ask the user or correct them.'
+        : 'Insert "tune" with insert_staff (adjust title/meter if needed).',
     };
   }
   return { ok: false, error: `Unknown server tool "${call.name}".` };

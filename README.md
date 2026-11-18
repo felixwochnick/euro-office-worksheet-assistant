@@ -207,11 +207,31 @@ Durations relative to `L:1/4`: `C` quarter, `C2` half, `C4` whole, `C/2` or `C/`
 `C>D` dotted rhythm. Rests: `z` (visible), `x` (invisible). Bar lines: `|`, double `||`, final `|]`, repeat `:|`.
 Chords: `[CEG]`. Ties: `C2-C`. Lyrics line below the notes: `w: Al-le mei-ne Ent-chen`.
 
-The German converter in the manual tab (and the AI tool) understands `c d e f g a h`, `b` = B flat,
-`-is`/`-es` (incl. `es`, `as`, `heses`), octave marks `c'`, `c''`, `c1`, `c²`, `C`, `C,`, and `|` bar lines. Note names
-without octave marks are placed in the one-line octave for treble clef (`c` → c') and in the small octave for bass clef.
-Commas separate notes only in lists of lower-case names (`c, f, g`); after upper-case names they are Helmholtz octave
-marks (`G, A, H,` = Kontra-Oktave).
+### German note names (converter in the manual tab and AI tool `convert_german_notes`)
+
+| Input | Meaning |
+|-------|---------|
+| `c d e f g a h`, `b` | note names (`h` = B, `b` = B flat) |
+| `fis`, `cis`, `es`, `as`, `des`, `heses` | German accidental suffixes |
+| `bc`, `♭e`, `#f`, `♯g` | accidental written **in front** of the note (`bc` = ces, `be` = es) |
+| `c'`, `c''`, `c¹`, `C`, `C,` | Helmholtz octaves; bare lower-case names: treble → one-line (`c` = c'), bass → small octave |
+| `4/4`, `3/4-Takt` | time signature; bar lines are added automatically (unless the input contains `\|`) |
+| `\|` | bar line |
+| `p`, `pause` | rest |
+
+**Digits are ambiguous** – German school notation uses them as octave marks (`c1` = c'), others write note values
+(`c1` = whole note, `g2` = half, `c4` = quarter, `c8` = eighth, `.` = dotted). The setting *Ziffern* chooses:
+
+- **Oktave** – `c1` = c', `c2` = c''
+- **Notenwert** – `c1` = whole note …; a note without value repeats the previous value; octaves with `'`/`,`
+- **automatisch** (default) – note values if the digits include 4/8/16, if apostrophes and digits are combined
+  (`c'4`), or if a time signature is given and two or more different values fill whole bars. Otherwise octave marks.
+  Example: `4/4 bc1, f1, g2, be2, c1, C` → note values (5 full bars: ces' 𝅝 | f' 𝅝 | g' 𝅗𝅥 es' 𝅗𝅥 | c' 𝅝 | C 𝅝).
+
+The converter always reports how it read the digits, the bars, and warnings (e.g. `C` = great octave, far below the
+treble staff). Unknown entries are listed; the converter then inserts nothing instead of a partial staff. Commas
+separate notes only in lists of lower-case names (`c, f, g`); after upper-case names they are Helmholtz octave marks
+(`G, A, H,` = Kontra-Oktave). Within a bar, naturals are added automatically (`bc c` → `_C =C`).
 
 ## Development
 
@@ -236,6 +256,9 @@ an in-memory document shown on the left. Commands are re-created from their sour
 `Asc.scope`, like in the real editor. Checkboxes simulate a failing `Api.CreateImage` and an older API without
 `SetDescription`/`GetCurrentParagraph` to exercise the fallbacks. With the mock provider the chat understands requests
 like the example above; with a real provider key the harness talks to the real model.
+
+Note: with `LLM_PROVIDER=mock` the chat is **not an AI** – the mock only recognises a note list (the longest run of
+note names in the message), a task heading ("Aufgabe 2") and "leere Zeile". Use a real provider to test free-form requests.
 
 `npm run e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
 `/usr/bin/chromium`).

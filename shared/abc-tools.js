@@ -84,6 +84,35 @@
     return acc + note;
   }
 
+  var LETTERS = 'CDEFGAB';
+  var DURATION_RE = /^(1|2|4|8|16|32)(\.{0,2})$/;
+
+  /** ABC length string for a duration in quarter notes (L:1/4), e.g. 4 -> "4", 0.5 -> "/2", 1.5 -> "3/2". */
+  function unitsToLength(units) {
+    if (Math.abs(units - 1) < 1e-9) return '';
+    var den = 1;
+    while (Math.abs(units * den - Math.round(units * den)) > 1e-9 && den < 64) den *= 2;
+    var num = Math.round(units * den);
+    if (den === 1) return String(num);
+    return (num === 1 ? '' : String(num)) + '/' + den;
+  }
+
+  /** Duration of an ABC length string in quarter notes (L:1/4): "" -> 1, "2" -> 2, "/2" -> 0.5, "3/2" -> 1.5. */
+  function lengthToUnits(length) {
+    if (!length) return 1;
+    var m = /^(\d*)(\/+)?(\d*)$/.exec(length);
+    if (!m) return 1;
+    var num = m[1] ? parseInt(m[1], 10) : 1;
+    var den = m[2] ? (m[3] ? parseInt(m[3], 10) : Math.pow(2, m[2].length)) : 1;
+    return num / den;
+  }
+
+  function durationOf(text) {
+    var dm = DURATION_RE.exec(text);
+    if (!dm) return null;
+    return (1 / parseInt(dm[1], 10)) * (dm[2] === '..' ? 1.75 : dm[2] === '.' ? 1.5 : 1);
+  }
+
   /**
    * Parse a single German note name (Helmholtz octave notation).
    *
@@ -94,21 +123,28 @@
    *   c' / c1 / c¹   = eingestrichenes c (C4, middle C)
    *   c'' / c2 / c²  = zweigestrichenes c (C5)
    *
-   * A bare lower-case name without octave marks is ambiguous in everyday school
-   * language ("c – f – g im Violinschlüssel" usually means c' f' g'). It is
-   * therefore placed in `opts.bareOctave` (default 3 = strict Helmholtz).
-   * `germanToAbc` sets a clef-dependent default (treble 4, bass 3).
+   * Accidentals: German suffixes (cis, es, as, b = B flat, h = B), symbol
+   * suffixes (c#, eb) or a prefix as written in front of the note
+   * ("bc" / "♭c" = ces, "#f" / "♯f" = fis).
    *
-   * An optional ABC length can be appended after a colon: "c':2", "g:/2".
+   * Digits after the name are ambiguous: German school notation uses them as
+   * octave marks (c1 = c'), LilyPond-like shorthand as note values (c1 = whole
+   * note, g2 = half note, c4 = quarter). `opts.digits` selects the meaning:
+   *   'octave' (default): c1 = c', durations only via ":<ABC length>" ("c':2")
+   *   'duration': c1 / c2 / c4 / c8 / c16 (+ "." for dotted) = note value,
+   *               octaves only via apostrophes and commas (c'4 = c' quarter)
+   *
+   * A bare lower-case name without octave marks is placed in `opts.bareOctave`
+   * (default 3 = strict Helmholtz); germanToAbc() uses the clef's octave.
    *
    * @param {string} token
-   * @param {object} [opts] { bareOctave: number, explicitNatural: boolean }
-   * @returns {{ok:true, input:string, letter:string, accidental:number, octave:number|null, rest:boolean, length:string, abc:string} | {ok:false, input:string, error:string}}
+   * @param {object} [opts] { bareOctave: number, explicitNatural: boolean, digits: 'octave'|'duration' }
    */
   function parseGermanNote(token, opts) {
     opts = opts || {};
+    var durationMode = opts.digits === 'duration';
     var input = String(token == null ? '' : token).trim();
-    if (!input) return { ok: false, input: input, error: 'empty note name' };
+    if (!input) return { ok: false, input: input, code: 'empty', error: 'empty note name' };
 
     var length = '';
     var colon = input.indexOf(':');
@@ -117,42 +153,64 @@
       length = input.slice(colon + 1);
       core = input.slice(0, colon);
       if (!/^(\d+)?(\/\d*)*$/.test(length) || length === '') {
-        return { ok: false, input: input, error: 'invalid length "' + length + '"' };
+        return { ok: false, input: input, code: 'bad_length', error: 'invalid length "' + length + '"' };
       }
     }
 
-    if (REST_WORDS[core.toLowerCase()]) {
-      return { ok: true, input: input, letter: 'z', accidental: 0, octave: null, rest: true, length: length, abc: 'z' + length };
+    // Rests: p, pause, r, z (in duration mode with a value: p2, pause4)
+    var rest = /^(p|pause|r|rest|z)(\d+\.{0,2})?$/i.exec(core);
+    if (rest && (!rest[2] || durationMode)) {
+      var restDur = null;
+      if (rest[2]) {
+        restDur = durationOf(rest[2]);
+        if (restDur === null) return { ok: false, input: input, code: 'bad_duration', error: 'invalid note value in "' + input + '"' };
+      }
+      return { ok: true, input: input, letter: 'z', accidental: 0, octave: null, rest: true, duration: restDur, length: length, abc: 'z' + length };
     }
 
     // Accept typographic apostrophes and unicode accidentals.
     core = core.replace(/[’‘´`′]/g, "'").replace(/♯/g, '#').replace(/♭/g, 'b');
 
-    var m = /^([A-Ha-h][a-zA-Z]*?)(#{1,2}|b{1,2}(?=$|[',0-9¹²³⁴₀₁₂₃]))?('+|,+|[0-9]|[¹²³⁴]|[₁₂₃])?$/.exec(core);
-    if (!m) return { ok: false, input: input, error: 'unknown note name "' + input + '"' };
+    // Accidental written in front of the note: "bc", "#f", "##g", "bbe".
+    var prefixAcc = 0;
+    var pm = /^(##|#|bb|b)(?=[a-hA-H])/.exec(core);
+    if (pm) {
+      prefixAcc = pm[1].charAt(0) === '#' ? pm[1].length : -pm[1].length;
+      core = core.slice(pm[1].length);
+    }
+
+    var marksRe = durationMode ? "('+|,+|[¹²³⁴]|[₁₂₃])?" : "('+|,+|[0-9]|[¹²³⁴]|[₁₂₃])?";
+    var durRe = durationMode ? '(\\d+\\.{0,2})?' : '()';
+    var re = new RegExp("^([A-Ha-h][a-zA-Z]*?)(#{1,2}|b{1,2}(?=$|[',0-9¹²³⁴₀₁₂₃.]))?" + marksRe + durRe + '$');
+    var m = re.exec(core);
+    if (!m) return { ok: false, input: input, code: 'unknown_name', error: 'unknown note name "' + input + '"' };
 
     var name = m[1];
     var symbolAcc = m[2] || '';
     var marks = m[3] || '';
+    var durText = m[4] || '';
     var isUpper = name.charAt(0) === name.charAt(0).toUpperCase();
     var lower = name.toLowerCase();
 
-    // "b" alone is B flat; "bb" as symbol accidental is only allowed after a letter.
     var entry = GERMAN_NAMES[lower];
     if (!entry && symbolAcc === '' && /^[a-h]b{1,2}$/.test(lower) && lower !== 'b') {
       // e.g. "eb" (English-ish) -> treat "b" suffix as flat symbol
       entry = GERMAN_NAMES[lower.charAt(0)];
       symbolAcc = lower.slice(1);
     }
-    if (!entry) return { ok: false, input: input, error: 'unknown note name "' + input + '"' };
+    if (!entry) return { ok: false, input: input, code: 'unknown_name', error: 'unknown note name "' + input + '"' };
 
     var accidental = entry[1];
     if (symbolAcc) {
-      if (accidental !== 0 && !(lower === 'b')) {
-        return { ok: false, input: input, error: 'double accidental notation in "' + input + '"' };
-      }
-      if (lower === 'b') return { ok: false, input: input, error: 'ambiguous note name "' + input + '"' };
+      if (lower === 'b') return { ok: false, input: input, code: 'ambiguous', error: 'ambiguous note name "' + input + '"' };
+      if (accidental !== 0) return { ok: false, input: input, code: 'double_accidental', error: 'double accidental notation in "' + input + '"' };
       accidental = symbolAcc.charAt(0) === '#' ? symbolAcc.length : -symbolAcc.length;
+    }
+    if (prefixAcc) {
+      if (accidental !== 0) {
+        return { ok: false, input: input, code: 'double_accidental', error: 'double accidental notation in "' + input + '" (write e.g. "heses" or "b")' };
+      }
+      accidental = prefixAcc;
     }
 
     var octave;
@@ -162,7 +220,7 @@
         if (marks.charAt(0) === ',') octave -= marks.length;
         else if (/^[0-9]$/.test(marks)) octave -= parseInt(marks, 10);
         else if (SUBSCRIPTS[marks]) octave -= SUBSCRIPTS[marks];
-        else return { ok: false, input: input, error: 'upper-case note names take "," or subscripts, not "' + marks + '"' };
+        else return { ok: false, input: input, code: 'bad_marks', error: 'upper-case note names take "," or subscripts, not "' + marks + '"' };
       }
     } else {
       if (!marks) {
@@ -174,10 +232,19 @@
       } else if (SUPERSCRIPTS[marks]) {
         octave = 3 + SUPERSCRIPTS[marks];
       } else {
-        return { ok: false, input: input, error: 'lower-case note names take "\'" or superscripts, not "' + marks + '"' };
+        return { ok: false, input: input, code: 'bad_marks', error: 'lower-case note names take "\'" or superscripts, not "' + marks + '"' };
       }
     }
-    if (octave < 0 || octave > 8) return { ok: false, input: input, error: 'octave out of range in "' + input + '"' };
+    if (octave < 0 || octave > 8) return { ok: false, input: input, code: 'octave_range', error: 'octave out of range in "' + input + '"' };
+
+    var duration = null;
+    if (durText) {
+      duration = durationOf(durText);
+      if (duration === null) {
+        return { ok: false, input: input, code: 'bad_duration', error: 'invalid note value "' + durText + '" in "' + input + '" (use 1, 2, 4, 8, 16, optionally with ".")' };
+      }
+      if (length) return { ok: false, input: input, code: 'bad_length', error: 'note value given twice in "' + input + '"' };
+    }
 
     return {
       ok: true,
@@ -186,6 +253,7 @@
       accidental: accidental,
       octave: octave,
       rest: false,
+      duration: duration,
       length: length,
       abc: pitchToAbc(entry[0], accidental, octave, opts) + length
     };
@@ -194,55 +262,197 @@
   /**
    * Split free text like "c – f – g", "c, f, g", "c' d' e' | f'" into tokens.
    * Bar lines ("|", "||", "|]") are kept as separate tokens.
-   * A comma followed by whitespace or the end of input is treated as a list
-   * separator; commas glued to an upper-case note ("C,,") are octave marks.
    */
   function tokenizeGermanNotes(text) {
     var s = String(text == null ? '' : text)
-      .replace(/[–—−-]/g, ' ')
+      .replace(/[–—−]/g, ' ')
+      .replace(/-/g, ' ')
       .replace(/\s+(und|and|dann|then)\s+/gi, ' ')
       .replace(/;/g, ' ')
       .replace(/(\|\]|\|\||\|)/g, ' $1 ');
     return s.split(/\s+/).filter(Boolean);
   }
 
+  var STAFF_RANGE = {
+    // diatonic index = octave * 7 + letter index (C = 0 … B = 6)
+    treble: { low: 4 * 7 + 2, high: 5 * 7 + 3 }, // E4 … F5
+    bass: { low: 2 * 7 + 4, high: 3 * 7 + 5 }    // G2 … A3
+  };
+
+  // German octave names in the form used after "in der …" (dative).
+  var HELMHOLTZ_OCTAVES = ['Subkontraoktave', 'Kontraoktave', 'großen Oktave', 'kleinen Oktave', 'eingestrichenen Oktave',
+    'zweigestrichenen Oktave', 'dreigestrichenen Oktave', 'viergestrichenen Oktave', 'fünfgestrichenen Oktave'];
+
   /**
    * Convert a sequence of German note names to ABC note tokens.
-   * @param {string} text e.g. "c – f – g", "fis' g' a'", "C, F, G"
-   * @param {object} [opts] { clef: 'treble'|'bass', bareOctave: number, explicitNatural: boolean }
-   * @returns {{abc:string, notes:Array, errors:Array<{token:string,error:string}>, ok:boolean}}
+   *
+   * - A time signature token ("4/4", "3/4", "6/8", also "4/4-Takt") sets `meter`;
+   *   bar lines are then added automatically unless the input contains "|".
+   * - `opts.digits`: 'octave' | 'duration' | 'auto' (default). 'auto' reads
+   *   digits as note values if only that reading parses, if a value 4, 8 or 16
+   *   occurs (as an octave mark, 4 would be the four-line octave), or if a time
+   *   signature is given, at least two different values occur and the notes
+   *   fill whole bars ("4/4 bc1, f1, g2, be2, c1, C" = 5 bars). Otherwise
+   *   digits are octave marks. The chosen reading is returned as `digits`.
+   * - In duration mode a note without value takes the previous one (first: quarter).
+   *
+   * @param {string} text e.g. "c – f – g", "fis' g' a'", "4/4 c'4 d'4 e'2"
+   * @param {object} [opts] { clef: 'treble'|'bass', bareOctave, explicitNatural, digits }
+   * @returns {{ok:boolean, abc:string, tune:string, notes:Array, errors:Array, warnings:Array,
+   *            meter:?string, digits:string, bars:?number}}
    */
   function germanToAbc(text, opts) {
     opts = opts || {};
     var clef = opts.clef === 'bass' ? 'bass' : 'treble';
     var bareOctave = typeof opts.bareOctave === 'number' ? opts.bareOctave : (clef === 'bass' ? 3 : 4);
-    var tokens = tokenizeGermanNotes(text);
+    var rawTokens = tokenizeGermanNotes(text);
+
+    // Time signature tokens ("4/4", "4/4:", "Takt")
+    var meter = null;
+    var tokens = [];
+    rawTokens.forEach(function (tok) {
+      var mt = /^(\d{1,2}\/\d{1,2})[,:.]?$/.exec(tok);
+      if (mt) { if (!meter) meter = mt[1]; return; }
+      if (/^takt[,:.]?$/i.test(tok)) return;
+      tokens.push(tok);
+    });
+
     // Commas are list separators only if a lower-case note (which never takes
     // octave commas) ends with one ("c, f, g"). Otherwise commas after upper-case
     // notes are Helmholtz octave marks ("G, A, H," = Kontra-Oktave).
-    var isList = tokens.length > 1 && tokens.some(function (t) { return /^[a-h][^,]*,$/.test(t); });
+    var LOWER_WITH_COMMA = /^([#♯♭]{1,2}|b{1,2}(?=[a-h]))?[a-h][^,]*,+$/;
+    var isList = tokens.length > 1 && tokens.some(function (t) { return LOWER_WITH_COMMA.test(t) && !/,,$/.test(t); });
+    var cleaned = tokens.map(function (tok) {
+      if (tok === '|' || tok === '||' || tok === '|]') return { bar: tok };
+      var t = tok;
+      if (isList && /,$/.test(t)) t = t.slice(0, -1);
+      if (LOWER_WITH_COMMA.test(t)) t = t.replace(/,+$/, ''); // lower-case never takes commas
+      return { tok: tok, t: t };
+    }).filter(function (x) { return x.bar || x.t; });
+
+    function parseAll(mode) {
+      return cleaned.map(function (x) {
+        if (x.bar) return x;
+        return { tok: x.tok, t: x.t, res: parseGermanNote(x.t, { bareOctave: bareOctave, explicitNatural: opts.explicitNatural, digits: mode }) };
+      });
+    }
+    function okAll(list) { return list.every(function (x) { return x.bar || x.res.ok; }); }
+
+    var measure = null; // bar length in quarter notes
+    if (meter) {
+      var mp = meter.split('/');
+      measure = parseInt(mp[0], 10) * 4 / parseInt(mp[1], 10);
+      if (!(measure > 0)) measure = null;
+    }
+
+    var mode = opts.digits === 'duration' || opts.digits === 'octave' ? opts.digits : null;
+    var octaveParsed = parseAll('octave');
+    var durationParsed = parseAll('duration');
+    if (!mode) {
+      var values = [];
+      var withValue = 0;
+      durationParsed.forEach(function (x) {
+        if (!x.bar && x.res.ok && x.res.duration) {
+          withValue++;
+          if (values.indexOf(x.res.duration) === -1) values.push(x.res.duration);
+        }
+      });
+      var hasShortValue = values.some(function (v) { return v < 0.5; }); // 4, 8, 16 …
+      var fillsBars = false;
+      if (measure && withValue && okAll(durationParsed) && values.length >= 2) {
+        var total = 0;
+        var cur = 0.25;
+        durationParsed.forEach(function (x) { if (!x.bar) { if (x.res.duration) cur = x.res.duration; total += cur * 4; } });
+        var nBars = total / measure;
+        fillsBars = Math.abs(nBars - Math.round(nBars)) < 1e-9;
+      }
+      mode = withValue && okAll(durationParsed) && (!okAll(octaveParsed) || hasShortValue || fillsBars) ? 'duration' : 'octave';
+    }
+    var parsed = mode === 'duration' ? durationParsed : octaveParsed;
+
     var out = [];
     var notes = [];
     var errors = [];
-    tokens.forEach(function (tok) {
-      if (tok === '|' || tok === '||' || tok === '|]') {
-        out.push(tok);
+    var warnings = [];
+    var explicitBars = parsed.some(function (x) { return x.bar; });
+    var autoBars = !!measure && !explicitBars;
+    var cum = 0;
+    var current = 0.25; // duration mode: previous note value (fraction of a whole note)
+    var range = STAFF_RANGE[clef];
+    var warned = {};
+    // Accidentals in ABC last until the end of the bar (for the same letter and
+    // octave): track them so a following natural note gets an explicit "=".
+    var barAcc = {};
+
+    parsed.forEach(function (x) {
+      if (x.bar) { out.push(x.bar); barAcc = {}; return; }
+      var res = x.res;
+      if (!res.ok) {
+        errors.push({ token: x.t || x.tok, code: res.code || 'unknown_name', error: res.error });
         return;
       }
-      var t = tok;
-      // In a comma separated list, one trailing comma is a separator.
-      if (isList && /,$/.test(t)) t = t.slice(0, -1);
-      if (/^[a-h].*,+$/.test(t)) t = t.replace(/,+$/, ''); // lower-case never takes commas
-      if (!t) return;
-      var res = parseGermanNote(t, { bareOctave: bareOctave, explicitNatural: opts.explicitNatural });
-      if (res.ok) {
-        notes.push(res);
-        out.push(res.abc);
+      var units;
+      if (mode === 'duration' && !res.length) {
+        if (res.duration) current = res.duration;
+        units = current * 4;
+        res.abc = res.abc + unitsToLength(units);
       } else {
-        errors.push({ token: tok, error: res.error });
+        units = lengthToUnits(res.length);
+      }
+      res.units = units;
+      if (!res.rest) {
+        var pitchKey = res.letter + res.octave;
+        if (res.accidental === 0 && barAcc[pitchKey] && !/^=/.test(res.abc)) res.abc = '=' + res.abc;
+        barAcc[pitchKey] = res.accidental !== 0;
+      }
+      notes.push(res);
+      out.push(res.abc);
+      if (!res.rest) {
+        var dia = res.octave * 7 + LETTERS.indexOf(res.letter);
+        if ((dia < range.low - 6 || dia > range.high + 6) && !warned[res.input]) {
+          warned[res.input] = true;
+          var octName = HELMHOLTZ_OCTAVES[res.octave] || String(res.octave);
+          warnings.push({
+            code: 'far_from_staff',
+            token: res.input,
+            octave: octName,
+            error: '"' + res.input + '" is in the German "' + octName + '" (Helmholtz) – far outside the ' + clef +
+              ' staff (many ledger lines). Perhaps a lower-case name or octave marks (c, c\', c\'\') were meant.'
+          });
+        }
+      }
+      if (autoBars) {
+        cum += units;
+        if (cum > 0 && Math.abs(cum / measure - Math.round(cum / measure)) < 1e-9) { out.push('|'); barAcc = {}; }
       }
     });
-    return { ok: errors.length === 0 && notes.length > 0, abc: out.join(' '), notes: notes, errors: errors };
+
+    var bars = null;
+    if (measure && notes.length) {
+      var totalUnits = notes.reduce(function (sum, n) { return sum + n.units; }, 0);
+      bars = Math.round(totalUnits / measure * 1000) / 1000;
+      if (autoBars && Math.abs(bars - Math.round(bars)) > 1e-9) {
+        warnings.push({ code: 'incomplete_bar', meter: meter, bars: bars, error: 'The notes do not fill whole bars of ' + meter + ' (' + bars + ' bars).' });
+      }
+    }
+
+    var abc = out.join(' ');
+    var body = abc;
+    if (/\|$/.test(body)) body = body.replace(/\|$/, '|]');
+    else if (body && !/\|\]$/.test(body)) body = body + ' |]';
+    var tune = notes.length ? buildAbc({ notes: body, clef: clef, meter: meter || 'none' }) : '';
+
+    return {
+      ok: errors.length === 0 && notes.length > 0,
+      abc: abc,
+      tune: tune,
+      notes: notes,
+      errors: errors,
+      warnings: warnings,
+      meter: meter,
+      digits: mode,
+      bars: bars
+    };
   }
 
   // ---------------------------------------------------------------------------
@@ -516,6 +726,8 @@
     MAX_ABC_LENGTH: MAX_ABC_LENGTH,
     SUPPORTED_CLEFS: SUPPORTED_CLEFS,
     pitchToAbc: pitchToAbc,
+    unitsToLength: unitsToLength,
+    lengthToUnits: lengthToUnits,
     parseGermanNote: parseGermanNote,
     tokenizeGermanNotes: tokenizeGermanNotes,
     germanToAbc: germanToAbc,

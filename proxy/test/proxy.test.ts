@@ -6,7 +6,7 @@ import { AnthropicProvider } from '../src/providers/anthropic.js';
 import { MockProvider } from '../src/providers/mock.js';
 import { OpenAICompatibleProvider } from '../src/providers/openai.js';
 import { buildServer } from '../src/server.js';
-import { checkClientToolCall, normalizePosition } from '../src/tools.js';
+import { checkClientToolCall, executeServerTool, normalizePosition } from '../src/tools.js';
 import type { ChatMessage, CompletionRequest, CompletionResult, LLMProvider } from '../src/types.js';
 
 const TOKEN = 'test-token-0123456789';
@@ -102,6 +102,33 @@ test('agent: mock provider runs the worksheet scenario', async () => {
   const r3 = await runTurn({ provider, messages, maxIterations: 6 });
   assert.equal(r3.done, true);
   assert.match((r3.messages[0] as { content: string }).content, /Notenzeile/);
+});
+
+test('agent: mock handles "4/4 bc1, f1, g2, be2, c1, C" without dropping notes', async () => {
+  const provider = new MockProvider();
+  const messages: ChatMessage[] = [{ role: 'user', content: 'Ich brauche eine Notenzeile:\n4/4 bc1, f1, g2, be2, c1, C' }];
+  const r1 = await runTurn({ provider, messages, maxIterations: 6 });
+  const conv = r1.messages.find((m) => m.role === 'tool' && m.name === 'convert_german_notes') as { content: string };
+  const result = JSON.parse(conv.content);
+  assert.equal(result.digits, 'duration');
+  assert.equal(result.meter, '4/4');
+  assert.deepEqual(result.errors, []);
+  assert.equal(result.warnings[0].code, 'far_from_staff');
+  const staff = r1.pending_tool_calls[0];
+  assert.equal(staff.arguments.abc, 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\n_C4 | F4 | G2 _E2 | C4 | C,,4 |]');
+  messages.push(...r1.messages, { role: 'tool', tool_call_id: staff.id, name: staff.name, content: JSON.stringify({ ok: true, index: 3 }) });
+  const r2 = await runTurn({ provider, messages, maxIterations: 6 });
+  const answer = (r2.messages[0] as { content: string }).content;
+  assert.match(answer, /Notenwerte/);
+  assert.match(answer, /in der großen Oktave/);
+});
+
+test('tools: convert_german_notes returns tune, meter and digits interpretation', () => {
+  const r = executeServerTool({ id: 'x', name: 'convert_german_notes', arguments: { notes: '4/4 c1 d1 e1 f1', digits: 'auto' } }) as any;
+  assert.equal(r.digits, 'octave');
+  assert.equal(r.tune, 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\nC D E F |]');
+  const d = executeServerTool({ id: 'y', name: 'convert_german_notes', arguments: { notes: '4/4 c1 d1 e1 f1', digits: 'duration' } }) as any;
+  assert.equal(d.tune, 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\nC4 | D4 | E4 | F4 |]');
 });
 
 test('agent: invalid ABC is sent back to the model, not to the client', async () => {

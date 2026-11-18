@@ -148,7 +148,19 @@
       getSettings: function () { return settings; },
       onMessage: function (m) { addChat('assistant', m.content); },
       onServerTool: function (m) {
-        if (m.name === 'convert_german_notes') addChat('tool', t('tool.convert_german_notes'));
+        if (m.name !== 'convert_german_notes') return;
+        var r = null;
+        try { r = JSON.parse(m.content); } catch (e) { r = null; }
+        if (!r || !r.notes) { addChat('tool', t('tool.convert_german_notes')); return; }
+        // Show how the notes were read (digits, meter, warnings) so the user can correct it.
+        addChat(r.errors && r.errors.length ? 'error' : 'tool', t('tool.convert_german_notes') + ': ' + conversionSummary({
+          errors: r.errors || [],
+          warnings: r.warnings || [],
+          notes: r.notes.map(function (n) { return { input: n.german, duration: r.digits === 'duration' }; }),
+          digits: r.digits,
+          meter: r.meter,
+          bars: r.bars
+        }).join('\n'));
       },
       onToolStart: function () {},
       onToolDone: function (call, result) {
@@ -268,6 +280,36 @@
       .then(function (r) { r.abc = v.normalized; return r; });
   }
 
+  /** Human-readable (translated) summary of a germanToAbc() result. */
+  function formatNumber(n) {
+    try { return Number(n).toLocaleString(I18n.getLanguage()); } catch (e) { return String(n); }
+  }
+
+  function conversionIssue(issue) {
+    var key = 'conv.' + issue.code;
+    var params = {};
+    Object.keys(issue).forEach(function (k) { params[k] = typeof issue[k] === 'number' ? formatNumber(issue[k]) : issue[k]; });
+    var text = t(key, params);
+    return text === key ? (issue.token ? issue.token + ': ' : '') + issue.error : text;
+  }
+
+  function conversionSummary(r) {
+    var lines = [];
+    if (r.errors.length) {
+      lines.push(t('conv.notConverted'));
+      r.errors.forEach(function (e) { lines.push('• ' + conversionIssue(e)); });
+      return lines;
+    }
+    var head = t('manual.converted', { count: r.notes.length });
+    if (r.notes.some(function (n) { return n.duration || /\d/.test(n.input); })) {
+      head += ' ' + t(r.digits === 'duration' ? 'conv.digitsDuration' : 'conv.digitsOctave');
+    }
+    if (r.meter) head += ' ' + t('conv.meter', { meter: r.meter, bars: formatNumber(r.bars) });
+    lines.push(head);
+    r.warnings.forEach(function (w) { lines.push('⚠ ' + conversionIssue(w)); });
+    return lines;
+  }
+
   function initManual() {
     $('m-width').value = settings.widthCm;
     $('m-abc').value = TEMPLATES.emptyTreble();
@@ -279,16 +321,18 @@
     });
     $('m-convert').addEventListener('click', function () {
       var clef = $('m-clef').value;
-      var r = Abc.germanToAbc($('m-german').value, { clef: clef });
+      var r = Abc.germanToAbc($('m-german').value, { clef: clef, digits: $('m-digits').value });
+      var lines = conversionSummary(r);
+      if (r.errors.length) {
+        // Never replace the ABC with a partial result: show what could not be read.
+        show($('m-status'), lines.join('\n'), 'error');
+        return;
+      }
       if (r.notes.length) {
-        $('m-abc').value = Abc.buildAbc({ notes: r.abc + ' |]', clef: clef, meter: 'none' });
+        $('m-abc').value = r.tune;
         updatePreview();
       }
-      if (r.errors.length) {
-        show($('m-status'), r.errors.map(function (e) { return e.token + ': ' + e.error; }).join('\n'), 'error');
-      } else {
-        show($('m-status'), t('manual.converted', { count: r.notes.length }), 'ok');
-      }
+      show($('m-status'), lines.join('\n'), r.warnings.length ? 'warn' : 'ok');
     });
     $('m-outline').addEventListener('click', loadOutlineOptions);
 

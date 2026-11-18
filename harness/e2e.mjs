@@ -84,6 +84,22 @@ try {
   if (shot) await page.screenshot({ path: `${shot}-manual.png` });
   console.log('ok - load selected staff, edit, replace');
 
+  // 2b) German note list with time signature, accidentals in front and digits as note values
+  await frame.locator('#m-german').fill('4/4 bc1, f1, g2, be2, c1, C');
+  await frame.locator('#m-digits').selectOption('auto');
+  await frame.locator('#m-convert').click();
+  assert.match(await frame.locator('#m-status').textContent(), /6 Töne umgerechnet.*Notenwerte.*4\/4-Takt, 5 Takte[\s\S]*großen Oktave/);
+  assert.equal(await frame.locator('#m-abc').inputValue(), 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\n_C4 | F4 | G2 _E2 | C4 | C,,4 |]');
+  await frame.locator('#m-digits').selectOption('octave');
+  await frame.locator('#m-convert').click();
+  assert.match(await frame.locator('#m-status').textContent(), /Oktaven gelesen.*1,5 Takte/);
+  await frame.locator('#m-german').fill('4/4 bc1, xy, g2');
+  await frame.locator('#m-abc').fill('X:1\nM:none\nL:1/4\nK:C\nC|]');
+  await frame.locator('#m-convert').click();
+  assert.match(await frame.locator('#m-status').textContent(), /Nicht umgerechnet[\s\S]*„xy“ ist kein bekannter Tonname/);
+  assert.equal(await frame.locator('#m-abc').inputValue(), 'X:1\nM:none\nL:1/4\nK:C\nC|]', 'ABC untouched on errors');
+  console.log('ok - German note list "4/4 bc1, f1, g2, be2, c1, C" (auto/octave/error)');
+
   // 3) fallback path: CreateImage fails, older API
   await page.locator('#h-fail').check();
   await page.locator('#h-legacy').check();

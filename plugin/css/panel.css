@@ -68,6 +68,7 @@ textarea { resize: vertical; }
 .message { padding: 6px 8px; border-radius: 3px; background: var(--bg-alt); white-space: pre-wrap; }
 .message.error { color: var(--error); }
 .message.ok { color: var(--ok); }
+.message.warn { color: var(--text); border-left: 3px solid #e6a23c; }
 
 /* Chat */
 .chat-log { flex: 1 1 auto; overflow-y: auto; display: flex; flex-direction: column; gap: 6px; padding-right: 2px; min-height: 0; }
