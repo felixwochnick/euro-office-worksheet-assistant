@@ -6,6 +6,7 @@ import { AnthropicProvider } from '../src/providers/anthropic.js';
 import { MockProvider } from '../src/providers/mock.js';
 import { OpenAICompatibleProvider } from '../src/providers/openai.js';
 import { buildServer } from '../src/server.js';
+import { buildSystemPrompt } from '../src/prompt.js';
 import { checkClientToolCall, executeServerTool, normalizePosition } from '../src/tools.js';
 import type { ChatMessage, CompletionRequest, CompletionResult, LLMProvider } from '../src/types.js';
 
@@ -121,6 +122,45 @@ test('agent: mock handles "4/4 bc1, f1, g2, be2, c1, C" without dropping notes',
   const answer = (r2.messages[0] as { content: string }).content;
   assert.match(answer, /Notenwerte/);
   assert.match(answer, /in der großen Oktave/);
+});
+
+test('tools: replace_staff validation', () => {
+  const ok = checkClientToolCall({ id: '1', name: 'replace_staff', arguments: { index: '4', abc: VALID_ABC } });
+  assert.equal(ok.ok, true);
+  assert.deepEqual(ok.args, { index: 4, abc: VALID_ABC });
+  assert.equal(checkClientToolCall({ id: '2', name: 'replace_staff', arguments: { index: -1, abc: VALID_ABC } }).ok, false);
+  assert.match(checkClientToolCall({ id: '3', name: 'replace_staff', arguments: { index: 1, abc: 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\ncis' } }).error!, /nothing was changed/);
+});
+
+test('agent: mock edits an existing staff ("ändere Zeile 1: statt bc #c")', async () => {
+  const provider = new MockProvider();
+  const messages: ChatMessage[] = [{ role: 'user', content: 'bitte ändere Zeile 1: statt bc #c' }];
+  const r1 = await runTurn({ provider, messages, maxIterations: 6 });
+  assert.equal(r1.pending_tool_calls[0].name, 'get_document_outline');
+  const outline = {
+    ok: true,
+    outline: {
+      elements: [
+        { index: 3, text: 'Schreibe die Tonnamen unter die Noten.' },
+        { index: 4, text: '', has_image: true, staff_number: 1, abc: 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\n_C4 | F4 | G2 _E2 | C4 | C,,4 |]' },
+      ],
+    },
+  };
+  const c1 = r1.pending_tool_calls[0];
+  messages.push(...r1.messages, { role: 'tool', tool_call_id: c1.id, name: c1.name, content: JSON.stringify(outline) });
+  const r2 = await runTurn({ provider, messages, maxIterations: 6 });
+  const replace = r2.pending_tool_calls[0];
+  assert.equal(replace.name, 'replace_staff');
+  assert.deepEqual(replace.arguments, { index: 4, abc: 'X:1\nM:4/4\nL:1/4\nK:C clef=treble\n^C4 | F4 | G2 _E2 | C4 | C,,4 |]' });
+  messages.push(...r2.messages, { role: 'tool', tool_call_id: replace.id, name: replace.name, content: JSON.stringify({ ok: true, replaced: true, index: 4 }) });
+  const r3 = await runTurn({ provider, messages, maxIterations: 6 });
+  assert.equal(r3.done, true);
+  assert.match((r3.messages[0] as { content: string }).content, /Notenzeile 1 steht jetzt „#c“ statt „bc“/);
+});
+
+test('prompt: outline shows staff numbers and selection', () => {
+  const p = buildSystemPrompt({ elements: [{ index: 4, has_image: true, staff_number: 2, selected: true, abc: 'X:1' }], cursor_index: 4 });
+  assert.match(p, /\[4\] \(empty\) \[STAFF 2, SELECTED, abc: "X:1"\] <-- CURSOR/);
 });
 
 test('tools: convert_german_notes returns tune, meter and digits interpretation', () => {

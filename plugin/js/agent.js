@@ -215,6 +215,8 @@
       return window.MusicEditor.getOutline().then(function (o) { return { ok: true, outline: o }; });
     }
 
+    if (call.name === 'replace_staff') return this.replaceStaff(call, signal);
+
     var abc;
     if (call.name === 'insert_staff') {
       var v = window.MusicAbc.validateAbc(args.abc, { requireClef: true });
@@ -246,6 +248,38 @@
           if (r.warnings && r.warnings.indexOf('cursor') !== -1) out.note = 'Inserted at the cursor because the requested position could not be reached.';
           if (rendered.warnings && rendered.warnings.length) out.render_warnings = rendered.warnings.slice(0, 5);
           return out;
+        });
+      });
+    });
+  };
+
+  /** replace_staff: change an existing staff (keeps its width unless width_cm is given). */
+  ChatAgent.prototype.replaceStaff = function (call, signal) {
+    var self = this;
+    var args = call.arguments || {};
+    var settings = this.hooks.getSettings();
+    var v = window.MusicAbc.validateAbc(args.abc, { requireClef: true });
+    if (!v.valid) return Promise.resolve({ ok: false, error: 'Invalid ABC: ' + window.MusicAbc.formatValidationErrors(v) });
+    var abc = v.normalized;
+    var index = Number(args.index);
+    return window.MusicEditor.getStaffAt(index).then(function (staff) {
+      if (!staff || !staff.found) return { ok: false, replaced: false, error: (staff && staff.error) || 'no staff at element ' + index };
+      var widthCm = Number(args.width_cm) || (staff.width_mm ? Math.round(staff.width_mm) / 10 : settings.widthCm);
+      return window.MusicRenderer.renderPng(abc, { widthCm: widthCm, dpi: settings.dpi }).then(function (rendered) {
+        if (signal && signal.aborted) return { ok: false, replaced: false, error: 'aborted by user' };
+        var confirm = settings.autoInsert ? Promise.resolve(true) : self.hooks.confirmInsert(call, rendered, abc, signal);
+        return confirm.then(function (accepted) {
+          if (signal && signal.aborted) return { ok: false, replaced: false, error: 'aborted by user' };
+          if (!accepted) return { ok: true, replaced: false, reason: 'The user discarded the preview.' };
+          return window.MusicEditor.replaceStaffAt(index, staff.drawing, {
+            dataUrl: rendered.dataUrl,
+            widthMm: rendered.widthMm,
+            heightMm: rendered.heightMm,
+            abc: abc
+          }).then(function (r) {
+            if (!r || !r.ok) return { ok: false, replaced: false, error: (r && r.error) || 'replace failed' };
+            return { ok: true, replaced: true, index: index, method: r.method, alt_text_set: !!r.alt_text, previous_abc: staff.abc };
+          });
         });
       });
     });

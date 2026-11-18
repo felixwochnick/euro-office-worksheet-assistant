@@ -67,6 +67,16 @@ try {
   if (shot) await page.screenshot({ path: `${shot}-chat.png` });
   console.log('ok - chat inserts staff and empty staff below "Aufgabe 2"');
 
+  // 1b) change an existing staff via chat (replace_staff, with preview)
+  await frame.locator('#chat-text').fill('Bitte ändere Zeile 1: statt f #f');
+  await frame.locator('#chat-send').click();
+  await frame.locator('.card', { hasText: 'ersetzen' }).locator('button.primary').click({ timeout: 15000 });
+  await frame.locator('.msg.assistant', { hasText: 'Notenzeile 1 steht jetzt' }).waitFor({ timeout: 15000 });
+  d = await doc();
+  assert.equal(d[heading + 1].alts[0], 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC ^F G |]');
+  assert.equal(d[heading + 1].alts.length, 1, 'replaced, not added');
+  console.log('ok - chat changes an existing staff (replace_staff)');
+
   // 2) manual mode: template after element 0, load + replace selected image
   await frame.locator('.tab[data-tab=manual]').click();
   await frame.locator('#m-template').selectOption('melody');

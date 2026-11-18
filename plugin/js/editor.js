@@ -136,10 +136,36 @@
       from = Math.max(0, Math.min(c - Math.floor(maxElements / 2), count - maxElements));
       to = from + maxElements;
     }
-    for (var i = from; i < to; i++) {
+    // Paragraph of a selected drawing (so the AI understands "die markierte Zeile").
+    var selectedIndex = -1;
+    try {
+      var sel = doc.GetSelectedDrawings ? doc.GetSelectedDrawings() : [];
+      var sp = sel && sel.length && sel[0].GetParentParagraph ? sel[0].GetParentParagraph() : null;
+      if (sp && sp.GetPosInParent) selectedIndex = sp.GetPosInParent();
+    } catch (e) {}
+
+    // Staves (images with ABC alt text) are numbered in document order:
+    // "Notenzeile 1" = first staff. Counted over the whole document, also
+    // outside the element window.
+    var staffNo = 0;
+    for (var i = 0; i < count; i++) {
       var el = doc.GetElement(i);
       if (!el) continue;
       var type = el.GetClassType ? el.GetClassType() : 'unknown';
+      var staffAbc = null;
+      var imageCount = 0;
+      if (type === 'paragraph') {
+        try {
+          var drawings = el.GetAllDrawingObjects ? el.GetAllDrawingObjects() : [];
+          imageCount = drawings ? drawings.length : 0;
+          for (var d = 0; d < imageCount; d++) {
+            var desc = describe(drawings[d]);
+            if (desc && /^\s*X:\s*\d+/.test(desc)) { staffAbc = desc; break; }
+          }
+        } catch (e) {}
+      }
+      if (staffAbc) staffNo++;
+      if (i < from || i >= to) continue;
       var item = { index: i, type: type };
       // GetText() of a real editor paragraph ends with the paragraph mark ("\r\n").
       var text = textOf(el).replace(/[\r\n]+$/, '').replace(/[\r\n]+/g, ' ');
@@ -154,16 +180,12 @@
         if (m) lvl = lvl || (m[2] ? parseInt(m[2], 10) : 1);
         item.is_heading = lvl !== null;
         item.heading_level = lvl;
-        try {
-          var drawings = el.GetAllDrawingObjects ? el.GetAllDrawingObjects() : [];
-          if (drawings && drawings.length) {
-            item.has_image = true;
-            for (var d = 0; d < drawings.length; d++) {
-              var desc = describe(drawings[d]);
-              if (desc && /^\s*X:\s*\d+/.test(desc)) { item.abc = desc.length > 1000 ? desc.slice(0, 1000) + '…' : desc; break; }
-            }
-          }
-        } catch (e) {}
+        if (imageCount) item.has_image = true;
+        if (staffAbc) {
+          item.staff_number = staffNo;
+          item.abc = staffAbc.length > 2000 ? staffAbc.slice(0, 2000) + '…' : staffAbc;
+        }
+        if (i === selectedIndex) item.selected = true;
       }
       res.elements.push(item);
     }
@@ -408,6 +430,86 @@
     }
   }
 
+  /** Staff (image with ABC alt text) in the top-level paragraph `Asc.scope.index`. */
+  function cmdGetStaffAt() {
+    var index = Asc.scope.index;
+    try {
+      var doc = Api.GetDocument();
+      var count = doc.GetElementsCount();
+      if (!(index >= 0 && index < count)) return { found: false, error: 'index ' + index + ' is out of range (0..' + (count - 1) + ')' };
+      var el = doc.GetElement(index);
+      var ds = el && el.GetAllDrawingObjects ? el.GetAllDrawingObjects() : [];
+      for (var k = 0; k < ds.length; k++) {
+        var desc = null;
+        try { desc = ds[k].GetDescription ? ds[k].GetDescription() : null; } catch (e) {}
+        if (!desc) {
+          try {
+            var pd = ds[k].getParaDrawing ? ds[k].getParaDrawing() : (ds[k].Drawing && ds[k].Drawing.parent);
+            desc = pd && pd.docPr ? pd.docPr.descr : null;
+          } catch (e) {}
+        }
+        if (desc && /^\s*X:\s*\d+/.test(desc)) {
+          var w = null;
+          try { w = ds[k].GetWidth ? ds[k].GetWidth() : null; } catch (e) {}
+          return { found: true, drawing: k, abc: String(desc), width_mm: w ? w / 36000 : null };
+        }
+      }
+      return { found: false, error: 'element ' + index + ' contains no staff (image with ABC alt text)' };
+    } catch (e) {
+      return { found: false, error: String((e && e.message) || e) };
+    }
+  }
+
+  /** Replace the staff image in paragraph `req.index` (drawing number `req.drawing`). */
+  function cmdReplaceStaffAt() {
+    var req = Asc.scope.req;
+    try {
+      var doc = Api.GetDocument();
+      var el = doc.GetElement(req.index);
+      var ds = el && el.GetAllDrawingObjects ? el.GetAllDrawingObjects() : [];
+      var old = ds[req.drawing || 0];
+      if (!old) return { ok: false, fatal: true, error: 'staff not found at element ' + req.index };
+      var img = Api.CreateImage(req.dataUrl, req.wEmu, req.hEmu);
+      try { if (img.SetWrappingStyle) img.SetWrappingStyle('inline'); } catch (e) {}
+      var alt = false;
+      try { if (img.SetDescription && img.SetDescription(req.alt)) alt = 'api'; } catch (e) {}
+      if (!alt) {
+        try {
+          var pd = img.getParaDrawing ? img.getParaDrawing() : (img.Drawing && img.Drawing.parent);
+          if (pd && pd.docPr) { pd.docPr.setDescr(req.alt); try { pd.docPr.setTitle('ABC-Notation'); } catch (e) {} alt = 'internal'; }
+        } catch (e) {}
+      }
+      // Was the old staff selected? Then select the new one afterwards – otherwise the
+      // editor keeps drawing the selection frame with the old size.
+      var wasSelected = false;
+      try {
+        var sel = doc.GetSelectedDrawings ? doc.GetSelectedDrawings() : [];
+        var sp = sel && sel.length && sel[0].GetParentParagraph ? sel[0].GetParentParagraph() : null;
+        wasSelected = !!(sp && sp.GetPosInParent && sp.GetPosInParent() === req.index);
+      } catch (e) {}
+      old.Delete();
+      el.AddDrawing(img);
+      if (wasSelected) {
+        try { if (img.Select) img.Select(true); } catch (e) {}
+      }
+      return { ok: true, method: 'api', index: req.index, alt_text: alt, reselected: wasSelected };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  }
+
+  /** Select the staff drawing in paragraph `Asc.scope.req.index` (for the PutImageDataToSelection fallback). */
+  function cmdSelectStaffAt() {
+    var req = Asc.scope.req;
+    try {
+      var ds = Api.GetDocument().GetElement(req.index).GetAllDrawingObjects();
+      var d = ds[req.drawing || 0];
+      return { ok: !!(d && d.Select && d.Select(true)) };
+    } catch (e) {
+      return { ok: false, error: String((e && e.message) || e) };
+    }
+  }
+
   function cmdReplaceSelected() {
     var req = Asc.scope.req;
     try {
@@ -550,6 +652,43 @@
     });
   }
 
+  function getStaffAt(index) {
+    return callCommand(cmdGetStaffAt, { index: index }, false);
+  }
+
+  /**
+   * Replace the staff at a top-level element index.
+   * @param {number} index
+   * @param {number} drawing drawing number within the paragraph (from getStaffAt)
+   * @param {{dataUrl:string, widthMm:number, heightMm:number, abc:string}} img
+   */
+  function replaceStaffAt(index, drawing, img) {
+    var req = {
+      index: index,
+      drawing: drawing || 0,
+      dataUrl: img.dataUrl,
+      wEmu: Math.round(img.widthMm * EMU_PER_MM),
+      hEmu: Math.round(img.heightMm * EMU_PER_MM),
+      alt: img.abc
+    };
+    return callCommand(cmdReplaceStaffAt, { req: req }, true).then(function (r) {
+      if (r && (r.ok || r.fatal)) return r;
+      // Fallback: select the old staff and let PutImageDataToSelection replace it.
+      return callCommand(cmdSelectStaffAt, { req: req }, false).then(function (s) {
+        if (!s || !s.ok) return { ok: false, error: (r && r.error) || 'could not select the staff' };
+        return executeMethod('PutImageDataToSelection', [{
+          src: req.dataUrl,
+          width: Math.round(mmToCssPx(img.widthMm)),
+          height: Math.round(mmToCssPx(img.heightMm))
+        }]).then(function () {
+          return callCommand(cmdSetAltOnSelection, { req: req }, false);
+        }).then(function (a) {
+          return { ok: true, method: 'PutImageDataToSelection', index: index, alt_text: a && a.ok ? a.alt_text : false };
+        });
+      });
+    });
+  }
+
   window.MusicEditor = {
     callCommand: callCommand,
     executeMethod: executeMethod,
@@ -557,6 +696,8 @@
     insertImage: insertImage,
     getSelectedStaff: getSelectedStaff,
     replaceSelected: replaceSelected,
+    getStaffAt: getStaffAt,
+    replaceStaffAt: replaceStaffAt,
     // exported for the test harness
     _commands: {
       outline: cmdOutline,
@@ -564,7 +705,10 @@
       prepareCursor: cmdPrepareCursor,
       setAltOnSelection: cmdSetAltOnSelection,
       getSelectedStaff: cmdGetSelectedStaff,
-      replaceSelected: cmdReplaceSelected
+      replaceSelected: cmdReplaceSelected,
+      getStaffAt: cmdGetStaffAt,
+      replaceStaffAt: cmdReplaceStaffAt,
+      selectStaffAt: cmdSelectStaffAt
     }
   };
 })(window);

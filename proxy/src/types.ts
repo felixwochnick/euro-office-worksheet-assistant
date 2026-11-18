@@ -69,6 +69,10 @@ export interface DocumentContext {
     heading_level?: number | null;
     has_image?: boolean;
     abc?: string | null;
+    /** Number of the staff in document order ("Notenzeile 1" = first staff). */
+    staff_number?: number;
+    /** The staff image in this element is currently selected. */
+    selected?: boolean;
   }>;
   cursor_index?: number | null;
   total_elements?: number;

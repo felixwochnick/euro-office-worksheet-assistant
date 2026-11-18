@@ -57,6 +57,41 @@ export function extractNoteList(text: string): string | null {
   return notes.length >= 2 ? best.join(' ').replace(/[.!?]$/, '') : null;
 }
 
+const ACC_TO_ABC: Record<number, string> = { [-2]: '__', [-1]: '_', 0: '=', 1: '^', 2: '^^' };
+
+/** "Ändere Zeile 2: statt bc #c" -> { staff: 2, from: 'bc', to: '#c' } ("markierte Zeile" -> staff: 'selected'). */
+export function parseEditRequest(text: string): { staff: number | 'selected'; from: string; to: string } | null {
+  if (!/(änder|korrigier|ersetz|tausch)/i.test(text)) return null;
+  const staffMatch = /(?:noten)?zeile\s*(\d+)/i.exec(text) ?? /(\d+)\.\s*(?:noten)?zeile/i.exec(text);
+  const staff: number | 'selected' | null = staffMatch ? Number(staffMatch[1]) : /markiert/i.test(text) ? 'selected' : null;
+  const after = /statt\s+(.+)$/is.exec(text);
+  if (staff === null || !after) return null;
+  const words = after[1].split(/[\s,]+/).map((w) => w.replace(/[.!?:]$/, '')).filter((w) => isNoteWord(w) && !METER.test(w));
+  return words.length >= 2 ? { staff, from: words[0], to: words[1] } : null;
+}
+
+/** Replace every note with the pitch class of `from` (letter + accidental) by `to` in the music lines of `abc`. */
+export function replaceNote(abc: string, from: string, to: string): { abc: string; count: number } {
+  const f = abcTools.parseGermanNote(from);
+  const t = abcTools.parseGermanNote(to);
+  if (!f.ok || !t.ok || f.rest || t.rest || !f.letter || !t.letter) return { abc, count: 0 };
+  const lines = abc.split('\n');
+  const k = lines.findIndex((l) => /^K:/.test(l));
+  let count = 0;
+  for (let i = k + 1; i > 0 && i < lines.length; i++) {
+    if (/^[A-Za-z]:/.test(lines[i]) || /^%/.test(lines[i])) continue;
+    lines[i] = lines[i].replace(/(\^\^|\^|__|_|=)?([A-Ga-g])(?![a-z])/g, (m, acc: string | undefined, letter: string) => {
+      const accidental = acc === '^' ? 1 : acc === '^^' ? 2 : acc === '_' ? -1 : acc === '__' ? -2 : 0;
+      if (letter.toUpperCase() !== f.letter || accidental !== f.accidental) return m;
+      count++;
+      const newLetter = letter === letter.toUpperCase() ? t.letter! : t.letter!.toLowerCase();
+      const newAcc = t.accidental ? ACC_TO_ABC[t.accidental!] : acc ? '=' : '';
+      return newAcc + newLetter;
+    });
+  }
+  return { abc: lines.join('\n'), count };
+}
+
 export class MockProvider implements LLMProvider {
   readonly name = 'mock';
   readonly model = 'mock';
@@ -80,6 +115,27 @@ export class MockProvider implements LLMProvider {
     const position: unknown = task ? { after_heading: `Aufgabe ${task[1]}` } : 'cursor';
     const digits = /notenwert|ganze|halbe|viertel/i.test(userText) ? 'duration' : /oktav|gestrichen/i.test(userText) ? 'octave' : 'auto';
     const list = extractNoteList(userText);
+
+    // 0) "Ändere Zeile N: statt X Y" -> read outline, then replace_staff
+    const edit = parseEditRequest(userText);
+    if (edit) {
+      if (done('get_document_outline').length === 0) {
+        return { content: '', tool_calls: [{ id: nextId(), name: 'get_document_outline', arguments: {} }] };
+      }
+      const label = edit.staff === 'selected' ? 'der markierten Notenzeile' : `Notenzeile ${edit.staff}`;
+      if (done('replace_staff').length === 0) {
+        const outline = parseResult(done('get_document_outline')[0]).outline ?? {};
+        const el = (outline.elements ?? []).find((e: any) => (edit.staff === 'selected' ? e.selected && e.abc : e.staff_number === edit.staff));
+        if (!el) return { content: `Mock-Modus: Ich finde ${label} nicht im Dokument.`, tool_calls: [] };
+        const r = replaceNote(el.abc, edit.from, edit.to);
+        if (!r.count) return { content: `Mock-Modus: „${edit.from}“ kommt in ${label} nicht vor.`, tool_calls: [] };
+        return { content: '', tool_calls: [{ id: nextId(), name: 'replace_staff', arguments: { index: el.index, abc: r.abc } }] };
+      }
+      const res = parseResult(done('replace_staff')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Ändern fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      if (res.replaced === false) return { content: 'Mock-Modus: Änderung verworfen.', tool_calls: [] };
+      return { content: `Fertig (Mock-Modus): In ${label} steht jetzt „${edit.to}“ statt „${edit.from}“.`, tool_calls: [] };
+    }
 
     // 1) note names -> convert_german_notes (server-side)
     if (list && done('convert_german_notes').length === 0) {

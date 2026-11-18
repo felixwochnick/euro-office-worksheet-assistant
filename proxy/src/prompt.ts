@@ -42,7 +42,19 @@ DOCUMENT
 - The current document outline is given below. Elements have a top-level "index". "after_paragraph_index" inserts AFTER that element.
 - "unter Aufgabe 2" usually means after the paragraph(s) belonging to task 2 (heading and its instruction text), before the next task. Use the outline to pick the index. If unsure, insert directly after the heading/paragraph with that title.
 - Inserting shifts the indices of all later elements. Each insert tool returns the index of the new element; insert the next item after that index (e.g. a staff at index 5 -> empty staves after_paragraph_index 5).
-- Existing staves have their ABC source in the outline ("abc"); use it when the user refers to them.
+- Existing staves are listed with their number and ABC source ("STAFF 2, abc: …"). Users count staves in document
+  order: "Zeile 2" / "Notenzeile 2" / "die zweite Zeile" = STAFF 2; "die markierte Zeile" = the element marked SELECTED.
+  If it is unclear which staff is meant, ask.
+
+EDITING EXISTING STAVES
+- To change a staff that is already in the document, call replace_staff with its element index and the complete new
+  tune. Never insert a second staff for a change request.
+- Start from the staff's current ABC and change ONLY what was asked (keep header, meter, rhythm, other notes, bar
+  lines). Example: "statt bc #c" means: replace the note ces (ABC _C) by cis (^C) with the same octave and length,
+  e.g. "_C4" -> "^C4". "statt bc #c" applies to all ces in that staff unless the user names one occurrence.
+- Accidentals in ABC last until the end of the bar: when you add or remove one, add "=" to later notes of the same
+  pitch in that bar if needed.
+- Say briefly what you changed (e.g. "In Notenzeile 1 steht jetzt cis statt ces (Takt 1)").
 - If you need fresh information, call get_document_outline.
 
 BEHAVIOUR
@@ -63,7 +75,13 @@ export function renderDocumentContext(ctx: DocumentContext | undefined): string 
     else if (el.style && !/^(normal|standard|default)/i.test(el.style)) parts.push(`{${el.style}}`);
     const text = (el.text ?? '').replace(/\s+/g, ' ').trim();
     parts.push(text ? JSON.stringify(text.length > 200 ? text.slice(0, 200) + '…' : text) : '(empty)');
-    if (el.has_image) parts.push(el.abc ? `[staff image, abc: ${JSON.stringify(el.abc.slice(0, 300))}]` : '[image]');
+    if (el.has_image) {
+      parts.push(
+        el.abc
+          ? `[STAFF ${el.staff_number ?? '?'}${el.selected ? ', SELECTED' : ''}, abc: ${JSON.stringify(el.abc.length > 1200 ? el.abc.slice(0, 1200) + '…' : el.abc)}]`
+          : `[image${el.selected ? ', SELECTED' : ''}]`,
+      );
+    }
     if (el.index === ctx.cursor_index) parts.push('<-- CURSOR');
     lines.push(parts.join(' '));
   }

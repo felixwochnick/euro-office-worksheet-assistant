@@ -11,6 +11,8 @@ music staves into text documents – for example worksheets for music lessons.
 - **Printable images** – ABC is rendered with [abcjs](https://www.abcjs.net/) to SVG and rasterised to PNG at
   300 dpi. The **ABC source is stored as the image alt text**, so a staff can be selected later, loaded back into the
   panel, edited and replaced.
+- **Change existing staves by chat** – „Bitte ändere Zeile 2: statt bc #c“ or „in der markierten Zeile …“: the AI
+  edits the ABC of that staff and replaces it in place (tool `replace_staff`).
 - **Small LLM proxy** (Node/TypeScript, Fastify) that keeps the API key on the server, solves CORS and runs the
   tool-calling agent loop. Providers: **Mistral** (default), any **OpenAI-compatible** API (e.g. Ollama),
   **Anthropic**, plus a deterministic **mock** for tests and demos.
@@ -160,6 +162,7 @@ Tools offered to the model (JSON Schema in `proxy/src/tools.ts`):
 |------|-------------|---------|
 | `insert_staff({abc, width_cm, position})` | plugin | render ABC and insert it as an image; `position` = `"cursor"` \| `{after_heading}` \| `{after_paragraph_index}` |
 | `insert_empty_staves({clef, count, measures, width_cm, position})` | plugin | empty staves made of invisible rests (`x`) |
+| `replace_staff({index, abc, width_cm})` | plugin | change an existing staff in place (keeps its width); the outline numbers staves ("Notenzeile 1, 2, …") and marks a selected one |
 | `get_document_outline()` | plugin | headings/paragraphs with indices, cursor, ABC of existing staves |
 | `convert_german_notes({notes, clef})` | proxy | deterministic German note names → ABC |
 
@@ -182,6 +185,8 @@ Tab **Einstellungen** (stored in the browser's `localStorage`; falls back to in-
 - „Füge nach Aufgabe 3 drei leere Notenzeilen im Bassschlüssel ohne Taktstriche ein.“
 - „Erstelle eine 12 cm breite Notenzeile mit den Tönen fis' – a' – cis'' – e''.“
 - „Welche Töne stehen in der Notenzeile unter Aufgabe 1?“ (the AI reads the ABC from the alt text)
+- „Bitte ändere Zeile 1: statt bc #c“ (changes the existing staff in place – staves are counted in document order)
+- „In der markierten Zeile soll das große C am Ende ein c' werden.“ (select the staff image first)
 - „Schreibe einen Rhythmus im 3/4-Takt: Halbe, Viertel | punktierte Halbe – alles auf g'.“
 
 ## ABC notation cheat sheet

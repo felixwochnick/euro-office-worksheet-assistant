@@ -2,7 +2,7 @@
  * Tool definitions (JSON Schema) and server-side tool handling.
  *
  * Client tools are executed by the plugin inside the editor:
- *   insert_staff, insert_empty_staves, get_document_outline
+ *   insert_staff, insert_empty_staves, replace_staff, get_document_outline
  * Server tools are executed directly by the proxy (no round trip):
  *   convert_german_notes
  *
@@ -82,6 +82,28 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'replace_staff',
+    description:
+      'Change an EXISTING staff: replaces the staff image in the given element with new ABC (keeps its width unless ' +
+      'width_cm is given). Use this – not insert_staff – when the user wants to modify a staff that is already in the ' +
+      'document ("ändere Zeile 2: statt bc #c"). Take the current ABC from the outline ("abc" of the element), change ' +
+      'only what the user asked for and send the complete new tune.',
+    parameters: {
+      type: 'object',
+      properties: {
+        index: {
+          type: 'integer',
+          minimum: 0,
+          description: 'Top-level element index of the staff (from the outline; staves are listed with staff_number = "Notenzeile N").',
+        },
+        abc: { type: 'string', description: 'Complete new ABC tune (X:, M:, L:, K: with clef=…).' },
+        width_cm: widthSchema,
+      },
+      required: ['index', 'abc'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_document_outline',
     description:
       'Return the current document structure: top-level elements with index, text, style, whether they are headings, and the ABC source of inserted staves. Call it again after inserting, because indices shift.',
@@ -121,7 +143,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
-export const CLIENT_TOOLS = new Set(['insert_staff', 'insert_empty_staves', 'get_document_outline']);
+export const CLIENT_TOOLS = new Set(['insert_staff', 'insert_empty_staves', 'replace_staff', 'get_document_outline']);
 export const SERVER_TOOLS = new Set(['convert_german_notes']);
 
 export interface ToolCheck {
@@ -191,6 +213,22 @@ export function checkClientToolCall(call: ToolCall): ToolCheck {
         };
       }
       return { ok: true, args: withWidth({ abc: v.normalized, position }, width) };
+    }
+
+    case 'replace_staff': {
+      const index = Number(a.index);
+      if (!Number.isInteger(index) || index < 0) return { ok: false, args: a, error: '"index" must be the element index (integer >= 0) of the staff from the outline.' };
+      const width = normalizeWidth(a.width_cm);
+      if (width === null) return { ok: false, args: a, error: '"width_cm" must be a number.' };
+      const v = abcTools.validateAbc(a.abc, { requireClef: true });
+      if (!v.valid) {
+        return {
+          ok: false,
+          args: a,
+          error: `Invalid ABC notation – nothing was changed. Fix these problems and call replace_staff again: ${abcTools.formatValidationErrors(v)}`,
+        };
+      }
+      return { ok: true, args: withWidth({ index, abc: v.normalized }, width) };
     }
 
     case 'insert_empty_staves': {

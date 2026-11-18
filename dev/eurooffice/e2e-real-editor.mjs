@@ -123,6 +123,18 @@ try {
   assert.match(o2.elements[h2 + 2].abc || '', /x4/);
   step('chat inserted staff + empty staff directly below "Aufgabe 2"');
 
+  // Change an existing staff via chat: "ändere Zeile N: statt f #f"
+  const staffNo = o2.elements[h2 + 1].staff_number;
+  const countBefore = o2.elements.length;
+  await plugin.locator('#chat-text').fill(`Bitte ändere Zeile ${staffNo}: statt f #f`);
+  await plugin.locator('#chat-send').click();
+  await plugin.locator('.msg.assistant', { hasText: /steht jetzt|Problem|nicht/ }).waitFor({ timeout: 60000 });
+  await page.waitForTimeout(1000);
+  o2 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+  assert.equal(o2.elements.length, countBefore, 'no element added');
+  assert.match(o2.elements[h2 + 1].abc || '', /C \^F G/);
+  step(`chat changed Notenzeile ${staffNo} in place (replace_staff): ` + o2.elements[h2 + 1].abc.split('\n').pop());
+
   // Load + replace a selected image: select the melody via the builder API
   const selected = await plugin.evaluate(() => window.MusicEditor.callCommand(function () {
     var d = Api.GetDocument().GetElement(2).GetAllDrawingObjects()[0];
@@ -187,7 +199,7 @@ try {
   console.log('   media:', media.join(', '));
   console.log('   docPr descr:', descrs);
   assert.ok(media.length >= 6, 'images are embedded in the saved .docx');
-  assert.ok(descrs.some((d) => /Geändert/.test(d)) && descrs.some((d) => /C F G/.test(d)), 'ABC alt text survives saving');
+  assert.ok(descrs.some((d) => /Geändert/.test(d)) && descrs.some((d) => /C \^F G/.test(d)), 'ABC alt text survives saving');
   step('saved .docx contains the PNG images and the ABC alt texts');
 
   assert.deepEqual(errors, []);

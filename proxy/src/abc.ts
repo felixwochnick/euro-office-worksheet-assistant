@@ -48,6 +48,10 @@ export interface AbcTools {
   validateAbc(abc: unknown, opts?: { requireClef?: boolean }): AbcValidation;
   normalizeAbc(abc: string): string;
   formatValidationErrors(result: AbcValidation): string;
+  parseGermanNote(
+    token: string,
+    opts?: { bareOctave?: number; digits?: 'octave' | 'duration' },
+  ): { ok: boolean; letter?: string; accidental?: number; octave?: number | null; rest?: boolean; error?: string };
   germanToAbc(
     text: string,
     opts?: { clef?: string; bareOctave?: number; explicitNatural?: boolean; digits?: 'auto' | 'octave' | 'duration' },
