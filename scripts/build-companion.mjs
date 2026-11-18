@@ -4,15 +4,16 @@
  * application). Use an official Node 24 LTS build: newer official Linux builds need libatomic.so.1, distribution
  * builds link system libraries – both would not run everywhere.
  *
+ *   npm ci                           # dependencies of all workspaces
  *   bash scripts/build.sh            # plugin (dist/worksheet-assistant/)
- *   (cd proxy && npm ci)             # server dependencies
  *   node scripts/build-companion.mjs # -> dist/companion/worksheet-assistant[.exe]
  *                                    #    dist/worksheet-assistant-<os>-<arch>.zip
  *
  * --no-archive: only the executable and its license files (the desktop app, scripts/build-desktop.mjs, ships it
  * as its server program).
  *
- * Steps: bundle server + companion + shared/abc-tools.js with esbuild into one CommonJS file, embed the plugin
+ * Steps: bundle server + companion (apps/server) + the shared modules (packages/shared) with esbuild into one
+ * CommonJS file, embed the plugin
  * files as an asset, build the executable with `node --build-sea`, sign it ad hoc on macOS, zip it.
  */
 import { execFileSync } from 'node:child_process';
@@ -83,9 +84,8 @@ const result = await esbuild.build({
   target: 'node22',
   // Optional native speed-ups of "ws"; not needed.
   external: ['bufferutil', 'utf-8-validate'],
-  // The bundle never uses import.meta (paths come from the executable); see proxy/src/abc.ts and server.ts.
+  // The bundle never uses import.meta (paths come from the executable); see apps/server/src/server.ts.
   define: { 'import.meta.url': 'undefined' },
-  nodePaths: [path.join(root, 'proxy', 'node_modules')],
   legalComments: 'external',
   logLevel: 'warning',
 });
@@ -104,7 +104,7 @@ for (const dir of [...packages.values()].sort()) {
   const text = licFile ? fs.readFileSync(path.join(dir, licFile), 'utf8').trim() : `License: ${pkg.license ?? 'see package'}`;
   notices.push(`${pkg.name} ${pkg.version} (${pkg.license ?? '?'})\n${'-'.repeat(60)}\n${text}\n`);
 }
-// Vendored (not from npm) and bundled through shared/worksheet-svg.js: the QR code library.
+// Vendored (not from npm) and bundled through packages/shared/worksheet-svg.js: the QR code library.
 notices.push(
   `qrcode-generator (MIT) – vendor/qrcode-generator\n${'-'.repeat(60)}\n` +
     fs.readFileSync(path.join(root, 'vendor', 'qrcode-generator', 'LICENSE'), 'utf8').trim() + '\n',

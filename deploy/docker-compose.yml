@@ -34,7 +34,7 @@ services:
   worksheet-server:
     build:
       context: ..
-      dockerfile: proxy/Dockerfile
+      dockerfile: apps/server/Dockerfile
     image: worksheet-assistant-server:local
     restart: unless-stopped
     environment:

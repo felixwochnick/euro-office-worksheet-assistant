@@ -6,4 +6,4 @@ dist/
 .nuxt/
 .output/
 .data/
-website/dist
+apps/website/dist

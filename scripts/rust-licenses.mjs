@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /*
- * License texts of the Rust crates compiled into the desktop app (desktop/src-tauri), for its
+ * License texts of the Rust crates compiled into the desktop app (apps/desktop/src-tauri), for its
  * THIRD-PARTY-LICENSES.txt. Each distinct license text is printed once, with the crates that use it.
  *
  *   node scripts/rust-licenses.mjs <target triple> > licenses.txt
@@ -15,7 +15,7 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const target = process.argv[2];
 const meta = JSON.parse(
   execFileSync('cargo', ['metadata', '--format-version', '1', '--locked', ...(target ? ['--filter-platform', target] : [])], {
-    cwd: path.join(root, 'desktop', 'src-tauri'),
+    cwd: path.join(root, 'apps', 'desktop', 'src-tauri'),
     encoding: 'utf8',
     maxBuffer: 256 * 1024 * 1024,
   }),

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the Euro-Office plugin.
+# Build the Euro-Office plugin: apps/plugin/src + the shared modules (packages/shared) + vendor/.
 #
 #   scripts/build.sh                  build dist/worksheet-assistant/ and dist/worksheet-assistant.plugin
 #   scripts/build.sh --update-vendor  re-download abcjs, qrcode-generator and the ONLYOFFICE v1 SDK files
@@ -17,6 +17,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAME="worksheet-assistant"
 OUT="$ROOT/dist/$NAME"
+SRC="$ROOT/apps/plugin/src"
+SHARED="$ROOT/packages/shared"
 VENDOR="$ROOT/vendor"
 
 ABCJS_VERSION="${ABCJS_VERSION:-6.7.2}"
@@ -64,7 +66,7 @@ node -e '
   const v = c.variations[0];
   if (!/^asc\.\{[0-9A-F-]{36}\}$/.test(c.guid)) throw new Error("bad guid");
   if (v.type !== "panel" || v.isInsideMode !== true) throw new Error("panel/isInsideMode missing");
-' "$ROOT/plugin/config.json"
+' "$SRC/config.json"
 
 echo "==> Building $OUT"
 # Empty the folder instead of deleting it: it may be bind-mounted into a
@@ -74,9 +76,9 @@ mkdir -p "$OUT"
 find "$OUT" -mindepth 1 -delete
 rm -f "$ROOT/dist/$NAME.plugin" "$ROOT/dist/$NAME.tar.gz" "$ROOT/dist/$NAME.zip"
 mkdir -p "$OUT/vendor" "$OUT/licenses"
-cp -R "$ROOT/plugin/." "$OUT/"
+cp -R "$SRC/." "$OUT/"
 # Shared modules (also used by the proxy): ABC helpers, worksheet layout, themes, generators, graphics, check.
-cp "$ROOT"/shared/*.js "$OUT/js/"
+cp "$SHARED"/*.js "$OUT/js/"
 if [[ -n "${PLUGIN_VERSION:-}" ]]; then
   node -e '
     const fs = require("fs"); const f = process.argv[1];

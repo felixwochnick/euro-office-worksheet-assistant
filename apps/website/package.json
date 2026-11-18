@@ -1,0 +1,23 @@
+{
+  "name": "@worksheet-assistant/website",
+  "private": true,
+  "type": "module",
+  "license": "MIT",
+  "description": "Project website (GitHub Pages, 7 languages) for the Euro-Office worksheet assistant",
+  "scripts": {
+    "dev": "nuxt dev",
+    "build": "nuxt build --preset github_pages",
+    "preview": "npx serve .output/public",
+    "postinstall": "nuxt prepare"
+  },
+  "dependencies": {
+    "@iconify-json/lucide": "^1.2.156",
+    "@iconify-json/simple-icons": "^1.2.103",
+    "@nuxt/ui": "^4.12.2",
+    "@nuxtjs/i18n": "^10.6.0",
+    "@worksheet-assistant/shared": "*",
+    "abcjs": "^6.7.2",
+    "nuxt": "^4.6.4",
+    "tailwindcss": "^4.3.5"
+  }
+}

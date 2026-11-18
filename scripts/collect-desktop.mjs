@@ -20,8 +20,8 @@ if (!target) {
   console.error('usage: node scripts/collect-desktop.mjs <target triple>');
   process.exit(2);
 }
-const version = JSON.parse(fs.readFileSync(path.join(root, 'desktop', 'package.json'), 'utf8')).version;
-const bundle = path.join(root, 'desktop', 'src-tauri', 'target', target, 'release', 'bundle');
+const version = JSON.parse(fs.readFileSync(path.join(root, 'apps', 'desktop', 'package.json'), 'utf8')).version;
+const bundle = path.join(root, 'apps', 'desktop', 'src-tauri', 'target', target, 'release', 'bundle');
 const out = path.join(root, 'dist', 'desktop');
 fs.mkdirSync(out, { recursive: true });
 

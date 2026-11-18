@@ -47,14 +47,14 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
 - **MCP endpoint** – *either* the built-in AI chat *or* your own AI assistant: Claude, ChatGPT, Le Chat or any
   other MCP client can read and edit the document that is open in Euro-Office (same tools as the chat). Sign-in
   with a Nextcloud app password or OAuth via Nextcloud; on a single computer without sign-in.
-- **Small server** (`proxy/`, Node/TypeScript, Fastify) that keeps the API key on the server, solves CORS, runs the
+- **Small server** (`apps/server/`, Node/TypeScript, Fastify) that keeps the API key on the server, solves CORS, runs the
   tool-calling agent loop and serves the MCP endpoint. Providers: **Mistral** (default), any **OpenAI-compatible**
   API (e.g. Ollama), **Anthropic**, a deterministic **mock** for tests and demos – or **none** (MCP only).
 
 The UI language is German (i18n-ready, English included).
 
 ```
-┌──────────── Euro-Office editor (browser) ─────────────┐        ┌──────── proxy/ ────────┐
+┌──────────── Euro-Office editor (browser) ─────────────┐        ┌───── apps/server/ ─────┐
 │  document  ◄── callCommand / executeMethod ──┐        │        │  POST /v1/chat         │
 │                                              │        │ HTTPS  │  system prompt + tools │
 │  plugin panel (iframe)                       │        │ token  │  ABC validation        │──► Mistral /
@@ -73,7 +73,7 @@ service, the proxy.
 | Component | What it is | Where it runs | Needed for | Resources |
 |-----------|-----------|---------------|------------|-----------|
 | **Plugin** (`worksheet-assistant/`) | Static files (HTML, JavaScript, icons, abcjs, qrcode-generator) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: inserting and editing worksheet content, rendering staves, lyrics, manual mode | ≈ 1.2 MB of files, no process |
-| **Proxy** (`proxy/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy. With the desktop editors: inside the desktop app on the user's computer (installation D) | **Only the AI chat and MCP** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
+| **Proxy** (`apps/server/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy. With the desktop editors: inside the desktop app on the user's computer (installation D) | **Only the AI chat and MCP** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
 | **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat (MCP clients bring their own) | Billed by the provider / your hardware |
 
 - **Without the proxy** the music features work in the *Noten* tab (ABC editor, templates, German note names,
@@ -95,27 +95,41 @@ note converter and installation guide in German, English, French, Spanish, Itali
 
 ## Repository layout
 
+A monorepo with npm workspaces: one `npm ci` in the root installs everything (one `package-lock.json`); the
+packages are named `@worksheet-assistant/<name>`.
+
 | Path | Content |
 |------|---------|
-| `plugin/` | Plugin source: `config.json`, `index.html`, `css/`, `js/`, icons |
-| `shared/abc-tools.js` | ABC validation/normalisation and German note names → ABC (used by plugin **and** proxy) |
-| `shared/worksheet-layout.js` | Worksheet blocks → document elements (design decisions; used by the plugin and, for validation, by the proxy) |
-| `shared/worksheet-themes.js` | Designs (fonts, sizes, colours) and printed labels in seven languages |
-| `shared/worksheet-generators.js` | Crossword, word search, cloze, matching, grade key (deterministic) |
-| `shared/worksheet-svg.js` | Icons, task badges, lineatures, number lines, coordinate systems, charts, mind maps, QR codes, SVG sanitiser |
-| `shared/german-syllables.js`, `shared/worksheet-check.js` | Syllables for Silbenfärbung; the worksheet quality check |
+| `apps/plugin/` | The Euro-Office plugin: source in `src/` (`config.json`, `index.html`, `css/`, `js/`, icons); `harness/` – local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
+| `apps/server/` | The server (proxy, TypeScript, Fastify): AI chat, MCP endpoint, `Dockerfile`, `docker-compose.yml`, `compose.release.yml`, `.env.example` |
+| `apps/server/src/companion/` | The desktop app's server program `worksheet-assistant` (plugin installation, local server, autostart, MCP over stdio; `claude.ts`: Claude Desktop / Claude Code entries); `scripts/build-companion.mjs` builds it as a single executable |
+| `apps/desktop/` | Desktop app for the desktop editors (installation D): UI of the window in `app/` (Nuxt 4 + Nuxt UI 4), Tauri 2 shell in `src-tauri/` (`src/sidecar.rs` starts and supervises the server program, `src/tray.rs` tray / menu bar icon, `src/updates.rs` update check); icon sources in `icon-src/` |
+| `apps/website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
+| `packages/shared/` | Modules shared by the plugin (browser globals), the server and the website (CommonJS), with their unit tests in `test/`: |
+| ↳ `abc-tools.js` | ABC validation/normalisation and German note names → ABC |
+| ↳ `worksheet-layout.js` | Worksheet blocks → document elements (design decisions; used by the plugin and, for validation, by the server) |
+| ↳ `worksheet-themes.js` | Designs (fonts, sizes, colours) and printed labels in seven languages |
+| ↳ `worksheet-generators.js` | Crossword, word search, cloze, matching, grade key (deterministic) |
+| ↳ `worksheet-svg.js` | Icons, task badges, lineatures, number lines, coordinate systems, charts, mind maps, QR codes, SVG sanitiser |
+| ↳ `german-syllables.js`, `worksheet-check.js` | Syllables for Silbenfärbung; the worksheet quality check |
 | `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js`, `qrcode-generator` (see `vendor/SOURCES.md`) |
-| `proxy/` | LLM proxy (TypeScript), `Dockerfile`, `docker-compose.yml`, `.env.example` |
-| `deploy/` | Example compose: Euro-Office as its own container with the plugin as a volume, plus the proxy |
-| `harness/` | Local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
-| `scripts/build.sh` | Builds `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
+| `scripts/build.sh` | Builds the plugin: `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
 | `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
-| `.github/workflows/` | CI (tests, build, e2e, Docker, desktop app on all platforms), release (packages, desktop app installers, proxy image on GHCR), website (GitHub Pages) |
-| `desktop/` | Desktop app for the desktop editors (installation D): UI of the window in `desktop/app/` (Nuxt 4 + Nuxt UI 4), Tauri 2 shell in `desktop/src-tauri/` (`src/sidecar.rs` starts and supervises the server program, `src/tray.rs` tray / menu bar icon, `src/updates.rs` update check); icon sources in `desktop/icon-src/` |
-| `proxy/src/companion/` | The desktop app's server program `worksheet-assistant` (plugin installation, local server, autostart, MCP over stdio; `claude.ts`: Claude Desktop / Claude Code entries); `scripts/build-companion.mjs` builds it as a single executable |
 | `scripts/build-desktop.mjs`, `scripts/collect-desktop.mjs`, `scripts/updater-json.mjs` | Build the desktop app; copy its installers under the release names to `dist/desktop/`; write `latest.json` for the app's updater |
-| `website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
-| `tests/` | Unit tests (ABC validation, German note names, worksheet layout, generators, graphics, syllables, check) |
+| `deploy/` | Example compose: Euro-Office as its own container with the plugin as a volume, plus the proxy |
+| `dev/` | Test setups with a real Euro-Office and Nextcloud (end-to-end tests, website screenshots) |
+| `.github/workflows/` | CI (tests, build, e2e, Docker, desktop app on all platforms), release (packages, desktop app installers, proxy image on GHCR), website (GitHub Pages) |
+
+Root scripts:
+
+| Command | What it does |
+|---------|--------------|
+| `npm ci` | Installs all workspaces (CI installs only the ones a job needs, e.g. `npm ci --include-workspace-root -w @worksheet-assistant/server`) |
+| `npm test` | Unit tests of `packages/shared` and `apps/server` |
+| `npm run build` | Plugin (`scripts/build.sh`) and server (`tsc`) |
+| `npm run build:companion` / `build:desktop` / `build:website` | The desktop app's server program / the desktop app / the website |
+| `npm run e2e` | End-to-end test of the plugin in the harness (see [Local test harness](#local-test-harness-no-euro-office-needed)) |
+| `npm run dev:server` / `dev:desktop` / `dev:website` | Server with `apps/server/.env` / the desktop app (`tauri dev`) / the website |
 
 ## Build
 
@@ -139,8 +153,8 @@ builds need `libatomic.so.1`, distribution packages link system libraries – th
 everywhere). On Linux also `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf`.
 
 ```bash
-npm ci && npm --prefix proxy ci && npm --prefix desktop ci
-node scripts/build-desktop.mjs         # -> desktop/src-tauri/target/<target>/release/bundle/
+npm ci                                 # all workspaces (or: npm run build:desktop, which installs if needed)
+node scripts/build-desktop.mjs         # -> apps/desktop/src-tauri/target/<target>/release/bundle/
 node scripts/collect-desktop.mjs <target>   # optional: installers under the release names in dist/desktop/
 ```
 
@@ -152,10 +166,10 @@ checks that the server program starts on a minimal Ubuntu.
 
 Working on the window's UI:
 
-- without Rust: `npm --prefix desktop run dev` opens the UI in the browser with a simulated backend (URL parameter
-  `?scenario=fresh|ready|error|update|starting`);
+- without Rust: `npm run dev -w @worksheet-assistant/desktop` opens the UI in the browser with a simulated backend
+  (URL parameter `?scenario=fresh|ready|error|update|starting`);
 - with Rust: `node scripts/build-desktop.mjs --stub` (placeholders for the server program), then
-  `npm --prefix desktop run tauri dev`.
+  `npm run dev:desktop` (`tauri dev`).
 
 ## Installation
 
@@ -215,13 +229,13 @@ plain HTTP from there). On the AIO host itself, put it behind your reverse proxy
 
 ```bash
 mkdir worksheet-server && cd worksheet-server
-curl -fsSLO https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/proxy/compose.release.yml
-curl -fsSL https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/proxy/.env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/apps/server/compose.release.yml
+curl -fsSL https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/apps/server/.env.example -o .env
 nano .env        # PROXY_TOKEN (openssl rand -hex 24), CORS_ORIGINS, LLM_API_KEY
 docker compose -f compose.release.yml up -d
 ```
 
-(From a checkout: `cd proxy && docker compose up -d --build`. If pulling the image fails with "denied", set the
+(From a checkout: `cd apps/server && docker compose up -d --build`. If pulling the image fails with "denied", set the
 package `euro-office-worksheet-assistant` to *public* once under GitHub → Packages → Package settings.)
 
 **3. Settings** – in the editor: *Plugins* → *Arbeitsblatt-Assistent* → *Einstellungen*: enter the proxy URL and the token.
@@ -367,15 +381,16 @@ Building the app yourself: see [Build → Desktop app](#desktop-app).
 ## Proxy configuration
 
 ```bash
-cd proxy
+cd apps/server
 cp .env.example .env      # edit: PROXY_TOKEN, CORS_ORIGINS, LLM_* (never commit .env)
 docker compose up -d --build
 curl http://localhost:8787/healthz           # {"ok":true}
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8787/v1/info
 ```
 
-The image is built from the repository root (the proxy uses `shared/abc-tools.js`); `docker compose` handles that.
-Without Docker: `cd proxy && npm ci && npm run build && node --env-file=.env build/src/server.js`.
+The image is built from the repository root (npm workspaces: the proxy uses `packages/shared`); `docker compose`
+handles that. Without Docker: `npm ci` in the repository root, then `npm run dev:server` (builds and starts it with
+`apps/server/.env`).
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
@@ -429,7 +444,7 @@ POST /v1/chat   Authorization: Bearer <PROXY_TOKEN>
 → { "messages": [...new messages...], "pending_tool_calls": [...], "done": false, "iterations": 1, "max_iterations": 6 }
 ```
 
-Tools offered to the model (JSON Schema in `proxy/src/tools.ts`):
+Tools offered to the model (JSON Schema in `apps/server/src/tools.ts`):
 
 | Tool | Executed by | Purpose |
 |------|-------------|---------|
@@ -490,7 +505,7 @@ the panel's chat and can be undone in the editor (Ctrl+Z).
 **Set up `AUTH_MODE=nextcloud`:**
 
 ```bash
-# proxy/.env
+# apps/server/.env
 AUTH_MODE=nextcloud
 NEXTCLOUD_URL=https://cloud.example.org
 PUBLIC_URL=https://worksheet.example.org      # how browsers and AI clients reach the proxy
@@ -630,15 +645,17 @@ separate notes only in lists of lower-case names (`c, f, g`); after upper-case n
 ## Development
 
 ```bash
-npm install                 # root: playwright-core for the e2e test (no browser download)
-(cd proxy && npm install)
-npm test                    # unit tests (shared ABC helpers) + proxy tests (agent loop, providers, server)
+npm ci                      # all workspaces; playwright-core for the e2e test (no browser download)
+npm test                    # unit tests (packages/shared) + server tests (agent loop, providers, server, companion)
 ```
 
 ### Releases
 
 Push a tag: `git tag v0.6.0 && git push origin v0.6.0` (`.github/workflows/release.yml`). The release job checks that
-`package.json`, `proxy/package.json`, `desktop/package.json` and `plugin/config.json` carry the tag's version, then:
+the `package.json` files (root, `packages/shared`, `apps/plugin`, `apps/server`, `apps/desktop`) and
+`apps/plugin/src/config.json` carry the tag's version (also bump `apps/server/src/version.ts`,
+`apps/plugin/src/js/bridge.js`, the about line in `apps/plugin/src/index.html` and `apps/desktop/src-tauri/Cargo.toml`),
+then:
 
 1. creates the GitHub release as a **draft** with the plugin packages and pushes the proxy image to GHCR,
 2. builds the desktop app's installers on Linux x64/arm64 (Ubuntu 22.04), Windows x64 and macOS arm64/x64 and
@@ -648,7 +665,7 @@ Push a tag: `git tag v0.6.0 && git push origin v0.6.0` (`.github/workflows/relea
 **Signing key for the app's self-updates** (once): create a key pair with
 
 ```bash
-npx --prefix desktop tauri signer generate -w ~/.tauri/worksheet-assistant.key
+npm ci && npx tauri signer generate -w ~/.tauri/worksheet-assistant.key
 ```
 
 and store the private key as repository secret `TAURI_SIGNING_PRIVATE_KEY` (its password as
@@ -662,28 +679,28 @@ SmartScreen (see [D](#d--desktop-app-windows-macos-linux)). Code signing can be 
 ### Website
 
 ```bash
-cd website && npm install
-npm run dev                                              # http://localhost:3000
-NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ npm run build   # static site in .output/public
+npm ci
+npm run dev:website                                                    # http://localhost:3000
+NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ npm run build:website   # static site in apps/website/.output/public
 ```
 
-The live demo imports `shared/abc-tools.js` directly, so it always uses the same converter as the plugin. The site is
+The live demo imports `@worksheet-assistant/shared/abc-tools.js`, so it always uses the same converter as the plugin. The site is
 deployed by `.github/workflows/pages.yml` on pushes to `main` (one-time setup: *Settings → Pages → Source: GitHub
-Actions*). Texts live in `website/app/content/<language>.ts` (typed by `types.ts`, so a missing text fails the build);
+Actions*). Texts live in `apps/website/app/content/<language>.ts` (typed by `types.ts`, so a missing text fails the build);
 German is served at `/`, the other languages at `/en/`, `/fr/`, `/es/`, `/it/`, `/nl/`, `/pl/` (`@nuxtjs/i18n`, with
-hreflang links). The screenshots in `website/public/img/` were taken in a real Euro-Office 9.3.8 with Mistral by
+hreflang links). The screenshots in `apps/website/public/img/` were taken in a real Euro-Office 9.3.8 with Mistral by
 `dev/eurooffice/website-screenshots.mjs`, except `companion.webp` (the desktop app's window, page *Übersicht*).
 
 ### Local test harness (no Euro-Office needed)
 
 ```bash
 bash scripts/build.sh
-node scripts/serve.mjs 8080          # http://localhost:8080/harness/
-cd proxy && cp .env.example .env     # set LLM_PROVIDER=mock, PROXY_TOKEN=dev-token-change-me-0123,
-docker compose up -d                 #     CORS_ORIGINS=http://localhost:8080
+node scripts/serve.mjs 8080               # http://localhost:8080/apps/plugin/harness/
+cd apps/server && cp .env.example .env    # set LLM_PROVIDER=mock, PROXY_TOKEN=dev-token-change-me-0123,
+docker compose up -d                      #     CORS_ORIGINS=http://localhost:8080
 ```
 
-`harness/index.html` loads the built plugin in an iframe, answers the `plugin_init` handshake of `plugins.js` and
+`apps/plugin/harness/index.html` loads the built plugin in an iframe, answers the `plugin_init` handshake of `plugins.js` and
 installs mocked `callCommand`/`executeMethod` plus a fake builder API (`Api.GetDocument`, `CreateImage`, …) backed by
 an in-memory document shown on the left. Commands are re-created from their source and run with a JSON copy of
 `Asc.scope`, like in the real editor. Checkboxes simulate a failing `Api.CreateImage` and an older API without
@@ -704,7 +721,7 @@ flow (registration, PKCE, Nextcloud login, consent, refresh, revocation in Nextc
 Euro-Office (next section):
 
 ```bash
-bash scripts/build.sh && (cd proxy && npm run build)
+bash scripts/build.sh && npm run build:server
 (cd dev/eurooffice && docker compose up -d)
 (cd dev/nextcloud && docker compose up -d && ./setup.sh)
 node dev/nextcloud/e2e-nextcloud.mjs

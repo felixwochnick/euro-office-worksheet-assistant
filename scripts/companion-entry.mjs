@@ -1,10 +1,8 @@
 /*
- * Entry of the companion's single-file bundle (scripts/build-companion.mjs).
- * The ABC helpers are bundled here and handed to proxy/src/abc.ts before it is evaluated
- * (imports are evaluated in order).
+ * Entry of the companion's single-file bundle (scripts/build-companion.mjs): the server program of the
+ * desktop app (apps/server/src/companion), with the shared modules (packages/shared) bundled in.
  */
-import './companion-preload.mjs';
-import { main } from '../proxy/src/companion/main.ts';
+import { main } from '../apps/server/src/companion/main.ts';
 
 main().then(
   (code) => {
