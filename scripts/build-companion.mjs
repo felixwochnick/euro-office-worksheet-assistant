@@ -9,6 +9,9 @@
  *   node scripts/build-companion.mjs # -> dist/companion/worksheet-assistant[.exe]
  *                                    #    dist/worksheet-assistant-<os>-<arch>.zip
  *
+ * --no-archive: only the executable and its license files (the desktop app, scripts/build-desktop.mjs, ships it
+ * as its server program).
+ *
  * Steps: bundle server + companion + shared/abc-tools.js with esbuild into one CommonJS file, embed the plugin
  * files as an asset, build the executable with `node --build-sea`, sign it ad hoc on macOS, zip it.
  */
@@ -153,6 +156,11 @@ if (major > 25 || (major === 25 && minor >= 5)) {
   );
 }
 if (process.platform === 'darwin') execFileSync('codesign', ['--sign', '-', '--force', exe], { stdio: 'inherit' });
+
+if (process.argv.includes('--no-archive')) {
+  console.log(`    ${path.relative(root, exe)} (${(fs.statSync(exe).size / 1048576).toFixed(1)} MB)`);
+  process.exit(0);
+}
 
 console.log('==> Archive');
 fs.rmSync(archive, { force: true });

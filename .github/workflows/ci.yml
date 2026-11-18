@@ -62,13 +62,18 @@ jobs:
           name: plugin-folder
           path: dist/worksheet-assistant/
 
-  # Companion app for the desktop editors: single executable per platform (Node.js SEA).
-  companion:
+  # Desktop app (Tauri + Nuxt UI) with the companion as its server program, per platform (debug bundles).
+  desktop:
     needs: test
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest, macos-15-intel]
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -81,41 +86,73 @@ jobs:
           # Node 24 LTS: its Linux build does not need libatomic (Node >= 25 does)
           node-version: 24
 
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: desktop/src-tauri -> target
+
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils
+
       - uses: actions/download-artifact@v4
         with:
           name: plugin-folder
           path: dist/worksheet-assistant
 
-      - name: Build the executable
+      - name: Build
         run: |
           npm ci
           npm --prefix proxy ci
-          node scripts/build-companion.mjs
+          npm --prefix desktop ci
+          node scripts/build-desktop.mjs --target ${{ matrix.target }} -- --debug
 
-      - name: Smoke test
+      - name: Rust checks
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        working-directory: desktop/src-tauri
         run: |
-          exe=dist/companion/worksheet-assistant
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+      - name: Smoke test (server program in app mode, MCP)
+        run: |
+          exe=desktop/src-tauri/binaries/worksheet-assistant-${{ matrix.target }}
           [ -f "$exe.exe" ] && exe="$exe.exe"
           "$exe" version
           home="$(mktemp -d)"
           mkdir -p "$home/.local/share/euro-office/desktopeditors"
-          HOME="$home" USERPROFILE="$home" APPDATA="$home/AppData/Roaming" LOCALAPPDATA="$home/AppData/Local" \
-            "$exe" --no-browser --port 8799 > companion.log 2>&1 &
-          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8799/v1/meta && break; sleep 1; done
+          secret=ci-secret-0123456789abcdef
+          # stdin stays open for 40 s (the program quits when it closes); stdout carries JSON events
+          (sleep 40) | HOME="$home" USERPROFILE="$home" APPDATA="$home/AppData/Roaming" LOCALAPPDATA="$home/AppData/Local" \
+            XDG_CONFIG_HOME="$home/.config" WORKSHEET_ASSISTANT_UI_SECRET="$secret" \
+            "$exe" --app --port 8799 > events.log 2> server.log &
+          for i in $(seq 1 30); do grep -q '"event":"ready"' events.log && break; sleep 1; done
+          cat events.log server.log
+          grep -q '"event":"ready"' events.log
+          curl -fs -H "x-companion-secret: $secret" http://127.0.0.1:8799/companion/api/state | head -c 300
           echo
           out="$(curl -fs -X POST http://127.0.0.1:8799/mcp -H 'content-type: application/json' \
             -H 'accept: application/json, text/event-stream' -H 'mcp-protocol-version: 2025-06-18' \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"convert_german_notes","arguments":{"notes":"c fis g"}}}')"
           echo "${out:0:300}"
-          cat companion.log
           # the tool result contains the converted tune (^F = fis)
           case "$out" in *'^F'*) echo "MCP ok" ;; *) echo "MCP call failed"; exit 1 ;; esac
 
-      - name: Runs on a minimal Linux (no extra libraries)
+      - name: Server program runs on a minimal Linux (no extra libraries)
         if: runner.os == 'Linux'
-        run: docker run --rm -v "$PWD/dist/companion:/wa:ro" ubuntu:24.04 /wa/worksheet-assistant version
+        run: docker run --rm -v "$PWD/desktop/src-tauri/binaries:/wa:ro" ubuntu:22.04 /wa/worksheet-assistant-${{ matrix.target }} version
 
       - uses: actions/upload-artifact@v4
         with:
-          name: companion-${{ runner.os }}-${{ runner.arch }}
-          path: dist/worksheet-assistant-*
+          name: desktop-${{ matrix.target }}
+          path: |
+            desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/dmg/*.dmg
+            desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/nsis/*.exe
+            desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/deb/*.deb
+            desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/appimage/*.AppImage
