@@ -32,6 +32,30 @@ The UI language is German (i18n-ready, English included).
 └──────────────────────────────────────────────┘────────┘        └────────────────────────┘
 ```
 
+## What runs where
+
+The plugin itself needs **no server of its own**. Only the AI chat needs a small additional service, the proxy.
+
+| Component | What it is | Where it runs | Needed for | Resources |
+|-----------|-----------|---------------|------------|-----------|
+| **Plugin** (`music-notation/`) | Static files (HTML, JavaScript, icons, abcjs) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: rendering, inserting, editing staves, lyrics, manual mode | ≈ 0.8 MB of files, no process |
+| **Proxy** (`proxy/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy | **Only the AI chat** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
+| **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat | Billed by the provider / your hardware |
+
+- **Without the proxy** the plugin works completely in the *Manuell* tab (ABC editor, templates, German note names,
+  lyrics, load/replace staves). The chat tab then asks for a proxy URL.
+- **Why a proxy at all?**
+  - It keeps the API key on the server. In the browser it would be readable by every user and could be used at
+    your expense.
+  - It protects access with a token, an origin allowlist (CORS) and a rate limit.
+  - It holds the system prompt and the tools, validates ABC before it reaches the document, and converts German
+    note names deterministically.
+  - It lets you switch the model (Mistral, OpenAI-compatible such as Ollama, Anthropic) without touching the plugin.
+- The proxy keeps no conversations or documents; its log contains request metadata (time, path, status, client IP)
+  and errors. With each chat request the plugin sends the chat history and the document outline (paragraph texts,
+  staff ABC); the proxy forwards them to the configured model provider – choose the provider accordingly (e.g. an EU
+  provider such as Mistral, or a local model via Ollama).
+
 ## Repository layout
 
 | Path | Content |
