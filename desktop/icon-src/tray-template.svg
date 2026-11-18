@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="3 2 28 26">
+  <!-- macOS menu bar (template image: black + alpha) -->
+  <g fill="#000">
+    <ellipse cx="10.5" cy="22.5" rx="4" ry="3" transform="rotate(-20 10.5 22.5)"/>
+    <ellipse cx="22.5" cy="19.5" rx="4" ry="3" transform="rotate(-20 22.5 19.5)"/>
+    <rect x="13.3" y="7.5" width="1.9" height="15"/>
+    <rect x="25.3" y="4.8" width="1.9" height="15"/>
+    <path d="M13.3 7.5 27.2 4.8v3.4L13.3 10.9z"/>
+  </g>
+</svg>
