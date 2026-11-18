@@ -3,7 +3,7 @@
  * Used for Mistral (https://api.mistral.ai/v1), OpenAI, Ollama (http://ollama:11434/v1),
  * LM Studio, vLLM and other servers implementing /chat/completions with tools.
  */
-import type { ChatMessage, CompletionRequest, CompletionResult, LLMProvider, ToolCall } from '../types.js';
+import { ProviderError, type ChatMessage, type CompletionRequest, type CompletionResult, type LLMProvider, type ToolCall } from '../types.js';
 import { parseArguments, postJson } from './http.js';
 
 export interface OpenAICompatibleOptions {
@@ -14,11 +14,15 @@ export interface OpenAICompatibleOptions {
   temperature: number;
   maxTokens: number;
   timeoutMs: number;
+  /** reasoning_effort for reasoning models ('' = not sent). */
+  reasoningEffort?: string;
 }
 
 export class OpenAICompatibleProvider implements LLMProvider {
   readonly name: string;
   readonly model: string;
+  /** Set when the API rejected reasoning_effort – then it is no longer sent. */
+  private reasoningUnsupported = false;
 
   constructor(private readonly opts: OpenAICompatibleOptions) {
     this.name = opts.name;
@@ -61,7 +65,20 @@ export class OpenAICompatibleProvider implements LLMProvider {
     const headers: Record<string, string> = {};
     if (this.opts.apiKey) headers.authorization = `Bearer ${this.opts.apiKey}`;
     const url = this.opts.baseUrl.replace(/\/+$/, '') + '/chat/completions';
-    const data = await postJson(url, headers, body, this.opts.timeoutMs);
+    if (this.opts.reasoningEffort && !this.reasoningUnsupported) body.reasoning_effort = this.opts.reasoningEffort;
+    let data: any;
+    try {
+      data = await postJson(url, headers, body, this.opts.timeoutMs);
+    } catch (err) {
+      // Models without (this level of) reasoning reject the parameter: retry once without it.
+      if (body.reasoning_effort && err instanceof ProviderError && /reasoning_effort/i.test(err.message)) {
+        this.reasoningUnsupported = true;
+        delete body.reasoning_effort;
+        data = await postJson(url, headers, body, this.opts.timeoutMs);
+      } else {
+        throw err;
+      }
+    }
 
     const message = data?.choices?.[0]?.message ?? {};
     const content = typeof message.content === 'string'
@@ -76,6 +93,6 @@ export class OpenAICompatibleProvider implements LLMProvider {
         name: String(tc.function.name),
         arguments: parseArguments(tc.function.arguments),
       }));
-    return { content, tool_calls: toolCalls };
+    return { content, tool_calls: toolCalls, truncated: data?.choices?.[0]?.finish_reason === 'length' };
   }
 }

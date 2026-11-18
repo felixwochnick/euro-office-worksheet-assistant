@@ -50,6 +50,8 @@ export interface CompletionRequest {
 export interface CompletionResult {
   content: string;
   tool_calls: ToolCall[];
+  /** The model stopped because the output token limit was reached (e.g. long "thinking" of reasoning models). */
+  truncated?: boolean;
 }
 
 export interface LLMProvider {

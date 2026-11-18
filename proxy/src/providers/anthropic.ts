@@ -76,6 +76,6 @@ export class AnthropicProvider implements LLMProvider {
     const toolCalls: ToolCall[] = blocks
       .filter((b) => b.type === 'tool_use')
       .map((b) => ({ id: String(b.id), name: String(b.name), arguments: (b.input ?? {}) as Record<string, unknown> }));
-    return { content, tool_calls: toolCalls };
+    return { content, tool_calls: toolCalls, truncated: data?.stop_reason === 'max_tokens' };
   }
 }

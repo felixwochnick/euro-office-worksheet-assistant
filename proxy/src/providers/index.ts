@@ -27,6 +27,7 @@ export function createProvider(cfg: Config): LLMProvider {
         temperature: cfg.temperature,
         maxTokens: cfg.maxTokens,
         timeoutMs: cfg.timeoutMs,
+        reasoningEffort: cfg.reasoningEffort,
       });
   }
 }

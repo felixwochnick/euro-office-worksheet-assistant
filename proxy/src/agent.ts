@@ -66,7 +66,10 @@ export async function runTurn(opts: {
     const assistant: AssistantMessage = { role: 'assistant', content: result.content ?? '' };
     if (calls.length) assistant.tool_calls = calls;
     if (!calls.length && !assistant.content.trim()) {
-      assistant.content = forceFinal
+      assistant.content = result.truncated
+        ? 'Die KI hat ihr Antwortlimit erreicht, bevor sie fertig war. Bitte formuliere die Anfrage kürzer oder in ' +
+          'Teilschritten (z. B. erst die Noten, dann den Text). Administratoren können LLM_MAX_TOKENS im Proxy erhöhen.'
+        : forceFinal
         ? 'Ich habe die maximale Anzahl an Arbeitsschritten erreicht. Bitte prüfe das Dokument und formuliere die Anfrage ggf. neu.'
         : 'Entschuldigung, ich habe keine Antwort erhalten. Bitte versuche es noch einmal.';
     }

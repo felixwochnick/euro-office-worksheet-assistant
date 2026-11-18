@@ -19,6 +19,8 @@ export interface Config {
   baseUrl: string;
   temperature: number;
   maxTokens: number;
+  /** Sent as reasoning_effort to OpenAI-compatible APIs ('' = not sent). */
+  reasoningEffort: string;
   timeoutMs: number;
   logLevel: string;
 }
@@ -82,8 +84,18 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     apiKey,
     baseUrl,
     temperature: int(env, 'LLM_TEMPERATURE', 0.2, 0, 2),
-    maxTokens: int(env, 'LLM_MAX_TOKENS', 2048, 64, 64000),
-    timeoutMs: int(env, 'LLM_TIMEOUT_MS', 60000, 1000, 600000),
+    // Reasoning models (e.g. current mistral-large) spend part of the budget on "thinking".
+    maxTokens: int(env, 'LLM_MAX_TOKENS', 8192, 64, 64000),
+    // Reasoning models think for a very long time by default (mistral-large-latest used
+    // 8000+ tokens on "Alle meine Entchen"); "medium" keeps answers fast and accurate.
+    // "off" = do not send the parameter.
+    reasoningEffort: ((): string => {
+      const v = (env.LLM_REASONING_EFFORT ?? '').trim().toLowerCase();
+      if (v === 'off' || v === 'none-sent') return '';
+      if (v) return v;
+      return provider === 'mistral' ? 'medium' : '';
+    })(),
+    timeoutMs: int(env, 'LLM_TIMEOUT_MS', 120000, 1000, 600000),
     logLevel: env.LOG_LEVEL || 'info',
   };
 }

@@ -10,7 +10,8 @@
   'use strict';
 
   var MAX_CLIENT_ROUNDS = 12;
-  var REQUEST_TIMEOUT_MS = 120000;
+  // One proxy request can include several model calls (server-side tools); reasoning models are slow.
+  var REQUEST_TIMEOUT_MS = 300000;
   // History sent to the proxy is compacted to stay well below its limits
   // (proxy/src/server.ts: 400 messages, 200 000 chars per message, 1 MB body).
   var MAX_HISTORY_MESSAGES = 80;
