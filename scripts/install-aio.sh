@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Install the music notation plugin into the Euro-Office container of Nextcloud AIO.
+# Install the worksheet assistant plugin into the Euro-Office container of Nextcloud AIO.
 #
 # The sdkjs-plugins folder inside the container is emptied whenever AIO re-creates the
 # container (updates). With --watch a small systemd service re-installs the plugin
@@ -11,8 +11,8 @@
 #   curl -fsSL https://raw.githubusercontent.com/felixwochnick/eurooffice-music-notation-plugin/main/scripts/install-aio.sh | sudo bash -s -- --watch
 #
 #   # or from a local build / downloaded archive
-#   sudo scripts/install-aio.sh --source dist/music-notation --watch
-#   sudo scripts/install-aio.sh --archive music-notation.tar.gz
+#   sudo scripts/install-aio.sh --source dist/worksheet-assistant --watch
+#   sudo scripts/install-aio.sh --archive worksheet-assistant.tar.gz
 #
 # Options:
 #   --source DIR        plugin folder (contains config.json)
@@ -28,11 +28,14 @@
 set -euo pipefail
 
 REPO="felixwochnick/eurooffice-music-notation-plugin"
-NAME="music-notation"
+NAME="worksheet-assistant"
 CONTAINER="${EUROOFFICE_CONTAINER:-nextcloud-aio-eurooffice}"
 PLUGIN_DIR="/var/www/euro-office/documentserver/sdkjs-plugins"
 STORE="/opt/eurooffice-plugins"
-SERVICE="eurooffice-music-notation"
+SERVICE="eurooffice-worksheet-assistant"
+# Earlier name of the plugin (version 0.1, "Noten-Assistent"): same GUID, removed on install.
+LEGACY_NAME="music-notation"
+LEGACY_SERVICE="eurooffice-music-notation"
 SOURCE=""
 ARCHIVE=""
 VERSION="latest"
@@ -64,7 +67,7 @@ unit_text() {
   local script="$1"
   cat <<UNIT
 [Unit]
-Description=Re-install the Euro-Office music notation plugin after '$CONTAINER' starts (Nextcloud AIO updates)
+Description=Re-install the Euro-Office worksheet assistant plugin after '$CONTAINER' starts (Nextcloud AIO updates)
 After=docker.service
 Requires=docker.service
 
@@ -99,7 +102,7 @@ copy_into_container() {
   container_running || die "container '$CONTAINER' is not running (docker ps)"
   docker exec -u root "$CONTAINER" test -d "$PLUGIN_DIR" \
     || die "plugin directory $PLUGIN_DIR not found in '$CONTAINER' – set --plugin-dir"
-  docker exec -u root "$CONTAINER" sh -c "rm -rf '$PLUGIN_DIR/$NAME' && mkdir -p '$PLUGIN_DIR/$NAME'"
+  docker exec -u root "$CONTAINER" sh -c "rm -rf '$PLUGIN_DIR/$NAME' '$PLUGIN_DIR/$LEGACY_NAME' && mkdir -p '$PLUGIN_DIR/$NAME'"
   docker cp "$src/." "$CONTAINER:$PLUGIN_DIR/$NAME/" >/dev/null
   docker exec -u root "$CONTAINER" chmod -R a+rX "$PLUGIN_DIR/$NAME"
   log "plugin copied to $CONTAINER:$PLUGIN_DIR/$NAME"
@@ -118,16 +121,22 @@ verify() {
 }
 
 fetch_release() {
-  local tmp url
+  local tmp base file
   tmp="$(mktemp -d)"
   if [[ "$VERSION" == "latest" ]]; then
-    url="https://github.com/$REPO/releases/latest/download/$NAME.tar.gz"
+    base="https://github.com/$REPO/releases/latest/download"
   else
-    url="https://github.com/$REPO/releases/download/$VERSION/$NAME.tar.gz"
+    base="https://github.com/$REPO/releases/download/$VERSION"
   fi
-  log "downloading $url"
-  curl -fsSL "$url" -o "$tmp/$NAME.tar.gz" || die "download failed – is there a release? (or use --source/--archive)"
-  ARCHIVE="$tmp/$NAME.tar.gz"
+  # Releases up to 0.1.0 used the archive name music-notation.tar.gz.
+  for file in "$NAME.tar.gz" "$LEGACY_NAME.tar.gz"; do
+    log "downloading $base/$file"
+    if curl -fsSL "$base/$file" -o "$tmp/$file"; then
+      ARCHIVE="$tmp/$file"
+      return 0
+    fi
+  done
+  die "download failed – is there a release? (or use --source/--archive)"
 }
 
 # Put the plugin into $STORE/$NAME (the copy the watcher re-installs from).
@@ -143,10 +152,13 @@ stage() {
       *.zip) command -v unzip >/dev/null || die "unzip not found (use the .tar.gz)"; unzip -q "$ARCHIVE" -d "$tmp" ;;
       *) tar -xzf "$ARCHIVE" -C "$tmp" ;;
     esac
-    # archives contain either the files directly or a music-notation/ folder
-    if [[ ! -f "$tmp/config.json" && -f "$tmp/$NAME/config.json" ]]; then
-      local inner="$tmp/$NAME"; tmp="$(mktemp -d)"; cp -R "$inner/." "$tmp/"
-    fi
+    # archives contain either the files directly or a worksheet-assistant/ (before 0.2: music-notation/) folder
+    local dir
+    for dir in "$NAME" "$LEGACY_NAME"; do
+      if [[ ! -f "$tmp/config.json" && -f "$tmp/$dir/config.json" ]]; then
+        local inner="$tmp/$dir"; tmp="$(mktemp -d)"; cp -R "$inner/." "$tmp/"
+      fi
+    done
     [[ -f "$tmp/config.json" ]] || die "archive does not contain the plugin (config.json)"
   fi
   mkdir -p "$STORE"
@@ -156,8 +168,19 @@ stage() {
   log "plugin stored in $STORE/$NAME ($(grep -o '"version": *"[^"]*"' "$STORE/$NAME/config.json" | head -1))"
 }
 
+remove_legacy_service() {
+  if command -v systemctl >/dev/null && [[ -f "/etc/systemd/system/$LEGACY_SERVICE.service" ]]; then
+    systemctl disable --now "$LEGACY_SERVICE.service" >/dev/null 2>&1 || true
+    rm -f "/etc/systemd/system/$LEGACY_SERVICE.service"
+    systemctl daemon-reload
+    log "old service $LEGACY_SERVICE removed"
+  fi
+  rm -rf "${STORE:?}/$LEGACY_NAME"
+}
+
 install_service() {
   command -v systemctl >/dev/null || die "systemd not found – cannot install the watcher (install again manually after AIO updates)"
+  remove_legacy_service
   local script="$STORE/install-aio.sh"
   cp "$0" "$script" 2>/dev/null || curl -fsSL "https://raw.githubusercontent.com/$REPO/main/scripts/install-aio.sh" -o "$script"
   chmod 755 "$script"
@@ -179,8 +202,9 @@ case "$MODE" in
       systemctl daemon-reload
       log "service removed"
     fi
+    remove_legacy_service
     if container_running; then
-      docker exec -u root "$CONTAINER" rm -rf "$PLUGIN_DIR/$NAME"
+      docker exec -u root "$CONTAINER" rm -rf "$PLUGIN_DIR/$NAME" "$PLUGIN_DIR/$LEGACY_NAME"
       log "plugin removed from $CONTAINER"
     fi
     rm -rf "${STORE:?}/$NAME"

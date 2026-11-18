@@ -86,6 +86,41 @@ try {
   assert.equal(d[heading + 1].alts[0], 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC ^F G |]\nw: Hal-lo du');
   console.log('ok - chat adds lyrics to an existing staff');
 
+  // 1d) whole worksheet via insert_blocks (preview with blocks), then replace and delete elements
+  await frame.locator('#chat-text').fill('Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 5');
+  await frame.locator('#chat-send').click();
+  const card = frame.locator('.card').filter({ has: frame.locator('.preview-doc') }).last();
+  await card.locator('button.primary').waitFor({ timeout: 15000 });
+  assert.match(await card.locator('.preview-doc').innerText(), /Arbeitsblatt: Wasserkreislauf[\s\S]*Aufgabe 1[\s\S]*Begriff[\s\S]*Merke/);
+  await card.locator('button.primary').click();
+  await frame.locator('.msg.assistant', { hasText: 'Arbeitsblatt mit' }).waitFor({ timeout: 15000 });
+  let els = await page.evaluate(() => window.HarnessMock.state.elements.map((e) => ({ type: e.type, text: e.text, style: e.style, list: e.list, line: e.line, rows: e.rows && e.rows.length })));
+  const ws = els.findIndex((e) => e.text === 'Arbeitsblatt: Wasserkreislauf');
+  assert.ok(ws > 0, 'worksheet inserted at the end');
+  assert.equal(els[ws].style, 'Heading 1');
+  assert.equal(els.filter((e) => e.list === 'numbered').length, 2);
+  assert.equal(els.filter((e) => e.line).length, 3);
+  assert.equal(els.filter((e) => e.type === 'table').length, 2);
+  // bold run followed by plain text must not stay bold
+  const bold = await page.evaluate((i) => window.HarnessMock.state.elements[i].runs.map((r) => (r.b ? '*' : '') + r.text).join('|'), ws + 3);
+  assert.equal(bold, 'Lies den Text über |*Wasserkreislauf| und beantworte die Fragen.');
+  console.log('ok - worksheet via insert_blocks (headings, list, lines, table, box)');
+
+  await frame.locator('#chat-text').fill(`Ersetze Element ${ws + 3} durch: Lies den Text **genau**.`);
+  await frame.locator('#chat-send').click();
+  await frame.locator('.card button.primary:not([disabled])').first().click({ timeout: 15000 });
+  await frame.locator('.msg.assistant', { hasText: 'ersetzt' }).waitFor({ timeout: 15000 });
+  els = await page.evaluate(() => window.HarnessMock.state.elements.map((e) => e.text));
+  assert.equal(els[ws + 3], 'Lies den Text genau.');
+  await frame.locator('#chat-text').fill(`Lösche Element ${ws + 1}`);
+  await frame.locator('#chat-send').click();
+  await frame.locator('.card button.danger:not([disabled])').first().click({ timeout: 15000 });
+  await frame.locator('.msg.assistant', { hasText: 'gelöscht' }).waitFor({ timeout: 15000 });
+  const after = await page.evaluate(() => window.HarnessMock.state.elements.map((e) => e.text));
+  assert.equal(after.length, els.length - 1);
+  assert.ok(!after.some((t) => /^Name: _+  Klasse/.test(t || '')), 'name line deleted');
+  console.log('ok - replace_elements and delete_elements (with confirmation)');
+
   // 2) manual mode: template after element 0, load + replace selected image
   await frame.locator('.tab[data-tab=manual]').click();
   await frame.locator('#m-template').selectOption('melody');

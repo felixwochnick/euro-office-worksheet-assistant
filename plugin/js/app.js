@@ -102,19 +102,26 @@
       card.className = 'card';
       var title = document.createElement('div');
       title.className = 'title';
-      var replacing = call.name === 'replace_staff';
-      title.textContent = t(replacing ? 'preview.titleReplace' : 'preview.title') + ' – ' + toolLabel(call);
+      var replacing = call.name === 'replace_staff' || call.name === 'replace_elements';
+      var deleting = call.name === 'delete_elements';
+      title.textContent = t(deleting ? 'preview.titleDelete' : replacing ? 'preview.titleReplace' : 'preview.title') + ' – ' + toolLabel(call);
       var preview = document.createElement('div');
-      preview.className = 'preview';
-      var img = document.createElement('img');
-      img.src = rendered.dataUrl;
-      img.alt = 'preview';
-      preview.appendChild(img);
+      preview.className = rendered.element ? 'preview-doc' : 'preview';
+      if (rendered.element) {
+        // Worksheet blocks (DOM built with textContent, no HTML from the model) or the text to delete.
+        preview.appendChild(rendered.element);
+      } else {
+        var img = document.createElement('img');
+        img.src = rendered.dataUrl;
+        img.alt = 'preview';
+        preview.appendChild(img);
+      }
       var row = document.createElement('div');
       row.className = 'row';
       var yes = document.createElement('button');
       yes.className = 'primary';
-      yes.textContent = t(replacing ? 'preview.replace' : 'preview.insert');
+      yes.textContent = t(deleting ? 'preview.delete' : replacing ? 'preview.replace' : 'preview.insert');
+      if (deleting) yes.className = 'danger';
       var no = document.createElement('button');
       no.className = 'secondary';
       no.textContent = t('preview.discard');
@@ -171,7 +178,10 @@
         if (call.name === 'get_document_outline') { addChat('tool', t('tool.get_document_outline')); return; }
         var status;
         if (!result.ok) status = t('tool.failed', { error: result.error || '?' });
-        else if (result.inserted === false || result.replaced === false) status = t('tool.rejected');
+        else if (result.inserted === false || result.replaced === false || result.deleted === false) status = t('tool.rejected');
+        else if (call.name === 'insert_blocks' || call.name === 'replace_elements') status = t('tool.blocksAt', { count: result.count, from: result.first_index, to: result.last_index });
+        else if (call.name === 'delete_elements') status = t('tool.deletedRange', { count: result.removed_count });
+        else if (call.name === 'get_elements') status = t('tool.read');
         else if (result.replaced) status = t('tool.replacedAt', { index: result.index });
         else if (result.index != null) status = t('tool.insertedAt', { index: result.index });
         else status = t('tool.inserted');

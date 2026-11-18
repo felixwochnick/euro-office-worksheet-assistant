@@ -45,10 +45,10 @@ try {
 
   // Open the plugin from the Plugins tab.
   await editor.locator('.ribtab a[data-tab=plugins]').click();
-  await editor.getByText('Noten-Assistent', { exact: true }).first().click();
+  await editor.getByText('Arbeitsblatt-Assistent', { exact: true }).first().click();
   let plugin = null;
   for (let i = 0; i < 100 && !plugin; i++) {
-    plugin = page.frames().find((f) => f.url().includes('/sdkjs-plugins/music-notation/index.html'));
+    plugin = page.frames().find((f) => f.url().includes('/sdkjs-plugins/worksheet-assistant/index.html'));
     if (!plugin) await page.waitForTimeout(200);
   }
   assert.ok(plugin, 'plugin iframe found');
@@ -144,6 +144,29 @@ try {
   assert.match(o2.elements[h2 + 1].abc || '', /C \^F G \|\]\nw: Hal-lo du$/);
   step(`chat added lyrics to Notenzeile ${staffNo}`);
 
+  // Whole worksheet via insert_blocks (mock model), real builder API: headings, list, lines, table, box
+  const countBeforeWs = (await plugin.evaluate(() => window.MusicEditor.getOutline())).total_elements;
+  await plugin.locator('#chat-text').fill('Erstelle ein Arbeitsblatt zum Wasserkreislauf für Klasse 5');
+  await plugin.locator('#chat-send').click();
+  await plugin.locator('.msg.assistant', { hasText: /Arbeitsblatt mit|fehlgeschlagen/ }).waitFor({ timeout: 60000 });
+  o2 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+  const wsIdx = o2.elements.findIndex((e) => e.text === 'Arbeitsblatt: Wasserkreislauf');
+  assert.ok(wsIdx >= 0, 'worksheet title inserted');
+  assert.equal(o2.elements[wsIdx].heading_level, 1);
+  assert.equal(o2.elements.filter((e) => e.list_item).length >= 2, true, 'numbered list');
+  assert.equal(o2.elements.filter((e) => e.type === 'table').length >= 2, true, 'table + box');
+  assert.ok(o2.total_elements >= countBeforeWs + 13);
+  const full = await plugin.evaluate((i) => window.WorksheetDoc.getElements(i, i + 12), wsIdx);
+  const tableEl = full.elements.find((e) => e.type === 'table' && e.rows.length === 3);
+  assert.deepEqual(tableEl.rows[0], ['Begriff', 'Erklärung']);
+  step(`worksheet inserted with insert_blocks (${o2.total_elements - countBeforeWs} elements: headings, list, lines, table, box)`);
+  // delete the worksheet again (keeps later assertions on the rest of the document stable)
+  await plugin.evaluate(({ from, to }) => window.WorksheetDoc.editBlocks({ op: 'delete', from, to }), { from: wsIdx, to: wsIdx + (o2.total_elements - countBeforeWs) - 1 });
+  o2 = await plugin.evaluate(() => window.MusicEditor.getOutline());
+  assert.equal(o2.total_elements, countBeforeWs);
+  step('delete_elements removed the worksheet again');
+  await shot(page, '3b-worksheet');
+
   // Load + replace a selected image: select the melody via the builder API
   const selected = await plugin.evaluate(() => window.MusicEditor.callCommand(function () {
     var d = Api.GetDocument().GetElement(2).GetAllDrawingObjects()[0];
@@ -215,6 +238,10 @@ try {
   step('no page errors');
 } catch (err) {
   await shot(page, 'failure');
+  try {
+    const pf = page.frames().find((f) => f.url().includes('/sdkjs-plugins/worksheet-assistant/index.html'));
+    if (pf) console.error('last chat messages:\n  ' + (await pf.locator('.msg').allTextContents()).slice(-6).join('\n  '));
+  } catch (e) { /* ignore */ }
   console.error('FAILED:', err.message);
   console.error('page errors:', errors);
   process.exitCode = 1;

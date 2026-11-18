@@ -16,6 +16,14 @@
     #mock-doc .idx { display: inline-block; width: 26px; color: #aaa; font-size: 10px; font-weight: normal; }
     #mock-doc img { display: block; margin: 4px 0 4px 26px; max-width: 100%; outline: 1px dashed #ccc; cursor: pointer; }
     #mock-doc img.selected { outline: 2px solid #e67e22; }
+    #mock-doc table { border-collapse: collapse; margin: 4px 0 4px 26px; width: calc(100% - 26px); font-weight: normal; font-size: 13px; }
+    #mock-doc td { border: 1px solid #888; padding: 2px 4px; }
+    #mock-doc td.shd { background: #eceef5; }
+    #mock-doc table.box td { border-color: #4f46e5; background: #eef2ff; }
+    #mock-doc .list.numbered::before { content: "1. "; color: #888; }
+    #mock-doc .list.bullet::before { content: "• "; color: #888; }
+    #mock-doc .el.line { border-bottom: 1px solid #333; height: 22px; margin-left: 26px; }
+    #mock-doc .el.page-break { border-bottom: 2px dashed #aaa; }
     iframe { width: 380px; height: 100%; border: 0; border-left: 1px solid #bbb; background: #fff; grid-row: 2 / 4; grid-column: 2; }
     #mock-log { grid-column: 1; margin: 0 12px 12px; background: #222; color: #9f9; font: 11px monospace; padding: 6px; overflow-y: auto; white-space: pre-wrap; }
   </style>
@@ -32,7 +40,7 @@
   </header>
   <div id="mock-doc" title="Klick = Cursor setzen, Klick auf Bild = Bild markieren"></div>
   <pre id="mock-log"></pre>
-  <iframe id="panel" src="../dist/music-notation/index.html" title="Plugin-Panel"></iframe>
+  <iframe id="panel" src="../dist/worksheet-assistant/index.html" title="Plugin-Panel"></iframe>
 
   <script src="mock-editor.js"></script>
   <script>

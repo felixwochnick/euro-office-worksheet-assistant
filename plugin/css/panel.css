@@ -92,3 +92,20 @@ textarea { resize: vertical; }
 /* Preview: always black on white like the printed result */
 .preview { background: #fff; border: 1px solid var(--border); border-radius: 3px; min-height: 40px; overflow-x: auto; padding: 2px; }
 .preview img, .preview svg { display: block; max-width: 100%; height: auto; }
+
+/* Preview of worksheet blocks in the chat */
+.preview-doc { background: #fff; color: #222; border: 1px solid var(--border); border-radius: 3px; padding: 6px 8px; max-height: 320px; overflow-y: auto; font-size: 11px; }
+.preview-doc h2, .preview-doc h3, .preview-doc h4 { margin: 6px 0 2px; }
+.preview-doc h2 { font-size: 14px; } .preview-doc h3 { font-size: 13px; } .preview-doc h4 { font-size: 12px; }
+.preview-doc p { margin: 2px 0; }
+.preview-doc ol, .preview-doc ul { margin: 2px 0; padding-left: 18px; }
+.preview-doc table { border-collapse: collapse; width: 100%; margin: 4px 0; }
+.preview-doc th, .preview-doc td { border: 1px solid #999; padding: 1px 4px; text-align: left; }
+.preview-doc th { background: #eceef5; }
+.preview-doc .write-line { border-bottom: 1px solid #333; height: 14px; }
+.preview-doc .box { border: 1px solid #4f46e5; background: #eef2ff; padding: 4px 6px; margin: 4px 0; }
+.preview-doc .page-break { color: #888; text-align: center; font-size: 10px; margin: 4px 0; }
+.preview-doc .preview { border: 0; padding: 0; }
+.preview-doc img { max-width: 100%; display: block; }
+.delete-list { margin: 0; padding-left: 16px; }
+button.danger { background: #c0392b; border-color: #c0392b; color: #fff; }

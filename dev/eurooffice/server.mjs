@@ -58,7 +58,7 @@ function page(withPluginsData) {
       mode: 'edit',
       user: { id: 'teacher-1', name: 'Lehramtsstudentin' },
       customization: { forcesave: true, compactHeader: false },
-      ...(withPluginsData ? { plugins: { pluginsData: [`${DS_URL}/sdkjs-plugins/music-notation/config.json`] } } : {}),
+      ...(withPluginsData ? { plugins: { pluginsData: [`${DS_URL}/sdkjs-plugins/worksheet-assistant/config.json`] } } : {}),
     },
     width: '100%',
     height: '100%',

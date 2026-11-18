@@ -32,8 +32,8 @@ jobs:
       - name: Install script (syntax, systemd unit)
         run: |
           bash -n scripts/install-aio.sh
-          scripts/install-aio.sh --print-unit > /tmp/eurooffice-music-notation.service
-          systemd-analyze verify /tmp/eurooffice-music-notation.service || true
+          scripts/install-aio.sh --print-unit > /tmp/eurooffice-worksheet-assistant.service
+          systemd-analyze verify /tmp/eurooffice-worksheet-assistant.service || true
 
       - name: End-to-end test (harness + mock proxy)
         env:
@@ -51,8 +51,8 @@ jobs:
 
       - uses: actions/upload-artifact@v4
         with:
-          name: music-notation-plugin
+          name: worksheet-assistant-plugin
           path: |
-            dist/music-notation.tar.gz
-            dist/music-notation.zip
-            dist/music-notation.plugin
+            dist/worksheet-assistant.tar.gz
+            dist/worksheet-assistant.zip
+            dist/worksheet-assistant.plugin

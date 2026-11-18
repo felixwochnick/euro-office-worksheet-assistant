@@ -33,6 +33,48 @@ const positionSchema = {
   ],
 };
 
+const blockPositionSchema = {
+  ...positionSchema,
+  description:
+    positionSchema.description + ' Additionally "start" (top of the document) and "end" (end of the document, e.g. for a new worksheet).',
+  anyOf: [{ type: 'string', enum: ['cursor', 'start', 'end'] }, ...positionSchema.anyOf.slice(1)],
+};
+
+const textSchema = (desc: string) => ({ type: 'string', maxLength: 4000, description: desc });
+
+/** JSON Schema of one worksheet block (see plugin/js/blocks.js). */
+const blockSchema = {
+  type: 'object',
+  description:
+    'One building block. Text fields support **bold**, *italic*, __underline__ and "\\n" for a line break; gaps in cloze texts are written as "________".',
+  properties: {
+    type: {
+      type: 'string',
+      enum: ['heading', 'paragraph', 'list', 'table', 'lines', 'box', 'staff', 'empty_staves', 'page_break', 'spacer'],
+      description:
+        'heading {text, level 1-3}; paragraph {text, align?}; list {items[], ordered?}; table {rows[][], header? (first row bold, default true)}; ' +
+        'lines {count 1-20, label?} = writing lines; box {text, title?} = framed info box ("Merke", tip, rule); ' +
+        'staff {abc, width_cm?} = music staff from ABC; empty_staves {clef, count, measures?}; page_break; spacer {lines?}',
+    },
+    text: textSchema('heading / paragraph / box text'),
+    level: { type: 'integer', minimum: 1, maximum: 3 },
+    align: { type: 'string', enum: ['left', 'center', 'right', 'justify'] },
+    items: { type: 'array', items: { type: 'string', maxLength: 2000 }, maxItems: 50 },
+    ordered: { type: 'boolean' },
+    rows: { type: 'array', items: { type: 'array', items: { type: 'string', maxLength: 1000 }, maxItems: 10 }, maxItems: 60 },
+    header: { type: 'boolean' },
+    count: { type: 'integer', minimum: 1, maximum: 20 },
+    label: { type: 'string', maxLength: 500 },
+    title: { type: 'string', maxLength: 200 },
+    abc: { type: 'string' },
+    width_cm: { type: 'number', minimum: 3, maximum: 19 },
+    clef: { type: 'string', enum: ['treble', 'bass'] },
+    measures: { type: 'integer', minimum: 0, maximum: 8 },
+    lines: { type: 'integer', minimum: 1, maximum: 10 },
+  },
+  required: ['type'],
+};
+
 const widthSchema = {
   type: 'number',
   minimum: 3,
@@ -104,6 +146,60 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     },
   },
   {
+    name: 'insert_blocks',
+    description:
+      'Insert worksheet content: headings, paragraphs (instructions, texts, cloze texts), lists, tables, writing lines, info boxes, ' +
+      'music staves, empty staves, page breaks. Use it to create a whole worksheet in one call (in reading order) or to add parts. ' +
+      'Returns the index range of the new elements.',
+    parameters: {
+      type: 'object',
+      properties: {
+        position: blockPositionSchema,
+        blocks: { type: 'array', items: blockSchema, minItems: 1, maxItems: 80 },
+      },
+      required: ['position', 'blocks'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'replace_elements',
+    description:
+      'Replace the top-level elements from..to (indices from the outline, inclusive) with new blocks – to rewrite a task, ' +
+      'fix a text, change a table. Read the current content with get_elements first. Keep everything the user did not ask to change.',
+    parameters: {
+      type: 'object',
+      properties: {
+        from: { type: 'integer', minimum: 0 },
+        to: { type: 'integer', minimum: 0 },
+        blocks: { type: 'array', items: blockSchema, minItems: 1, maxItems: 80 },
+      },
+      required: ['from', 'to', 'blocks'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'delete_elements',
+    description: 'Delete the top-level elements from..to (inclusive). The user is asked to confirm. Only delete what the user asked for.',
+    parameters: {
+      type: 'object',
+      properties: { from: { type: 'integer', minimum: 0 }, to: { type: 'integer', minimum: 0 } },
+      required: ['from', 'to'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'get_elements',
+    description:
+      'Return the full content of the top-level elements from..to (inclusive): complete paragraph texts, list flags, table cells, staff ABC. ' +
+      'Use it before replace_elements and whenever the outline (texts are shortened) is not enough.',
+    parameters: {
+      type: 'object',
+      properties: { from: { type: 'integer', minimum: 0 }, to: { type: 'integer', minimum: 0 } },
+      required: ['from'],
+      additionalProperties: false,
+    },
+  },
+  {
     name: 'get_document_outline',
     description:
       'Return the current document structure: top-level elements with index, text, style, whether they are headings, and the ABC source of inserted staves. Call it again after inserting, because indices shift.',
@@ -165,7 +261,119 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
   },
 ];
 
-export const CLIENT_TOOLS = new Set(['insert_staff', 'insert_empty_staves', 'replace_staff', 'get_document_outline']);
+export const CLIENT_TOOLS = new Set([
+  'insert_blocks',
+  'replace_elements',
+  'delete_elements',
+  'get_elements',
+  'insert_staff',
+  'insert_empty_staves',
+  'replace_staff',
+  'get_document_outline',
+]);
+
+const BLOCK_TYPES = new Set(['heading', 'paragraph', 'list', 'table', 'lines', 'box', 'staff', 'empty_staves', 'page_break', 'spacer']);
+
+function str(v: unknown, max: number): string | null {
+  if (typeof v !== 'string') return null;
+  return v.length > max ? v.slice(0, max) : v;
+}
+
+/**
+ * Validate and normalise worksheet blocks. Returns the cleaned blocks or a
+ * message the model can act on (block number + problem).
+ */
+export function checkBlocks(raw: unknown): { blocks?: Record<string, unknown>[]; error?: string } {
+  if (!Array.isArray(raw) || raw.length === 0) return { error: '"blocks" must be a non-empty array.' };
+  if (raw.length > 80) return { error: 'At most 80 blocks per call – split the content into several calls.' };
+  const out: Record<string, unknown>[] = [];
+  for (let i = 0; i < raw.length; i++) {
+    const b = raw[i] as Record<string, unknown>;
+    const at = `blocks[${i}]`;
+    if (!b || typeof b !== 'object' || !BLOCK_TYPES.has(String(b.type))) {
+      return { error: `${at}: unknown type "${b && (b as { type?: unknown }).type}". Allowed: ${[...BLOCK_TYPES].join(', ')}.` };
+    }
+    const type = String(b.type);
+    switch (type) {
+      case 'heading': {
+        const text = str(b.text, 500);
+        if (!text?.trim()) return { error: `${at}: heading needs "text".` };
+        out.push({ type, text, level: Math.min(3, Math.max(1, Number(b.level) || 2)) });
+        break;
+      }
+      case 'paragraph': {
+        const text = str(b.text, 4000);
+        if (text == null) return { error: `${at}: paragraph needs "text".` };
+        const align = ['left', 'center', 'right', 'justify'].includes(String(b.align)) ? b.align : undefined;
+        out.push(align ? { type, text, align } : { type, text });
+        break;
+      }
+      case 'list': {
+        if (!Array.isArray(b.items) || !b.items.length) return { error: `${at}: list needs "items" (array of strings).` };
+        out.push({ type, items: b.items.slice(0, 50).map((x) => String(x).slice(0, 2000)), ordered: b.ordered === true });
+        break;
+      }
+      case 'table': {
+        if (!Array.isArray(b.rows) || !b.rows.length || !b.rows.every((r) => Array.isArray(r))) {
+          return { error: `${at}: table needs "rows" (array of arrays of strings).` };
+        }
+        const rows = (b.rows as unknown[][]).slice(0, 60).map((r) => r.slice(0, 10).map((c) => (c == null ? '' : String(c).slice(0, 1000))));
+        out.push({ type, rows, header: b.header !== false });
+        break;
+      }
+      case 'lines': {
+        const count = Math.round(Number(b.count ?? 3));
+        if (!(count >= 1 && count <= 20)) return { error: `${at}: lines "count" must be 1–20.` };
+        const label = str(b.label, 500);
+        out.push(label ? { type, count, label } : { type, count });
+        break;
+      }
+      case 'box': {
+        const text = str(b.text, 4000);
+        if (!text?.trim()) return { error: `${at}: box needs "text".` };
+        const title = str(b.title, 200);
+        out.push(title ? { type, text, title } : { type, text });
+        break;
+      }
+      case 'staff': {
+        const v = abcTools.validateAbc(b.abc, { requireClef: true });
+        if (!v.valid) return { error: `${at}: invalid ABC – ${abcTools.formatValidationErrors(v)}` };
+        const lyr = lyricsProblem(v);
+        if (lyr) return { error: `${at}: lyrics do not fit the notes – ${lyr}` };
+        const width = normalizeWidth(b.width_cm);
+        if (width === null) return { error: `${at}: "width_cm" must be a number.` };
+        out.push(withWidth({ type, abc: v.normalized }, width));
+        break;
+      }
+      case 'empty_staves': {
+        const clef = b.clef === 'bass' ? 'bass' : 'treble';
+        const count = Math.round(Number(b.count ?? 1));
+        if (!(count >= 1 && count <= 12)) return { error: `${at}: empty_staves "count" must be 1–12.` };
+        const measures = b.measures == null ? 4 : Math.round(Number(b.measures));
+        if (!(measures >= 0 && measures <= 8)) return { error: `${at}: "measures" must be 0–8.` };
+        const width = normalizeWidth(b.width_cm);
+        out.push(withWidth({ type, clef, count, measures }, width ?? undefined));
+        break;
+      }
+      case 'page_break':
+        out.push({ type });
+        break;
+      case 'spacer':
+        out.push({ type, lines: Math.min(10, Math.max(1, Math.round(Number(b.lines) || 1))) });
+        break;
+    }
+  }
+  return { blocks: out };
+}
+
+function checkRange(a: Record<string, unknown>, needTo: boolean): { from: number; to: number } | string {
+  const from = Number(a.from);
+  const to = a.to == null ? (needTo ? NaN : from) : Number(a.to);
+  if (!Number.isInteger(from) || from < 0) return '"from" must be an element index (integer >= 0) from the outline.';
+  if (!Number.isInteger(to) || to < from) return '"to" must be an integer >= "from".';
+  if (to - from > 200) return 'At most 200 elements per call.';
+  return { from, to };
+}
 export const SERVER_TOOLS = new Set(['convert_german_notes', 'add_lyrics']);
 
 /** Lyrics that do not fit the notes are rejected for the AI (the manual mode only warns). */
@@ -187,8 +395,9 @@ export interface ToolCheck {
 }
 
 /** Accepts the documented position forms plus a few lenient variants models produce. */
-export function normalizePosition(pos: unknown): ToolCheck['args']['position'] | null {
+export function normalizePosition(pos: unknown, allowStartEnd = false): ToolCheck['args']['position'] | null {
   if (pos == null || pos === '' || pos === 'cursor') return 'cursor';
+  if (allowStartEnd && (pos === 'start' || pos === 'end')) return pos;
   if (typeof pos === 'string') {
     const idx = /^after_paragraph_index\s*[:=]\s*(\d+)$/.exec(pos.trim());
     if (idx) return { after_paragraph_index: Number(idx[1]) };
@@ -231,6 +440,35 @@ export function checkClientToolCall(call: ToolCall): ToolCheck {
   switch (call.name) {
     case 'get_document_outline':
       return { ok: true, args: {} };
+
+    case 'insert_blocks': {
+      const position = normalizePosition(a.position, true);
+      if (!position) return { ok: false, args: a, error: 'Invalid "position". Use "cursor", "start", "end", {"after_heading": "..."} or {"after_paragraph_index": n}.' };
+      const r = checkBlocks(a.blocks);
+      if (r.error) return { ok: false, args: a, error: `Nothing was inserted. ${r.error}` };
+      return { ok: true, args: { position, blocks: r.blocks } };
+    }
+
+    case 'replace_elements': {
+      const range = checkRange(a, true);
+      if (typeof range === 'string') return { ok: false, args: a, error: range };
+      const r = checkBlocks(a.blocks);
+      if (r.error) return { ok: false, args: a, error: `Nothing was changed. ${r.error}` };
+      return { ok: true, args: { ...range, blocks: r.blocks } };
+    }
+
+    case 'delete_elements': {
+      const range = checkRange(a, true);
+      if (typeof range === 'string') return { ok: false, args: a, error: range };
+      return { ok: true, args: range };
+    }
+
+    case 'get_elements': {
+      const range = checkRange(a, false);
+      if (typeof range === 'string') return { ok: false, args: a, error: range };
+      if (range.to - range.from > 59) range.to = range.from + 59;
+      return { ok: true, args: range };
+    }
 
     case 'insert_staff': {
       const position = normalizePosition(a.position);
