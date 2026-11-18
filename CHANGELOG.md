@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.5.1 – full-width tables in Google Docs and Pages
+
+- **Fix:** tables, boxes ("Merke") and the other table-based blocks from the assistant were shown extremely narrow in
+  Google Docs and Apple Pages (only as wide as their content, text wrapping after almost every word); Word was fine.
+  They only had a percentage width, while the column grid stayed at 2 cm per column and the cells had no or only
+  percentage widths – which also lost the column widths of tables (e.g. 1:2) outside Word. Now every table gets the
+  text width of the page (page width minus margins, one page column; fallback 16 cm) in twips, a fixed layout and
+  the column widths in the grid (`w:gridCol`) and in every cell (`w:tcW`); tables inside columns get the width of
+  their column. Checked in the exported `.docx` of the real editor.
+
+
 ## 0.5.0 – designed worksheets
 
 - **Designs (themes):** *Klassisch* (black and white, toner-saving), *Modern* (blue accent) and *Grundschule* (13 pt,

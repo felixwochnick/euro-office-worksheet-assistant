@@ -1,2 +1,2 @@
 /** Version of the proxy (kept in sync with plugin/config.json). */
-export const VERSION = '0.5.0';
+export const VERSION = '0.5.1';
