@@ -819,11 +819,11 @@
 
   builders.mindmap = function (b, c) {
     var nb = Array.isArray(b.branches) ? b.branches.length : 0;
-    var children = (b.branches || []).reduce(function (n, br) { return n + (br && Array.isArray(br.children) ? br.children.length : 0); }, 0);
+    var children = (b.branches || []).reduce(function (n, br) { return n + (br && Array.isArray(br.children) ? br.children.length : 0); }, 0) / 2;
     var g = svgLib().mindmap(svgOpts(c, {
       center: b.center, branches: b.branches, widthMm: withWidth(c, b, c.widthMm),
-      // as high as the branches need (a mind map with few branches would otherwise be mostly white space)
-      heightMm: b.height_cm != null ? clamp(num(b.height_cm, 10), 5, 24) * 10 : clamp(40 + nb * 7 + children * 4, 55, 110), blank: b.blank === true, colors: chartColors(c)
+      // a small minimum height: the graphic grows to what its branches need (otherwise mostly white space)
+      heightMm: b.height_cm != null ? clamp(num(b.height_cm, 10), 4, 24) * 10 : clamp(36 + nb * 3 + children, 40, 70), blank: b.blank === true, colors: chartColors(c)
     }));
     return graphicBlock(c, b, g, 'Mindmap: ' + str(b.center), sourceOf(b, 'mindmap'));
   };
