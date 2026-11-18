@@ -1,0 +1,88 @@
+#!/usr/bin/env node
+/*
+ * End-to-end smoke test of the plugin panel in the local test harness.
+ *
+ * Prerequisites:
+ *   1. npm install (root, installs playwright-core – no browser download)
+ *   2. a Chromium/Chrome binary (CHROMIUM_PATH, default /usr/bin/chromium)
+ *   3. bash scripts/build.sh && node scripts/serve.mjs 8080
+ *   4. proxy with the mock provider, e.g. in proxy/: .env with
+ *        LLM_PROVIDER=mock, PROXY_TOKEN=dev-token-change-me-0123, CORS_ORIGINS=http://localhost:8080
+ *      and `docker compose up -d` (or `npm run dev`)
+ *
+ *   npm run e2e [-- <screenshot-prefix>]
+ */
+import { chromium } from 'playwright-core';
+import assert from 'node:assert/strict';
+
+const BASE = process.env.HARNESS_URL || 'http://localhost:8080/harness/';
+const shot = process.argv[2];
+const browser = await chromium.launch({
+  executablePath: process.env.CHROMIUM_PATH || '/usr/bin/chromium',
+  args: ['--no-sandbox'],
+});
+const page = await browser.newPage({ viewport: { width: 1300, height: 900 } });
+const errors = [];
+page.on('pageerror', (e) => errors.push(e.message));
+page.on('console', (m) => { if (m.type() === 'error') errors.push(m.text()); });
+
+const doc = () => page.evaluate(() => window.HarnessMock.state.elements.map((e) => ({ text: e.text, alts: e.drawings.map((d) => d.descr) })));
+
+try {
+  await page.goto(BASE);
+  const frame = page.frameLocator('#panel');
+  await frame.locator('#chat-text').waitFor();
+
+  // 1) AI chat (mock model) with preview confirmation
+  await frame.locator('#chat-text').fill('Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein und darunter eine leere Zeile zum Nachschreiben');
+  await frame.locator('#chat-send').click();
+  await frame.locator('.card button.primary').first().waitFor({ timeout: 15000 });
+  if (shot) await page.screenshot({ path: `${shot}-preview.png` });
+  await frame.locator('.card button.primary').first().click();
+  await frame.locator('.card').nth(1).locator('button.primary').click({ timeout: 15000 });
+  await frame.locator('.msg.assistant', { hasText: 'Fertig' }).waitFor({ timeout: 15000 });
+  let d = await doc();
+  const heading = d.findIndex((e) => e.text === 'Aufgabe 2');
+  assert.equal(d[heading + 1].alts[0], 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC F G |]');
+  assert.match(d[heading + 2].alts[0], /x4 \| x4/);
+  if (shot) await page.screenshot({ path: `${shot}-chat.png` });
+  console.log('ok - chat inserts staff and empty staff below "Aufgabe 2"');
+
+  // 2) manual mode: template after element 0, load + replace selected image
+  await frame.locator('.tab[data-tab=manual]').click();
+  await frame.locator('#m-template').selectOption('melody');
+  await frame.locator('#m-position').selectOption('after:0');
+  await frame.locator('#m-insert').click();
+  await frame.locator('#m-status.ok').waitFor({ timeout: 10000 });
+  d = await doc();
+  assert.match(d[1].alts[0], /Alle meine Entchen/);
+  console.log('ok - manual insert after element 0');
+
+  await page.locator('#mock-doc .el').nth(1).locator('img').click();
+  await frame.locator('#m-abc').fill('');
+  await frame.locator('#m-load').click();
+  await frame.locator('#m-status', { hasText: 'geladen' }).waitFor({ timeout: 5000 });
+  assert.match(await frame.locator('#m-abc').inputValue(), /Alle meine Entchen/);
+  await frame.locator('#m-german').fill("fis' g' a' h'");
+  await frame.locator('#m-convert').click();
+  await frame.locator('#m-replace').click();
+  await frame.locator('#m-status', { hasText: 'ersetzt' }).waitFor({ timeout: 5000 });
+  d = await doc();
+  assert.equal(d[1].alts[0], 'X:1\nM:none\nL:1/4\nK:C clef=treble\n^F G A B |]');
+  if (shot) await page.screenshot({ path: `${shot}-manual.png` });
+  console.log('ok - load selected staff, edit, replace');
+
+  // 3) fallback path: CreateImage fails, older API
+  await page.locator('#h-fail').check();
+  await page.locator('#h-legacy').check();
+  await frame.locator('#m-template').selectOption('emptyBass');
+  await frame.locator('#m-position').selectOption('cursor');
+  await frame.locator('#m-insert').click();
+  await frame.locator('#m-status', { hasText: 'PutImageDataToSelection' }).waitFor({ timeout: 5000 });
+  console.log('ok - fallback PutImageDataToSelection');
+
+  assert.deepEqual(errors, []);
+  console.log('ok - no console errors');
+} finally {
+  await browser.close();
+}
