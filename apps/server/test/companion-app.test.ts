@@ -374,3 +374,64 @@ test('app mode: an older companion on the same port is stopped and replaced', as
     p?.child.kill('SIGKILL');
   }
 });
+
+test('companion: worksheet pictures – internet sources on/off, own picture folder (validated, counted, used by the server)', async () => {
+  const home = tmp();
+  const pics = path.join(home, 'Bilder');
+  fs.mkdirSync(path.join(pics, 'Asterix'), { recursive: true });
+  fs.writeFileSync(path.join(pics, 'Asterix', 'obelix.png'), Buffer.from('89504e470d0a1a0a', 'hex'));
+  fs.writeFileSync(path.join(pics, 'fuchs.jpg'), 'x');
+  fs.writeFileSync(path.join(pics, 'notizen.txt'), 'x');
+  const port = await freePort();
+  const configDir = path.join(home, 'cfg');
+  const companion = new Companion({ configDir, env: { platform: 'linux', home, env: {} }, port, logLevel: 'silent', secret: SECRET, app: true });
+  (companion as unknown as { files: Map<string, Buffer> }).files = FILES;
+  await companion.start();
+  try {
+    const base = `http://127.0.0.1:${port}`;
+    const state = await (await api(base, SECRET, 'state')).json();
+    assert.equal(state.settings.online_pictures, true);
+    assert.equal(state.settings.image_folder, '');
+    assert.deepEqual(await (await api(base, SECRET, 'pictures')).json(), { online: true, folder: '', folder_ok: false, count: 0, error: '' });
+
+    for (const [folder, msg] of [['Bilder', /vollständigen Ordnerpfad/], [path.join(home, 'fehlt'), /gibt es nicht/], [path.join(pics, 'fuchs.jpg'), /gibt es nicht/]] as const) {
+      const r = await api(base, SECRET, 'pictures', { folder });
+      assert.equal(r.status, 400);
+      assert.match((await r.json()).error, msg);
+    }
+
+    const ok = await (await api(base, SECRET, 'pictures', { folder: pics, online: false })).json();
+    assert.deepEqual(ok.pictures, { online: false, folder: pics, folder_ok: true, count: 2, error: '' });
+    const stored = JSON.parse(fs.readFileSync(path.join(configDir, 'config.json'), 'utf8'));
+    assert.equal(stored.imageFolder, pics);
+    assert.equal(stored.onlinePictures, false);
+
+    // The server restarted with the new settings: own pictures only.
+    await new Promise((r) => setTimeout(r, 400));
+    const fetched = await fetch(`${base}/v1/images/fetch`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${companion.settings.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ image_id: 'own:Asterix/obelix.png' }),
+    });
+    assert.equal(fetched.status, 200);
+    assert.match((await fetched.json()).data_url, /^data:image\/png;base64,/);
+    const free = await fetch(`${base}/v1/images/fetch`, {
+      method: 'POST',
+      headers: { authorization: `Bearer ${companion.settings.token}`, 'content-type': 'application/json' },
+      body: JSON.stringify({ image_id: 'arasaac:2623' }),
+    });
+    assert.equal(free.status, 400, 'internet sources are off');
+
+    // Folder removed outside the app: reported, the setting stays.
+    fs.rmSync(pics, { recursive: true, force: true });
+    const gone = await (await api(base, SECRET, 'pictures')).json();
+    assert.equal(gone.folder_ok, false);
+    assert.match(gone.error, /nicht \(mehr\) da/);
+
+    await api(base, SECRET, 'pictures', { folder: '', online: true });
+    assert.equal(JSON.parse(fs.readFileSync(path.join(configDir, 'config.json'), 'utf8')).imageFolder, '');
+  } finally {
+    await new Promise((r) => setTimeout(r, 300));
+    await companion.stop();
+  }
+});

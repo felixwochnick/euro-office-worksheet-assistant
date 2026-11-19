@@ -371,32 +371,10 @@ export class ImageService {
     return out;
   }
 
-  private async listLocal(): Promise<OwnEntry[]> {
-    const root = path.resolve(this.opts.folder);
-    const out: OwnEntry[] = [];
-    const walk = async (dir: string, rel: string, depth: number): Promise<void> => {
-      let items: import('node:fs').Dirent[];
-      try {
-        items = await fs.readdir(dir, { withFileTypes: true });
-      } catch (err) {
-        if (!rel) throw new ImageError(`The picture folder ${root} cannot be read (${(err as NodeJS.ErrnoException).code ?? 'error'}).`, 404);
-        return;
-      }
-      for (const it of items) {
-        if (out.length >= OWN_MAX_FILES) return;
-        if (it.name.startsWith('.')) continue;
-        const r = rel ? `${rel}/${it.name}` : it.name;
-        if (it.isDirectory()) {
-          if (depth + 1 < OWN_MAX_DEPTH) await walk(path.join(dir, it.name), r, depth + 1);
-        } else if (it.isFile()) {
-          const mime = EXT_MIME[path.extname(it.name).toLowerCase()];
-          if (mime) out.push({ rel: r, mime, size: 0 });
-        }
-      }
-    };
-    await walk(root, '', 0);
-    return out;
+  private listLocal(): Promise<OwnEntry[]> {
+    return listLocalFolder(this.opts.folder);
   }
+
 
   // ---------------------------------------------------------------------------
   // Describe and fetch
@@ -499,6 +477,39 @@ export class ImageService {
     if (bytes.length > MAX_IMAGE_BYTES) throw new ImageError(`The picture "${rel}" is larger than 8 MB – make it smaller first.`, 413);
     return { meta, mime: entry.mime, bytes };
   }
+}
+
+/** Pictures in a local folder (subfolders up to OWN_MAX_DEPTH, hidden files skipped, at most OWN_MAX_FILES). */
+async function listLocalFolder(folder: string): Promise<OwnEntry[]> {
+  const root = path.resolve(folder);
+  const out: OwnEntry[] = [];
+  const walk = async (dir: string, rel: string, depth: number): Promise<void> => {
+    let items: import('node:fs').Dirent[];
+    try {
+      items = await fs.readdir(dir, { withFileTypes: true });
+    } catch (err) {
+      if (!rel) throw new ImageError(`The picture folder ${root} cannot be read (${(err as NodeJS.ErrnoException).code ?? 'error'}).`, 404);
+      return;
+    }
+    for (const it of items) {
+      if (out.length >= OWN_MAX_FILES) return;
+      if (it.name.startsWith('.')) continue;
+      const r = rel ? `${rel}/${it.name}` : it.name;
+      if (it.isDirectory()) {
+        if (depth + 1 < OWN_MAX_DEPTH) await walk(path.join(dir, it.name), r, depth + 1);
+      } else if (it.isFile()) {
+        const mime = EXT_MIME[path.extname(it.name).toLowerCase()];
+        if (mime) out.push({ rel: r, mime, size: 0 });
+      }
+    }
+  };
+  await walk(root, '', 0);
+  return out;
+}
+
+/** Number of pictures the assistant finds in a local folder (for the desktop app's settings). */
+export async function countLocalPictures(folder: string): Promise<number> {
+  return (await listLocalFolder(folder)).length;
 }
 
 // ---------------------------------------------------------------------------

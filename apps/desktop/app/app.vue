@@ -8,6 +8,7 @@ const items: NavigationMenuItem[] = [
   { label: 'Übersicht', icon: 'i-lucide-list-checks', to: '/' },
   { label: 'Desktop-App', icon: 'i-lucide-file-text', to: '/desktop-app' },
   { label: 'KI-Chat', icon: 'i-lucide-message-square-text', to: '/ki-chat' },
+  { label: 'Bilder', icon: 'i-lucide-image', to: '/bilder' },
   { label: 'Claude & MCP', icon: 'i-lucide-plug', to: '/claude' },
   { label: 'Einstellungen', icon: 'i-lucide-settings', to: '/einstellungen' }
 ]

@@ -19,6 +19,10 @@ export interface CompanionSettings {
   baseUrl: string;
   /** Additional browser origins (e.g. a Nextcloud whose web editor should use this companion). */
   extraOrigins: string[];
+  /** Worksheet pictures from the internet (ARASAAC pictograms, Wikimedia Commons). */
+  onlinePictures: boolean;
+  /** The teacher's own picture folder (absolute path, '' = none). */
+  imageFolder: string;
 }
 
 export const DEFAULT_PORT = 8787;
@@ -41,6 +45,8 @@ export function defaults(): CompanionSettings {
     apiKey: '',
     baseUrl: '',
     extraOrigins: [],
+    onlinePictures: true,
+    imageFolder: '',
   };
 }
 
@@ -65,6 +71,8 @@ export function loadSettings(dir: string): { settings: CompanionSettings; create
   if (typeof s.token !== 'string' || s.token.length < 16) s.token = base.token;
   if (!Number.isInteger(s.port) || s.port < 1024 || s.port > 65535) s.port = DEFAULT_PORT;
   if (!Array.isArray(s.extraOrigins)) s.extraOrigins = [];
+  if (typeof s.onlinePictures !== 'boolean') s.onlinePictures = true;
+  if (typeof s.imageFolder !== 'string' || (s.imageFolder && !path.isAbsolute(s.imageFolder))) s.imageFolder = '';
   return { settings: s, created: false };
 }
 
@@ -78,6 +86,12 @@ export function saveSettings(dir: string, s: CompanionSettings): void {
 
 export function localUrl(s: CompanionSettings): string {
   return `http://127.0.0.1:${s.port}`;
+}
+
+/** IMAGE_SOURCES for these settings: free sources when allowed, own pictures when a folder is set. */
+export function imageSources(s: CompanionSettings): string {
+  const list = [...(s.onlinePictures ? ['arasaac', 'commons'] : []), ...(s.imageFolder ? ['own'] : [])];
+  return list.length ? list.join(',') : 'none';
 }
 
 /** Server configuration (AUTH_MODE=local) for these settings. */
@@ -98,6 +112,8 @@ export function serverConfig(s: CompanionSettings, logLevel = 'info'): Config {
     LLM_API_KEY: s.apiKey || (s.provider === 'ollama' || s.provider === 'openai-compatible' ? 'none' : ''),
     LLM_BASE_URL: s.baseUrl || p.baseUrl,
     RATE_LIMIT_MAX: '300',
+    IMAGE_SOURCES: imageSources(s),
+    IMAGE_FOLDER: s.imageFolder,
     LOG_LEVEL: logLevel,
   };
   if (provider === 'none') delete env.LLM_MODEL;

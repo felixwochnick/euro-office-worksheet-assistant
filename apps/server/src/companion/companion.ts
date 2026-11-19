@@ -3,8 +3,10 @@
  * desktop apps and serves a small settings page (http://127.0.0.1:8787/) for the AI provider, MCP and autostart.
  */
 import crypto from 'node:crypto';
+import fs from 'node:fs';
 import path from 'node:path';
 import type { FastifyInstance, FastifyReply, FastifyRequest } from 'fastify';
+import { countLocalPictures } from '../images.js';
 import { buildServer } from '../server.js';
 import { VERSION } from '../version.js';
 import { autostartEnabled, setAutostart, stdioCommand } from './autostart.js';
@@ -201,7 +203,15 @@ export class Companion {
           return '';
         }
       })(),
-      settings: { provider: s.provider, model: s.model, base_url: s.baseUrl, has_key: !!s.apiKey, extra_origins: s.extraOrigins },
+      settings: {
+        provider: s.provider,
+        model: s.model,
+        base_url: s.baseUrl,
+        has_key: !!s.apiKey,
+        extra_origins: s.extraOrigins,
+        online_pictures: s.onlinePictures,
+        image_folder: s.imageFolder,
+      },
       providers: Object.entries(PROVIDERS).map(([id, p]) => ({ id, label: p.label, model: p.model, needs_key: p.needsKey, base_url: p.baseUrl })),
       chat_error: this.chatError,
       autostart: autostartEnabled(this.configDir, this.env),
@@ -213,6 +223,51 @@ export class Companion {
 
   claudeContext(): ClaudeContext {
     return { stdio: stdioCommand(this.env), mcpUrl: `${this.url}/mcp`, env: this.env, ...this.opts.claude };
+  }
+
+  /** Pictures for worksheets: whether the folder can be read and how many pictures the assistant finds in it. */
+  async pictures(): Promise<{ online: boolean; folder: string; folder_ok: boolean; count: number; error: string }> {
+    const s = this.settings;
+    const out = { online: s.onlinePictures, folder: s.imageFolder, folder_ok: false, count: 0, error: '' };
+    if (!s.imageFolder) return out;
+    try {
+      out.count = await countLocalPictures(s.imageFolder);
+      out.folder_ok = true;
+    } catch {
+      out.error = 'Der Ordner ist nicht (mehr) da oder kann nicht gelesen werden.';
+    }
+    return out;
+  }
+
+  /** Store the picture settings; returns an error message or null. */
+  updatePictures(body: Record<string, unknown>): string | null {
+    const next: CompanionSettings = { ...this.settings };
+    if (body.online !== undefined) {
+      if (typeof body.online !== 'boolean') return '"online" muss true oder false sein.';
+      next.onlinePictures = body.online;
+    }
+    if (body.folder !== undefined) {
+      const folder = typeof body.folder === 'string' ? body.folder.trim() : '';
+      if (folder) {
+        if (!path.isAbsolute(folder)) return 'Bitte einen vollständigen Ordnerpfad angeben.';
+        let dir = false;
+        try {
+          dir = fs.statSync(folder).isDirectory();
+        } catch {
+          dir = false;
+        }
+        if (!dir) return 'Diesen Ordner gibt es nicht.';
+      }
+      next.imageFolder = folder;
+    }
+    try {
+      serverConfig(next);
+    } catch (err) {
+      return (err as Error).message;
+    }
+    this.settings = next;
+    saveSettings(this.configDir, next);
+    return null;
   }
 
   /** Validate and store new AI settings; returns an error message or null. */
@@ -271,6 +326,20 @@ export class Companion {
         50,
       );
       return { ok: true };
+    });
+    app.get('/companion/api/pictures', { preHandler: guard }, async () => this.pictures());
+    app.post('/companion/api/pictures', { preHandler: guard }, async (req, reply) => {
+      const error = this.updatePictures((req.body ?? {}) as Record<string, unknown>);
+      if (error) return reply.code(400).send({ ok: false, error });
+      setTimeout(
+        () =>
+          void this.restart().catch((err: Error) => {
+            if (this.opts.onRestartError) this.opts.onRestartError(err);
+            else process.stderr.write(`Neustart fehlgeschlagen: ${err.message}\n`);
+          }),
+        50,
+      );
+      return { ok: true, pictures: await this.pictures() };
     });
     app.post('/companion/api/install', { preHandler: guard }, async (req, reply) => {
       try {

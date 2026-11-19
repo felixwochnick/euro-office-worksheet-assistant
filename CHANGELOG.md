@@ -19,6 +19,10 @@
   `commons.wikimedia.org`, `upload.wikimedia.org` and `thumb.wikimedia.org`.
 - **Prompt:** primary, special-needs and DaZ worksheets get 1–4 meaningful pictures by default (pictograms next to
   words, an introductory picture); older classes only on request.
+- **Desktop app:** new page *Bilder* – a switch for the pictures from the internet and *Ordner wählen* (system folder
+  dialog) for an own picture folder on the computer; the page shows how many pictures the assistant finds in it and
+  warns when the folder is gone. Stored in the app's settings (`onlinePictures`, `imageFolder`); changes restart the
+  local server. New settings API `GET/POST /companion/api/pictures`.
 
 ## 0.6.0 – desktop app
 

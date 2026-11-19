@@ -115,6 +115,22 @@ fn open_external(app: AppHandle, url: String) -> Result<(), String> {
     open_url(&app, &url)
 }
 
+/// Choose a folder with the system's folder dialog (the picture folder). The dialog runs here, so the webview needs
+/// no file system access. None when the user cancels.
+#[tauri::command]
+async fn pick_folder(app: AppHandle, title: String, start: Option<String>) -> Option<String> {
+    use tauri_plugin_dialog::DialogExt;
+    let mut dialog = app.dialog().file().set_title(title);
+    if let Some(window) = app.get_webview_window("main") {
+        dialog = dialog.set_parent(&window);
+    }
+    if let Some(dir) = start.filter(|d| std::path::Path::new(d).is_dir()) {
+        dialog = dialog.set_directory(dir);
+    }
+    let picked = tauri::async_runtime::spawn_blocking(move || dialog.blocking_pick_folder()).await.ok()??;
+    picked.into_path().ok().map(|p| p.display().to_string())
+}
+
 /// Open a folder (e.g. the settings folder) in the file manager.
 #[tauri::command]
 fn open_folder(app: AppHandle, path: String) -> Result<(), String> {
@@ -168,7 +184,8 @@ pub fn run() {
                 show_main_window(app);
             }
         }))
-        .plugin(tauri_plugin_opener::init());
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_dialog::init());
     let context = tauri::generate_context!();
     // Self-updates only in builds with an updater key (release builds with the signing secrets).
     if updates::has_updater_key(context.config()) {
@@ -223,6 +240,7 @@ pub fn run() {
             install_update,
             open_external,
             open_folder,
+            pick_folder,
             app_info,
             quit_app
         ])

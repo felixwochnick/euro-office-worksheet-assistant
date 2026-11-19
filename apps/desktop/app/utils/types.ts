@@ -58,13 +58,25 @@ export interface CompanionState {
   config_dir: string
   apps: DesktopAppState[]
   plugin_version: string
-  settings: { provider: string, model: string, base_url: string, has_key: boolean, extra_origins: string[] }
+  settings: { provider: string, model: string, base_url: string, has_key: boolean, extra_origins: string[], online_pictures: boolean, image_folder: string }
   providers: Provider[]
   chat_error: string
   autostart: boolean
   stdio_command: string[]
   platform: string
   app?: boolean
+}
+
+/** GET /companion/api/pictures: pictures on worksheets. */
+export interface PicturesStatus {
+  /** Free pictures from the internet (ARASAAC, Wikimedia Commons). */
+  online: boolean
+  /** Own picture folder ('' = none). */
+  folder: string
+  folder_ok: boolean
+  /** Pictures the assistant finds in it. */
+  count: number
+  error: string
 }
 
 export interface ClaudeDesktopStatus {
