@@ -335,8 +335,33 @@
     });
   }
 
+  var DIAGRAM_GRAPHICS = ['class_diagram', 'object_diagram', 'sequence_diagram', 'state_diagram', 'structogram', 'er_diagram'];
+  var STEP_KEYS = ['steps', 'then', 'else', 'do', 'repeat', 'loop', 'forever', 'default'];
+
+  /** A diagram to fill in: gaps [[…]], elements with blank: true, empty lines (a number) or empty statements. */
+  function diagramHasSpace(g) {
+    var found = false;
+    (function walk(v, key) {
+      if (found) return;
+      if (typeof v === 'string') {
+        if (v.indexOf('[[') >= 0 || (key === 'step' && !v.trim())) found = true;
+      } else if (typeof v === 'number') {
+        if (v > 0 && /^(attributes|methods|operations|values)$/.test(key)) found = true;
+      } else if (Array.isArray(v)) {
+        v.forEach(function (x) { walk(x, STEP_KEYS.indexOf(key) >= 0 ? 'step' : key); });
+      } else if (v && typeof v === 'object') {
+        Object.keys(v).forEach(function (k) {
+          if ((k === 'blank' || k === 'hidden') && v[k] === true) found = true;
+          else walk(v[k], k);
+        });
+      }
+    })(g, '');
+    return found;
+  }
+
   function graphicHasSpace(g) {
     if (!g || typeof g !== 'object') return false;
+    if (DIAGRAM_GRAPHICS.indexOf(g.type) >= 0) return diagramHasSpace(g);
     if (g.blank === true) return true;
     if (Array.isArray(g.blanks) && g.blanks.length) return true;
     return SPACE_GRAPHICS.indexOf(g.type) >= 0;

@@ -181,6 +181,20 @@ test('workspace rules avoid false positives', () => {
   assert.deepEqual(r.tasks.map((t) => t.has_workspace), [true, true, true, true, true, false, true, true, true]);
 });
 
+test('diagrams to fill in count as workspace, finished diagrams do not', () => {
+  const doc = build([
+    H('Informatik', 1), P('Name: ____'),
+    TASK(1, 'Ergänze die fehlenden Attribute.'), P('', { graphic: { type: 'class_diagram', classes: [{ name: 'Hund', attributes: ['[[- name: String]]'] }] } }),
+    TASK(2, 'Zeichne die Vererbung ein.'), P('', { graphic: { type: 'class_diagram', classes: [{ name: 'A' }, { name: 'B' }], relations: [{ from: 'B', to: 'A', kind: 'inheritance', blank: true }] } }),
+    TASK(3, 'Ergänze sinnvolle Methoden.'), P('', { graphic: { type: 'class_diagram', classes: [{ name: 'Auto', methods: 3 }] } }),
+    TASK(4, 'Vervollständige das Struktogramm.'), P('', { graphic: { type: 'structogram', steps: ['x ← 1', { while: 'x < 10', do: [''] }] } }),
+    TASK(5, 'Beschreibe den Ablauf in eigenen Worten.'), P('', { graphic: { type: 'sequence_diagram', participants: ['a', 'b'], messages: [{ from: 'a', to: 'b', text: 'm()' }] } })
+  ]);
+  const r = wc.check(doc);
+  assert.deepEqual(r.tasks.map((t) => t.has_workspace), [true, true, true, true, false]);
+  assert.deepEqual(codes(r), ['no_workspace']);
+});
+
 test('no_workspace: kind-specific advice for ticking, matching and drawing', () => {
   const doc = build([
     H('Test', 1), P('Name: ____'),
