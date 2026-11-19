@@ -23,6 +23,15 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
   QR codes, simple SVG drawings by the AI, German primary-school **lineatures** (Lineatur 1–4) and squared paper.
   Formulas are inserted as native, editable equations from LaTeX. Graphics keep their source in the alt text, so the
   AI can change them later.
+- **Computer science diagrams (Informatik)** – UML **class diagrams** (classes, interfaces, abstract classes,
+  enumerations, inheritance, associations with multiplicities, aggregation, composition), **object diagrams**,
+  **sequence diagrams** (actors, calls, replies, object creation, activation bars, `alt`/`opt`/`loop` fragments),
+  **state diagrams** and **finite automata** (DEA/NEA), **structograms** (Nassi-Shneiderman, DIN 66261) and
+  **ER diagrams** (Chen, (min,max), crow's foot). The AI only describes the model; the layout is computed (dagre), so
+  the diagrams look like those of the textbook and of [Klonk](https://github.com/felixwochnick/klonk). Every diagram
+  also exists **to fill in** – gaps, writing lines, relations or transitions left out for students to draw, empty
+  lines for members – with a matching **solution version** in the same layout. See
+  [Computer science diagrams](#computer-science-diagrams).
 - **Pictures** – worksheets for primary and special-needs schools need not be text only: the AI searches pictures
   (tool `search_images`) and places them (block `picture`, beside text with `columns`). Sources: **ARASAAC**
   pictograms (simple, consistent drawings made for special-needs teaching, German keywords), **Wikimedia Commons**
@@ -118,8 +127,9 @@ packages are named `@worksheet-assistant/<name>`.
 | ↳ `worksheet-themes.js` | Designs (fonts, sizes, colours) and printed labels in seven languages |
 | ↳ `worksheet-generators.js` | Crossword, word search, cloze, matching, grade key (deterministic) |
 | ↳ `worksheet-svg.js` | Icons, task badges, lineatures, number lines, coordinate systems, charts, mind maps, QR codes, SVG sanitiser |
+| ↳ `worksheet-diagrams.js` | Computer science diagrams: UML class, object, sequence and state diagrams, finite automata, structograms, ER diagrams (layout with dagre; fill-in and solution versions) |
 | ↳ `german-syllables.js`, `worksheet-check.js` | Syllables for Silbenfärbung; the worksheet quality check |
-| `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js`, `qrcode-generator` (see `vendor/SOURCES.md`) |
+| `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js`, `qrcode-generator`, `dagre` (see `vendor/SOURCES.md`) |
 | `scripts/build.sh` | Builds the plugin: `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
 | `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
 | `scripts/build-desktop.mjs`, `scripts/collect-desktop.mjs`, `scripts/updater-json.mjs` | Build the desktop app; copy its installers under the release names to `dist/desktop/`; write `latest.json` for the app's updater |
@@ -582,6 +592,15 @@ Worksheets (any subject):
 - „Setze neben Aufgabe 1 ein Bild von einem Fuchs.“
 - „Nimm für das Latein-Arbeitsblatt Bilder aus meinem Asterix-Ordner.“ (own pictures, see [Pictures](#pictures))
 
+Computer science (see [Computer science diagrams](#computer-science-diagrams)):
+
+- „Erstelle ein Arbeitsblatt zur Vererbung für Klasse 10 (Java): Klassendiagramm mit Tier, Hund und Katze, in dem die Schüler die Vererbung einzeichnen und die Methoden ergänzen – mit Lösungsseite.“
+- „Füge ein Sequenzdiagramm zum Geldabheben am Automaten ein, mit alt-Fragment für zu wenig Guthaben.“
+- „Zeichne einen DEA, der alle Wörter über {a, b} erkennt, die auf ab enden. Die Übergänge sollen die Schüler beschriften.“
+- „Erstelle ein Struktogramm zum euklidischen Algorithmus, in dem die Bedingung und eine Anweisung fehlen.“
+- „Modelliere Schüler, Kurs und Lehrer als ER-Diagramm in Chen-Notation, die Kardinalitäten als Lücken.“
+- „Zeige dasselbe Datenmodell in Krähenfußnotation.“
+
 Music:
 
 - „Füge unter Aufgabe 2 eine Notenzeile mit c – f – g im Violinschlüssel ein und darunter eine leere Zeile zum Nachschreiben.“
@@ -788,6 +807,32 @@ The proxy needs HTTPS access to `api.arasaac.org`, `static.arasaac.org`, `common
 Pictures are at most 8 MB. `IMAGE_SOURCES=none` switches the feature off; `IMAGE_SOURCES=arasaac,own` e.g. keeps
 photos from the internet out.
 
+## Computer science diagrams
+
+Six blocks for Informatik worksheets (`packages/shared/worksheet-diagrams.js`; the diagrams of
+[Klonk](https://github.com/felixwochnick/klonk), the same author's programming-learning app, ported and extended):
+
+| Block | Shows | The AI describes |
+|-------|-------|------------------|
+| `class_diagram` | UML classes, interfaces («interface»), abstract classes («abstract», italic), enumerations; static members underlined, abstract ones italic; inheritance, implementation, association (label, multiplicities, navigability), aggregation, composition, dependency | `classes [{name, kind, attributes ["- name: String"], methods ["+ getName(): String"]}]`, `relations [{from, to, kind, label, from_mult, to_mult}]` |
+| `object_diagram` | objects `name : Klasse` (underlined) with attribute values, links | `objects [{name, class, values ["kontostand = 100"]}]`, `links` |
+| `sequence_diagram` | lifelines (objects, actors), synchronous/asynchronous calls, replies, object creation, self calls, activation bars, `alt`/`opt`/`loop`/`par`/`break` fragments | `participants`, `messages [{from, to, text, kind}]` or `{fragment, label, messages, else}` |
+| `state_diagram` | UML states with entry/do/exit, initial and final state, transitions `event [guard] / action`; with `notation: "automaton"` a finite automaton (circles, accepting states as double circles, start arrow) | `states`, `transitions [{from, to, label}]` (`[*]` = initial/final state), `initial`, `accepting` |
+| `structogram` | Nassi-Shneiderman diagram (DIN 66261): statements, branches (*wahr*/*falsch*), case selection (*sonst*), pre-/post-test and endless loops, calls, exits | `steps ["…", {if, then, else}, {while, do}, {repeat, until}, {switch, cases}, …]` |
+| `er_diagram` | Chen notation (1:n, n:m) or (min,max): entities, attributes (keys underlined), relationships with attributes; or crow's foot with PK/FK | `entities [{name, attributes ["__id__"]}]`, `relationships [{name, from, to, from_card, to_card}]`, `notation` |
+
+**To fill in:** `[[answer]]` in any text is a gap (a dotted writing line; a text that is only a gap becomes a whole
+writing line, e.g. an attribute to add), `blank: true` leaves out a relation, link, message, transition or
+relationship for the students to draw, and a number instead of a list of attributes/methods gives empty lines.
+`show_answers: true` is the solution: the same layout, the answers in the design's accent colour. The quality check
+counts such a diagram as space to answer.
+
+The layout is computed with [dagre](https://github.com/dagrejs/dagre) (layered graph layout; MIT): vendored for the
+plugin (`vendor/dagre/dagre.min.js`), the npm package `@dagrejs/dagre` of the same version for the proxy and the
+desktop app. Text is 3.4 mm high; a diagram that does not fit the text width is scaled down to at most 76 % (text ≥
+2.6 mm), otherwise the AI is told to split it. Like all graphics, a diagram keeps its source in the alt text, so the
+AI can change it later.
+
 ## Known limitations
 
 ### Plugin updates and the browser cache
@@ -891,6 +936,8 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   **MIT** (`vendor/abcjs/LICENSE.md`).
 - `vendor/qrcode-generator/qrcode.js`: [qrcode-generator](https://github.com/kazuhikoarase/qrcode-generator)
   © Kazuhiko Arase, **MIT** (`vendor/qrcode-generator/LICENSE`) – QR codes on worksheets.
+- `vendor/dagre/dagre.min.js`: [dagre](https://github.com/dagrejs/dagre) with graphlib © Chris Pettitt, **MIT**
+  (`vendor/dagre/LICENSE`) – layout of the computer science diagrams.
 
 Exact versions and checksums: `vendor/SOURCES.md`.
 

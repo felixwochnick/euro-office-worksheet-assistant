@@ -1,6 +1,6 @@
 {
   "name": "@worksheet-assistant/shared",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "private": true,
   "description": "Modules shared by the plugin (browser globals), the server and the website (CommonJS): ABC helpers, worksheet themes, layout, generators, graphics and the quality check.",
   "license": "MIT",
