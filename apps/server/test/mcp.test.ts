@@ -513,6 +513,29 @@ test('oauth: redirect URI rules and client ID metadata documents', async () => {
       token_endpoint_auth_method: 'none',
     },
     'https://client.example/wrong-id.json': { client_id: 'https://other.example/x', redirect_uris: ['https://client.example/cb'] },
+    // ChatGPT's document (https://chatgpt.com/oauth/client.json, Nov 2026): prefers private_key_jwt, can also use none
+    'https://chatgpt.example/oauth/client.json': {
+      client_id: 'https://chatgpt.example/oauth/client.json',
+      client_uri: 'https://chatgpt.example/',
+      redirect_uris: ['https://chatgpt.example/connector_platform_oauth_redirect'],
+      token_endpoint_auth_method: 'private_key_jwt',
+      token_endpoint_auth_methods_supported: ['none', 'private_key_jwt'],
+      grant_types: ['authorization_code', 'refresh_token', 'urn:ietf:params:oauth:grant-type:jwt-bearer'],
+      response_types: ['code'],
+      client_name: 'ChatGPT',
+      token_endpoint_auth_signing_alg: 'RS256',
+      jwks_uri: 'https://chatgpt.example/oauth/jwks.json',
+    },
+    'https://client.example/jwt-only.json': {
+      client_id: 'https://client.example/jwt-only.json',
+      redirect_uris: ['https://client.example/cb'],
+      token_endpoint_auth_method: 'private_key_jwt',
+    },
+    'https://client.example/jwt-list.json': {
+      client_id: 'https://client.example/jwt-list.json',
+      redirect_uris: ['https://client.example/cb'],
+      token_endpoint_auth_methods_supported: ['private_key_jwt'],
+    },
   };
   let fetches = 0;
   const fetchDocument = async (url: string) => {
@@ -538,6 +561,16 @@ test('oauth: redirect URI rules and client ID metadata documents', async () => {
   assert.equal(wrongId.statusCode, 400);
   const wrongRedirect = await app.inject({ method: 'GET', url: q('https://client.example/mcp.json', 'https://client.example/other') });
   assert.equal(wrongRedirect.statusCode, 400);
+  // the method is chosen from the intersection with token_endpoint_auth_methods_supported (only none here)
+  const chatgpt = await app.inject({
+    method: 'GET',
+    url: q('https://chatgpt.example/oauth/client.json', 'https://chatgpt.example/connector_platform_oauth_redirect'),
+  });
+  assert.equal(chatgpt.statusCode, 302, chatgpt.body);
+  for (const id of ['https://client.example/jwt-only.json', 'https://client.example/jwt-list.json']) {
+    const r = await app.inject({ method: 'GET', url: q(id, 'https://client.example/cb') });
+    assert.equal(r.statusCode, 400, id);
+  }
   // errors before the sign-in are shown, never redirected (no open redirect)
   const noPkce = await app.inject({
     method: 'GET',

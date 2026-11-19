@@ -376,8 +376,12 @@ export class OAuthServer implements AccessTokenVerifier {
     if (!doc || doc.client_id !== clientId || !Array.isArray(doc.redirect_uris)) return null;
     const uris = (doc.redirect_uris as unknown[]).filter((x): x is string => typeof x === 'string' && validRedirectUri(x)).slice(0, 10);
     if (!uris.length) return null;
-    const auth = doc.token_endpoint_auth_method;
-    if (auth !== undefined && auth !== 'none') return null; // only public clients (PKCE) are supported
+    // Only public clients (PKCE) are supported. The client must be able to use "none": besides its preferred
+    // method (singular field) a client may list every method it can use (plural field, e.g. ChatGPT prefers
+    // private_key_jwt but also lists none) and picks one that our metadata advertises.
+    const methods = new Set<unknown>(Array.isArray(doc.token_endpoint_auth_methods_supported) ? doc.token_endpoint_auth_methods_supported : []);
+    if (doc.token_endpoint_auth_method !== undefined) methods.add(doc.token_endpoint_auth_method);
+    if (methods.size && !methods.has('none')) return null;
     return {
       client_id: clientId,
       client_name: typeof doc.client_name === 'string' && doc.client_name.trim() ? doc.client_name.trim().slice(0, 100) : u.hostname,

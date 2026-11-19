@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+- **ChatGPT can connect over MCP:** the sign-in failed with "Unknown client_id". ChatGPT's client ID metadata
+  document prefers `private_key_jwt` but also lists `none` in `token_endpoint_auth_methods_supported`; the server
+  now accepts a client that can use `none` (public client with PKCE), not only one whose preferred method is `none`.
+
 ## 0.8.0 – computer science diagrams
 
 - **Diagrams for Informatik worksheets:** nine new blocks, drawn from a model the AI describes (the layout is computed,
