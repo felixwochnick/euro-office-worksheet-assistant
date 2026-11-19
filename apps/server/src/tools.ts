@@ -59,7 +59,9 @@ const DIAGRAM_DOC =
   'state_diagram {states ["Bereit" or {name, activities ["entry / …", "do / …"]}], transitions [{from, to, label "event [guard] / action"}] ("[*]" as from = initial state, as to = final state), ' +
   'notation? uml|automaton (finite automaton DEA/NEA: circles, initial = start state, accepting [] = accepting states), direction?} = UML state diagram or automaton; ' +
   'structogram {title?, steps ["statement", {if, then [], else []}, {while, do []}, {for, do []}, {repeat [], until}, {loop []} (endless), {switch, cases [{label, do []}], default? []}, {call}, {exit}]} = Nassi-Shneiderman diagram (DIN 66261); ' +
-  'er_diagram {entities [{name, attributes ["__id__" (key, underlined), "name", "klasse_id (FK)"]}], relationships [{name, from, to, from_card, to_card (1, n, m; (0,*); 0..* or 1..* for crow\'s foot), attributes?}], notation? chen|minmax|crowsfoot} = ER diagram. ' +
+  'er_diagram {entities [{name, attributes ["__id__" (key, underlined), "name", "klasse_id (FK)"]}], relationships [{name, from, to, from_card, to_card, attributes?}], notation? chen|minmax|crowsfoot} = ER diagram; ' +
+  'from_card is printed at the from entity, to_card at the to entity: 1, n, m, 0..1, 0..* or 1..* read across (to_card = how many "to" belong to one "from"), ' +
+  '(min,max) pairs such as (0,*) or (1,1) describe their own entity (how often it takes part); crow\'s foot draws both kinds correctly. ' +
   'Diagrams to fill in: gaps [[answer]] in any diagram text (a text that is only "[[…]]" = a whole writing line, e.g. an attribute to add), ' +
   'blank: true on a relation/link/message/transition/relationship leaves it out for students to draw, a number instead of attributes/methods/values = that many empty lines, ' +
   'an empty string in steps = an empty structogram box; show_answers: true = the solution with the same layout. ';
@@ -577,21 +579,27 @@ function str(v: unknown, max: number): string | null {
 
 /** Nested structures that go deeper than other fields: structogram steps, sequence diagram fragments. */
 const DEEP_KEYS = new Set(['steps', 'messages']);
+/**
+ * Diagram texts are often code ("printf(\"%d\\n\")"): their strings are taken verbatim, without unescapeText (a
+ * line break would be collapsed to a space in a diagram anyway).
+ */
+const DIAGRAM_KEYS = new Set(['classes', 'relations', 'objects', 'links', 'participants', 'messages', 'states', 'transitions',
+  'initial', 'accepting', 'steps', 'entities', 'relationships']);
 
 /** Copy a value from the model: strings unescaped and bounded, arrays/objects bounded in size and depth. */
-function cleanValue(v: unknown, key: string, depth: number, maxDepth = 5): unknown {
+function cleanValue(v: unknown, key: string, depth: number, maxDepth = 5, raw = false): unknown {
   if (typeof v === 'string') {
     if (RAW_KEYS.has(key)) return v.slice(0, key === 'svg' ? 200000 : 20000);
-    return unescapeText(v).slice(0, 4000);
+    return (raw ? v : unescapeText(v)).slice(0, 4000);
   }
   if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
   if (typeof v === 'boolean' || v == null) return v;
   if (depth > maxDepth) return undefined;
-  if (Array.isArray(v)) return v.slice(0, 120).map((x) => cleanValue(x, key, depth + 1, maxDepth));
+  if (Array.isArray(v)) return v.slice(0, 120).map((x) => cleanValue(x, key, depth + 1, maxDepth, raw));
   if (typeof v === 'object') {
     const o: Record<string, unknown> = {};
     for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 40)) {
-      const c = cleanValue(x, k, depth + 1, maxDepth);
+      const c = cleanValue(x, k, depth + 1, maxDepth, raw);
       if (c !== undefined) o[k] = c;
     }
     return o;
@@ -619,7 +627,8 @@ export function checkBlocks(raw: unknown, opts: { nested?: boolean; layout?: boo
     const base: Record<string, unknown> = {};
     for (const k of Object.keys(b)) {
       if (!ALLOWED_BLOCK_KEYS.has(k) || k === 'columns') continue;
-      const c = cleanValue(b[k], k, 0, DEEP_KEYS.has(k) ? 16 : 5);
+      // structogram steps nest 2–4 levels per control structure (if/then, switch/cases/do)
+      const c = cleanValue(b[k], k, 0, DEEP_KEYS.has(k) ? 30 : 5, DIAGRAM_KEYS.has(k));
       if (c !== undefined) base[k] = c;
     }
     switch (type) {

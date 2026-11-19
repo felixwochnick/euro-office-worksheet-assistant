@@ -31,6 +31,8 @@ function pair(fn, opts, answers) {
   const solution = render(fn, Object.assign({}, opts, { showAnswers: true }));
   assert.equal(student.widthMm, solution.widthMm, `${fn}: same width`);
   assert.equal(student.heightMm, solution.heightMm, `${fn}: same height`);
+  const vb = (svg) => /viewBox="([^"]+)"/.exec(svg)[1];
+  assert.equal(vb(student.svg), vb(solution.svg), `${fn}: same viewBox`);
   for (const a of answers) {
     assert.ok(solution.svg.includes(a), `${fn}: solution shows ${a}`);
     assert.ok(!student.svg.includes(a), `${fn}: student version hides ${a}`);
@@ -205,17 +207,20 @@ test('structogram: all control structures, labels, empty boxes and gaps', () => 
     { call: 'ausgabe(a)' },
     { exit: 'return a' },
   ];
-  const { student } = pair('structogram', { title: 'ggT(a, b)', blocks: steps, labels: { yes: 'ja', no: 'nein', otherwise: 'andernfalls' } }, ['b ← b − a']);
+  const { student } = pair('structogram', { title: 'ggT(a, b)', steps, labels: { yes: 'ja', no: 'nein', otherwise: 'andernfalls' } }, ['b ← b − a']);
   assert.match(student.svg, />ja</);
   assert.match(student.svg, />nein</);
   assert.match(student.svg, />andernfalls</);
   assert.match(student.svg, />∅</, 'empty loop body');
   assert.match(student.svg, /stroke-width="0\.6"/, 'thick outer frame');
   // the structogram takes the requested width
-  const wide = render('structogram', { blocks: ['x ← 1'], widthMm: 150 });
+  const wide = render('structogram', { steps: ['x ← 1'], widthMm: 150 });
   assert.equal(Math.round(wide.widthMm), 152);
-  assert.throws(() => wd.structogram({ blocks: [{ when: 'x' }] }), /blocks\[0\] is not a statement/);
-  assert.throws(() => wd.structogram({ blocks: [{ if: '', then: [] }] }), /blocks\[0\]\.if" must not be empty/);
+  assert.throws(() => wd.structogram({ steps: [{ when: 'x' }] }), /steps\[0\] is not a statement/);
+  assert.throws(() => wd.structogram({ steps: [{ if: '', then: [] }] }), /steps\[0\]\.if" must not be empty/);
+  assert.throws(() => wd.structogram({ steps: [] }), /"steps" needs 1–80 entries/);
+  // a very narrow column: a plain "too wide" message instead of an option error
+  assert.throws(() => wd.structogram({ steps: ['eine ziemlich lange Anweisung mit vielen Wörtern'], maxWidthMm: 30 }), /too wide: .* only 30 mm are available/);
 });
 
 test('ER diagram: Chen, (min,max) and crow\'s foot', () => {
@@ -252,3 +257,64 @@ test('the vendored dagre (plugin) and the npm package (Node) have the same versi
   assert.ok(vendored.includes(`"${npm}"`), `vendor/dagre/dagre.min.js is not dagre ${npm} – run scripts/build.sh --update-vendor with DAGRE_VERSION=${npm}`);
   assert.equal(require('../package.json').dependencies['@dagrejs/dagre'], npm, 'exact version in packages/shared/package.json');
 });
+
+test('blank elements outside the boxes keep the layout of the solution', () => {
+  const same = (fn, opts) => {
+    const a = wd[fn](Object.assign({}, BASE, opts, { showAnswers: false }));
+    const b = wd[fn](Object.assign({}, BASE, opts, { showAnswers: true }));
+    assert.equal(a.widthMm, b.widthMm, fn);
+    assert.equal(a.heightMm, b.heightMm, fn);
+    assert.equal(/viewBox="([^"]+)"/.exec(a.svg)[1], /viewBox="([^"]+)"/.exec(b.svg)[1], fn);
+    assert.ok(a.svg.length < b.svg.length, `${fn}: the solution draws more`);
+  };
+  same('classDiagram', { classes: ['Element'], relations: [{ from: 'Element', to: 'Element', label: 'next', blank: true }] });
+  same('objectDiagram', { objects: [{ name: 'e', class: 'E' }], links: [{ from: 'e', to: 'e', label: 'x', blank: true }] });
+  same('stateDiagram', { states: ['A'], transitions: [{ from: 'A', to: 'A', label: 'tick', blank: true }] });
+  same('erDiagram', { entities: ['A', 'B'], relationships: [{ name: 'r', from: 'A', to: 'B', from_card: '1', to_card: 'n', attributes: ['seit', 'bis'], blank: true }] });
+  same('erDiagram', { notation: 'crowsfoot', entities: ['A', 'B'], relationships: [{ name: 'hat', from: 'A', to: 'B', from_card: '1', to_card: '0..*', blank: true }] });
+  same('sequenceDiagram', { participants: ['a', 'b'], messages: [{ from: 'a', to: 'b', text: 'x()' }, { from: 'b', to: 'b', text: 'eineLangeSelbstnachricht()', blank: true }] });
+});
+
+test('sequence diagram: a created or asynchronously called object does not end other activations', () => {
+  const g = wd.sequenceDiagram(Object.assign({}, BASE, {
+    participants: ['A', 'B', 'c: C'],
+    messages: [
+      { from: 'A', to: 'B', text: 'run()' },
+      { from: 'B', to: 'c: C', text: 'new C()', kind: 'create' },
+      { from: 'c: C', to: 'B', text: 'register()' },
+      { from: 'B', to: 'B', text: 'helper()' },
+      { from: 'B', to: 'A', text: 'ok', kind: 'return' },
+    ],
+  }));
+  // bars (2.4 mm wide): B run() – one bar through to "ok", B register() and B helper() nested in it
+  const bars = [...g.svg.matchAll(/<rect x="([\d.-]+)" y="([\d.-]+)" width="2\.4" height="([\d.-]+)"/g)].map((m) => ({ x: +m[1], y: +m[2], h: +m[3] }))
+    .sort((p, q) => p.y - q.y);
+  assert.equal(bars.length, 3);
+  const [run, reg, help] = bars;
+  assert.ok(run.y < reg.y && reg.y < help.y);
+  const end = (b) => Math.round((b.y + b.h) * 100) / 100;
+  assert.ok(end(run) >= end(reg) && end(reg) >= end(help), 'nested bars end inside the outer one');
+  assert.ok(end(run) - end(reg) <= 1.01, 'the return ends all of them');
+});
+
+test('names that are also JavaScript object properties work', () => {
+  for (const name of ['constructor', '__proto__', 'toString', 'hasOwnProperty']) {
+    render('classDiagram', { classes: [{ name }, { name: 'Basis' }], relations: [{ from: name, to: 'Basis', kind: 'inheritance' }] });
+    render('stateDiagram', { notation: 'automaton', states: [name, 'q1'], initial: name, accepting: ['q1'], transitions: [{ from: name, to: 'q1', label: 'a' }] });
+    render('erDiagram', { entities: [name, 'B'], relationships: [{ name: 'r', from: name, to: 'B' }] });
+    render('sequenceDiagram', { participants: [name, 'b'], messages: [{ from: name, to: 'b', text: 'm()' }] });
+    render('objectDiagram', { objects: [{ name, class: 'K' }, { name: 'b', class: 'K' }], links: [{ from: name, to: 'b' }] });
+  }
+  assert.throws(() => wd.stateDiagram({ notation: 'automaton', states: ['q0'], accepting: ['constructor'] }), /"accepting" names "constructor", which is not a state/);
+});
+
+test("crow's foot: (min,max) cards describe their own entity, the others read across", () => {
+  // the same drawing (elements in any order)
+  const er = (from_card, to_card) => wd.erDiagram(Object.assign({}, BASE, {
+    notation: 'Krähenfuß', entities: ['Schüler', 'Klasse'], relationships: [{ name: 'gehört zu', from: 'Schüler', to: 'Klasse', from_card, to_card }],
+  })).svg.match(/<[^/][^>]*>/g).sort().join('');
+  // each Schüler belongs to exactly one Klasse, a Klasse has any number of Schüler
+  assert.equal(er('(1,1)', '(0,*)'), er('0..*', '1'));
+  assert.notEqual(er('(1,1)', '(0,*)'), er('1', '0..*'));
+});
+

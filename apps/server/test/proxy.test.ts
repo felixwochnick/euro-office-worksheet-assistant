@@ -249,6 +249,13 @@ test('tools: computer science diagrams keep deeply nested steps and are validate
   assert.deepEqual(b[0].steps[1], deep);
   assert.equal(b[1].messages[0].messages[0].messages[0].messages[0].text, 'm()');
   assert.equal(b[2].relations[0].blank, true);
+  // diagram texts are code: a literal backslash-n stays as it is
+  let nested: unknown = 'tief';
+  for (const v of ['d', 'c', 'b', 'a']) nested = { switch: v, cases: [{ label: v, do: [nested] }] };
+  const code = checkClientToolCall({ id: 'u3', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'structogram', steps: ['printf("%d\\n", summe)', nested] }] } });
+  assert.equal(code.ok, true, code.error);
+  assert.equal((code.args.blocks as any[])[0].steps[0], 'printf("%d\\n", summe)');
+  assert.equal(JSON.stringify((code.args.blocks as any[])[0].steps[1]).includes('"tief"'), true, 'four nested switches survive');
   const bad = checkClientToolCall({ id: 'u2', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'class_diagram', classes: [{ name: 'A' }], relations: [{ from: 'A', to: 'B' }] }] } });
   assert.equal(bad.ok, false);
   assert.match(bad.error!, /blocks\[0\] \(class_diagram\): classDiagram: "relations\[0\]\.to" is "B", which is not one of the classes: A\./);

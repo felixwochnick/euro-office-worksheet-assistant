@@ -881,7 +881,7 @@
 
   builders.structogram = function (b, c) {
     var g = diagramLib().structogram(diagramOpts(c, b, {
-      title: b.title, blocks: b.steps, labels: { yes: c.L.structYes, no: c.L.structNo, otherwise: c.L.structOtherwise }
+      title: b.title, steps: b.steps, labels: { yes: c.L.structYes, no: c.L.structNo, otherwise: c.L.structOtherwise }
     }));
     return graphicBlock(c, b, g, 'Struktogramm' + (b.title ? ': ' + str(b.title) : ''), sourceOf(b, 'structogram'));
   };

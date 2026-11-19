@@ -256,7 +256,7 @@
       font: U.fontOf(o.font),
       show: !!o.showAnswers,
       widthMm: o.widthMm !== undefined && o.widthMm !== null ? U.num(o.widthMm, 0, 20, 400, fn, 'widthMm') : 0,
-      maxWidthMm: U.num(o.maxWidthMm, 170, 40, 400, fn, 'maxWidthMm')
+      maxWidthMm: Math.max(15, Math.min(400, Number(o.maxWidthMm) || 170))
     };
   }
 
@@ -626,7 +626,7 @@
     var o = U.optsOf(opts, fn);
     var ctx = context(o, fn);
     listOf(o.classes, fn, 'classes', 1, 16, '{ name, attributes: [...], methods: [...] }');
-    var byKey = {};
+    var byKey = Object.create(null);
     var classes = o.classes.map(function (c, i) {
       if (typeof c === 'string') c = { name: c };
       objOf(c, fn, 'classes[' + i + ']', '{ name, kind?, attributes: [...], methods: [...] }');
@@ -706,46 +706,51 @@
     var lines = '';
     var marks = '';
     rels.forEach(function (r) {
-      if (r.blank && !ctx.show) return;
-      var pts;
-      var lp;
-      if (r.loop) {
-        var lo = boxLoop(lay.nodes[r.from.id], r.from, r.loop - 1);
-        pts = lo.pts;
-        lp = r.label ? lo.label : null;
-      } else {
-        var i = flow.indexOf(r);
-        pts = lay.edges[i].points;
-        if (edges[i].reversed) pts = pts.slice().reverse();
-        if (loops[r.from.id] || loops[r.to.id]) pts = fixEnds(pts, boxShape(lay, r.from), boxShape(lay, r.to));
-        lp = lay.edges[i].label;
-      }
-      if (pts.length < 2) return;
-      var color = r.blank ? ctx.accent : ctx.ink;
-      pts.forEach(function (p) { B.pt(p.x, p.y); });
-      lines += el('path', attrsWith(strokeOf(color, r.kind === 'implementation' || r.kind === 'dependency'), { d: polyline(pts) }));
-      var e = endDir(pts);
-      var s = startDir(pts);
-      var endBack = 1.5;
-      if (r.kind === 'inheritance' || r.kind === 'implementation') {
-        marks += triangle(e, color);
-        endBack = 3.6;
-      } else if (r.directed) {
-        marks += openArrow(e, color);
-        endBack = 2.8;
-      }
-      var startBack = 1.5;
-      if (r.kind === 'aggregation' || r.kind === 'composition') {
-        marks += diamond(s, color, r.kind === 'composition');
-        startBack = 4.8;
-      }
-      if (r.label && lp) {
-        var lb = lp.y + SMALL * U.CAP / 2;
-        B.text(lp.x, lb, lineWidth(r.label), SMALL, 'middle');
-        marks += drawLine(ctx, r.label, lp.x, lb, { anchor: 'middle', fill: r.blank ? ctx.accent : null, halo: true });
-      }
-      if (r.toMult) marks += endLabel(ctx, r.toMult, e, endBack, r.loop ? -1 : 1, r.blank ? ctx.accent : ctx.ink, B);
-      if (r.fromMult) marks += endLabel(ctx, r.fromMult, s, startBack, -1, r.blank ? ctx.accent : ctx.ink, B);
+      // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+      var hide = r.blank && !ctx.show;
+      var snap = [lines.length, marks.length];
+      (function () {
+        var pts;
+        var lp;
+        if (r.loop) {
+          var lo = boxLoop(lay.nodes[r.from.id], r.from, r.loop - 1);
+          pts = lo.pts;
+          lp = r.label ? lo.label : null;
+        } else {
+          var i = flow.indexOf(r);
+          pts = lay.edges[i].points;
+          if (edges[i].reversed) pts = pts.slice().reverse();
+          if (loops[r.from.id] || loops[r.to.id]) pts = fixEnds(pts, boxShape(lay, r.from), boxShape(lay, r.to));
+          lp = lay.edges[i].label;
+        }
+        if (pts.length < 2) return;
+        var color = r.blank ? ctx.accent : ctx.ink;
+        pts.forEach(function (p) { B.pt(p.x, p.y); });
+        lines += el('path', attrsWith(strokeOf(color, r.kind === 'implementation' || r.kind === 'dependency'), { d: polyline(pts) }));
+        var e = endDir(pts);
+        var s = startDir(pts);
+        var endBack = 1.5;
+        if (r.kind === 'inheritance' || r.kind === 'implementation') {
+          marks += triangle(e, color);
+          endBack = 3.6;
+        } else if (r.directed) {
+          marks += openArrow(e, color);
+          endBack = 2.8;
+        }
+        var startBack = 1.5;
+        if (r.kind === 'aggregation' || r.kind === 'composition') {
+          marks += diamond(s, color, r.kind === 'composition');
+          startBack = 4.8;
+        }
+        if (r.label && lp) {
+          var lb = lp.y + SMALL * U.CAP / 2;
+          B.text(lp.x, lb, lineWidth(r.label), SMALL, 'middle');
+          marks += drawLine(ctx, r.label, lp.x, lb, { anchor: 'middle', fill: r.blank ? ctx.accent : null, halo: true });
+        }
+        if (r.toMult) marks += endLabel(ctx, r.toMult, e, endBack, r.loop ? -1 : 1, r.blank ? ctx.accent : ctx.ink, B);
+        if (r.fromMult) marks += endLabel(ctx, r.fromMult, s, startBack, -1, r.blank ? ctx.accent : ctx.ink, B);
+      })();
+      if (hide) { lines = lines.slice(0, snap[0]); marks = marks.slice(0, snap[1]); }
     });
     var boxes = '';
     classes.forEach(function (b) {
@@ -764,7 +769,7 @@
     var o = U.optsOf(opts, fn);
     var ctx = context(o, fn);
     listOf(o.objects, fn, 'objects', 1, 16, '{ name, class, values: ["attr = value"] }');
-    var byKey = {};
+    var byKey = Object.create(null);
     var objects = o.objects.map(function (ob, i) {
       objOf(ob, fn, 'objects[' + i + ']', '{ name, class, values: [...] }');
       var nm = str(ob.name, fn, 'objects[' + i + '].name', 60);
@@ -783,7 +788,7 @@
       return box;
     });
     // links may name an object by its name ("k1"), by "k1 : Konto" or, without a name, by ": Konto"
-    var refs = {};
+    var refs = Object.create(null);
     objects.forEach(function (b) { refs[keyOf(b.label)] = b; });
     function ref(v, name) {
       var k = keyOf(v);
@@ -817,29 +822,34 @@
     var lines = '';
     var marks = '';
     links.forEach(function (l) {
-      if (l.blank && !ctx.show) return;
-      var pts;
-      var lp;
-      if (l.loop) {
-        var lo = boxLoop(lay.nodes[l.from.id], l.from, l.loop - 1);
-        pts = lo.pts;
-        lp = lo.label;
-      } else {
-        var i = flow.indexOf(l);
-        pts = lay.edges[i].points;
-        if (loops[l.from.id] || loops[l.to.id]) pts = fixEnds(pts, boxShape(lay, l.from), boxShape(lay, l.to));
-        lp = lay.edges[i].label;
-      }
-      if (pts.length < 2) return;
-      var color = l.blank ? ctx.accent : ctx.ink;
-      pts.forEach(function (p) { B.pt(p.x, p.y); });
-      lines += el('path', attrsWith(strokeOf(color), { d: polyline(pts) }));
-      if (l.directed) marks += openArrow(endDir(pts), color);
-      if (l.label && lp) {
-        var lb = lp.y + SMALL * U.CAP / 2;
-        B.text(lp.x, lb, lineWidth(l.label), SMALL, 'middle');
-        marks += drawLine(ctx, l.label, lp.x, lb, { anchor: 'middle', fill: l.blank ? ctx.accent : null, halo: true });
-      }
+      // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+      var hide = l.blank && !ctx.show;
+      var snap = [lines.length, marks.length];
+      (function () {
+        var pts;
+        var lp;
+        if (l.loop) {
+          var lo = boxLoop(lay.nodes[l.from.id], l.from, l.loop - 1);
+          pts = lo.pts;
+          lp = lo.label;
+        } else {
+          var i = flow.indexOf(l);
+          pts = lay.edges[i].points;
+          if (loops[l.from.id] || loops[l.to.id]) pts = fixEnds(pts, boxShape(lay, l.from), boxShape(lay, l.to));
+          lp = lay.edges[i].label;
+        }
+        if (pts.length < 2) return;
+        var color = l.blank ? ctx.accent : ctx.ink;
+        pts.forEach(function (p) { B.pt(p.x, p.y); });
+        lines += el('path', attrsWith(strokeOf(color), { d: polyline(pts) }));
+        if (l.directed) marks += openArrow(endDir(pts), color);
+        if (l.label && lp) {
+          var lb = lp.y + SMALL * U.CAP / 2;
+          B.text(lp.x, lb, lineWidth(l.label), SMALL, 'middle');
+          marks += drawLine(ctx, l.label, lp.x, lb, { anchor: 'middle', fill: l.blank ? ctx.accent : null, halo: true });
+        }
+      })();
+      if (hide) { lines = lines.slice(0, snap[0]); marks = marks.slice(0, snap[1]); }
     });
     var boxes = '';
     objects.forEach(function (b) {
@@ -862,8 +872,8 @@
     if (notation !== 'uml' && notation !== 'automaton') throw fail(fn, '"notation" must be "uml" or "automaton" (got ' + show(o.notation) + ').');
     var auto = notation === 'automaton';
     listOf(o.states, fn, 'states', 1, 20, '"Bereit" or { name, activities: ["entry / …"] }');
-    var byKey = {};
-    var accepting = {};
+    var byKey = Object.create(null);
+    var accepting = Object.create(null);
     (Array.isArray(o.accepting) ? o.accepting : o.accepting ? [o.accepting] : []).forEach(function (a) { accepting[keyOf(a)] = true; });
     var states = o.states.map(function (s, i) {
       if (typeof s === 'string' || typeof s === 'number') s = { name: String(s) };
@@ -897,7 +907,7 @@
     Object.keys(accepting).forEach(function (k) {
       if (!byKey[k]) throw fail(fn, '"accepting" names "' + k + '", which is not a state.');
     });
-    var pseudo = {};
+    var pseudo = Object.create(null);
     function pseudoNode(kind) {
       if (!pseudo[kind]) {
         var size = kind === 'initial' ? (auto ? 0.2 : 3.6) : 5.2;
@@ -976,83 +986,93 @@
     var marks = '';
     Object.keys(loops).forEach(function (id) {
       loops[id].forEach(function (t, j) {
-        if (t.blank && !ctx.show) return;
-        var color = t.blank ? ctx.accent : ctx.ink;
-        var sh = shapeOf(t.from);
-        var p = lay.nodes[id];
-        var reach = LOOP_H + j * LOOP_STEP;
-        var spread = 2.5 + j * 1.5;
-        var a;
-        var b;
-        var c1;
-        var c2;
-        if (rankdir === 'LR') {
-          var top = p.y - (sh.kind === 'circle' ? sh.r : t.from.height / 2);
-          if (sh.kind === 'circle') {
-            var ang = 0.7 + j * 0.08;
-            a = { x: p.x - sh.r * Math.sin(ang), y: p.y - sh.r * Math.cos(ang) };
-            b = { x: p.x + sh.r * Math.sin(ang), y: a.y };
+        // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+        var hide = t.blank && !ctx.show;
+        var snap = [lines.length, marks.length];
+        (function () {
+          var color = t.blank ? ctx.accent : ctx.ink;
+          var sh = shapeOf(t.from);
+          var p = lay.nodes[id];
+          var reach = LOOP_H + j * LOOP_STEP;
+          var spread = 2.5 + j * 1.5;
+          var a;
+          var b;
+          var c1;
+          var c2;
+          if (rankdir === 'LR') {
+            var top = p.y - (sh.kind === 'circle' ? sh.r : t.from.height / 2);
+            if (sh.kind === 'circle') {
+              var ang = 0.7 + j * 0.08;
+              a = { x: p.x - sh.r * Math.sin(ang), y: p.y - sh.r * Math.cos(ang) };
+              b = { x: p.x + sh.r * Math.sin(ang), y: a.y };
+            } else {
+              var dx = Math.min(t.from.width / 2 - 1.5, 3 + j * 1.2);
+              a = { x: p.x - dx, y: top };
+              b = { x: p.x + dx, y: top };
+            }
+            var cy = a.y - (a.y - (top - reach)) / 0.75;
+            c1 = { x: a.x - spread, y: cy };
+            c2 = { x: b.x + spread, y: cy };
+            if (t.label) {
+              var lb = top - reach - 1.2;
+              B.text(p.x, lb, lineWidth(t.label), t.label.size, 'middle');
+              marks += drawLine(ctx, t.label, p.x, lb, { anchor: 'middle', fill: t.blank ? ctx.accent : null, halo: true });
+            }
+            B.pt(p.x, top - reach);
           } else {
-            var dx = Math.min(t.from.width / 2 - 1.5, 3 + j * 1.2);
-            a = { x: p.x - dx, y: top };
-            b = { x: p.x + dx, y: top };
+            var right = p.x + (sh.kind === 'circle' ? sh.r : t.from.width / 2);
+            if (sh.kind === 'circle') {
+              var ang2 = 0.7 + j * 0.08;
+              a = { x: p.x + sh.r * Math.cos(ang2), y: p.y - sh.r * Math.sin(ang2) };
+              b = { x: a.x, y: p.y + sh.r * Math.sin(ang2) };
+            } else {
+              var dy = Math.min(t.from.height / 2 - 1.2, 2.5 + j * 1);
+              a = { x: right, y: p.y - dy };
+              b = { x: right, y: p.y + dy };
+            }
+            var cx = a.x + ((right + reach) - a.x) / 0.75;
+            c1 = { x: cx, y: a.y - spread };
+            c2 = { x: cx, y: b.y + spread };
+            if (t.label) {
+              var lx = right + reach + 1.2;
+              var lb2 = p.y + t.label.size * U.CAP / 2;
+              B.text(lx, lb2, lineWidth(t.label), t.label.size, 'start');
+              marks += drawLine(ctx, t.label, lx, lb2, { fill: t.blank ? ctx.accent : null, halo: true });
+            }
+            B.pt(right + reach, p.y);
           }
-          var cy = a.y - (a.y - (top - reach)) / 0.75;
-          c1 = { x: a.x - spread, y: cy };
-          c2 = { x: b.x + spread, y: cy };
-          if (t.label) {
-            var lb = top - reach - 1.2;
-            B.text(p.x, lb, lineWidth(t.label), t.label.size, 'middle');
-            marks += drawLine(ctx, t.label, p.x, lb, { anchor: 'middle', fill: t.blank ? ctx.accent : null, halo: true });
-          }
-          B.pt(p.x, top - reach);
-        } else {
-          var right = p.x + (sh.kind === 'circle' ? sh.r : t.from.width / 2);
-          if (sh.kind === 'circle') {
-            var ang2 = 0.7 + j * 0.08;
-            a = { x: p.x + sh.r * Math.cos(ang2), y: p.y - sh.r * Math.sin(ang2) };
-            b = { x: a.x, y: p.y + sh.r * Math.sin(ang2) };
-          } else {
-            var dy = Math.min(t.from.height / 2 - 1.2, 2.5 + j * 1);
-            a = { x: right, y: p.y - dy };
-            b = { x: right, y: p.y + dy };
-          }
-          var cx = a.x + ((right + reach) - a.x) / 0.75;
-          c1 = { x: cx, y: a.y - spread };
-          c2 = { x: cx, y: b.y + spread };
-          if (t.label) {
-            var lx = right + reach + 1.2;
-            var lb2 = p.y + t.label.size * U.CAP / 2;
-            B.text(lx, lb2, lineWidth(t.label), t.label.size, 'start');
-            marks += drawLine(ctx, t.label, lx, lb2, { fill: t.blank ? ctx.accent : null, halo: true });
-          }
-          B.pt(right + reach, p.y);
-        }
-        lines += el('path', attrsWith(strokeOf(color), { d: 'M' + f(a.x) + ' ' + f(a.y) + 'C' + f(c1.x) + ' ' + f(c1.y) + ' ' + f(c2.x) + ' ' + f(c2.y) + ' ' + f(b.x) + ' ' + f(b.y) }));
-        var e = endDir([c2, b]);
-        marks += auto ? filledArrow(e, color) : openArrow(e, color);
+          lines += el('path', attrsWith(strokeOf(color), { d: 'M' + f(a.x) + ' ' + f(a.y) + 'C' + f(c1.x) + ' ' + f(c1.y) + ' ' + f(c2.x) + ' ' + f(c2.y) + ' ' + f(b.x) + ' ' + f(b.y) }));
+          var e = endDir([c2, b]);
+          marks += auto ? filledArrow(e, color) : openArrow(e, color);
+        })();
+        if (hide) { lines = lines.slice(0, snap[0]); marks = marks.slice(0, snap[1]); }
       });
     });
     normal.forEach(function (t, i) {
-      if (t.blank && !ctx.show) return;
-      var pts = lay.edges[i].points;
-      if (pts.length < 2) return;
-      pts = fixEnds(pts, shapeOf(t.from), shapeOf(t.to));
-      if (auto && t.from.kind === 'initial') {
-        // start arrow: a short arrow into the start state
-        var e0 = endDir(pts);
-        pts = [{ x: e0.x - e0.ux * 7, y: e0.y - e0.uy * 7 }, { x: e0.x, y: e0.y }];
-      }
-      var color = t.blank ? ctx.accent : ctx.ink;
-      pts.forEach(function (p) { B.pt(p.x, p.y); });
-      lines += el('path', attrsWith(strokeOf(color), { d: smoothPath(pts) }));
-      marks += auto ? filledArrow(endDir(pts), color) : openArrow(endDir(pts), color);
-      if (t.label && lay.edges[i].label) {
-        var lp = lay.edges[i].label;
-        var lb = lp.y + t.label.size * U.CAP / 2;
-        B.text(lp.x, lb, lineWidth(t.label), t.label.size, 'middle');
-        marks += drawLine(ctx, t.label, lp.x, lb, { anchor: 'middle', fill: t.blank ? ctx.accent : null, halo: true });
-      }
+      // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+      var hide = t.blank && !ctx.show;
+      var snap = [lines.length, marks.length];
+      (function () {
+        var pts = lay.edges[i].points;
+        if (pts.length < 2) return;
+        pts = fixEnds(pts, shapeOf(t.from), shapeOf(t.to));
+        if (auto && t.from.kind === 'initial') {
+          // start arrow: a short arrow into the start state
+          var e0 = endDir(pts);
+          pts = [{ x: e0.x - e0.ux * 7, y: e0.y - e0.uy * 7 }, { x: e0.x, y: e0.y }];
+        }
+        var color = t.blank ? ctx.accent : ctx.ink;
+        pts.forEach(function (p) { B.pt(p.x, p.y); });
+        lines += el('path', attrsWith(strokeOf(color), { d: smoothPath(pts) }));
+        marks += auto ? filledArrow(endDir(pts), color) : openArrow(endDir(pts), color);
+        if (t.label && lay.edges[i].label) {
+          var lp = lay.edges[i].label;
+          var lb = lp.y + t.label.size * U.CAP / 2;
+          B.text(lp.x, lb, lineWidth(t.label), t.label.size, 'middle');
+          marks += drawLine(ctx, t.label, lp.x, lb, { anchor: 'middle', fill: t.blank ? ctx.accent : null, halo: true });
+        }
+      })();
+      if (hide) { lines = lines.slice(0, snap[0]); marks = marks.slice(0, snap[1]); }
     });
     var nodes = '';
     states.forEach(function (s) {
@@ -1117,7 +1137,7 @@
     var ctx = context(o, fn);
     var withBars = o.activations !== false;
     listOf(o.participants, fn, 'participants', 1, 10, '":Kunde" or { name, kind: "actor" }');
-    var byKey = {};
+    var byKey = Object.create(null);
     var parts = o.participants.map(function (p, i) {
       if (typeof p === 'string') p = { name: p };
       objOf(p, fn, 'participants[' + i + ']', '{ name, kind?: "object" | "actor" }');
@@ -1298,9 +1318,11 @@
         m.rd = depthOf(m.to);
         return;
       }
+      // the sender continues: activations opened after its own have returned (implicitly). A sender without an open
+      // activation (an actor, an object created or called asynchronously) ends none.
       var own = -1;
       for (k = stack.length - 1; k >= 0; k--) if (stack[k].p === m.from) { own = k; break; }
-      while (stack.length - 1 > own) close(stack.length - 1, m.y - 1);
+      if (own >= 0) while (stack.length - 1 > own) close(stack.length - 1, m.y - 1);
       m.sd = depthOf(m.from);
       if (m.kind === 'call') {
         var d = depthOf(m.to) + 1;
@@ -1368,36 +1390,46 @@
     });
     // activation bars
     bars.forEach(function (b) {
-      if (b.blank && !ctx.show) return;
-      var bx = barX(b.p, b.depth, -1);
-      out += el('rect', { x: bx, y: b.y0, width: BAR_W, height: b.y1 - b.y0, fill: b.blank ? U.tint(ctx.accent, 0.8) : '#ffffff', stroke: b.blank ? ctx.accent : ctx.ink, 'stroke-width': LW });
+      // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+      var hide = b.blank && !ctx.show;
+      var snap = [out.length];
+      (function () {
+        var bx = barX(b.p, b.depth, -1);
+        out += el('rect', { x: bx, y: b.y0, width: BAR_W, height: b.y1 - b.y0, fill: b.blank ? U.tint(ctx.accent, 0.8) : '#ffffff', stroke: b.blank ? ctx.accent : ctx.ink, 'stroke-width': LW });
+      })();
+      if (hide) { out = out.slice(0, snap[0]); }
     });
     // messages
     msgs.forEach(function (m) {
-      if (m.blank && !ctx.show) return;
-      var color = m.blank ? ctx.accent : ctx.ink;
-      var dashed = m.kind === 'return' || m.kind === 'create';
-      var tw = lineWidth(m.text);
-      var lb = m.y - 1.1;
-      if (m.from === m.to) {
-        var sx = barX(m.from, m.sd, 1);
-        var ex = barX(m.from, m.kind === 'call' ? m.rd : m.sd, 1);
-        var pts = [{ x: sx, y: m.y }, { x: sx + SELF_W, y: m.y }, { x: sx + SELF_W, y: m.y + SELF_H }, { x: ex, y: m.y + SELF_H }];
-        out += el('path', attrsWith(strokeOf(color, dashed), { d: polyline(pts) }));
-        out += m.kind === 'call' ? filledArrow(endDir(pts), color) : openArrow(endDir(pts), color);
-        out += drawLine(ctx, m.text, sx + 1.2, lb, { fill: m.blank ? ctx.accent : null });
-        B.text(sx + 1.2, lb, tw, m.text.size, 'start');
-        B.rect(sx, m.y, SELF_W + 1, SELF_H);
-        return;
-      }
-      var dir = m.to.x > m.from.x ? 1 : -1;
-      var x1 = barX(m.from, m.sd, dir);
-      var x2 = m.kind === 'create' ? m.to.x - dir * m.to.w / 2 : barX(m.to, m.rd, -dir);
-      var pts2 = [{ x: x1, y: m.y }, { x: x2, y: m.y }];
-      out += el('path', attrsWith(strokeOf(color, dashed), { d: polyline(pts2) }));
-      out += m.kind === 'call' ? filledArrow(endDir(pts2), color) : openArrow(endDir(pts2), color);
-      out += drawLine(ctx, m.text, (x1 + x2) / 2, lb, { anchor: 'middle', fill: m.blank ? ctx.accent : null, halo: Math.abs(m.to.i - m.from.i) > 1 });
-      B.text((x1 + x2) / 2, lb, tw, m.text.size, 'middle');
+      // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+      var hide = m.blank && !ctx.show;
+      var snap = [out.length];
+      (function () {
+        var color = m.blank ? ctx.accent : ctx.ink;
+        var dashed = m.kind === 'return' || m.kind === 'create';
+        var tw = lineWidth(m.text);
+        var lb = m.y - 1.1;
+        if (m.from === m.to) {
+          var sx = barX(m.from, m.sd, 1);
+          var ex = barX(m.from, m.kind === 'call' ? m.rd : m.sd, 1);
+          var pts = [{ x: sx, y: m.y }, { x: sx + SELF_W, y: m.y }, { x: sx + SELF_W, y: m.y + SELF_H }, { x: ex, y: m.y + SELF_H }];
+          out += el('path', attrsWith(strokeOf(color, dashed), { d: polyline(pts) }));
+          out += m.kind === 'call' ? filledArrow(endDir(pts), color) : openArrow(endDir(pts), color);
+          out += drawLine(ctx, m.text, sx + 1.2, lb, { fill: m.blank ? ctx.accent : null });
+          B.text(sx + 1.2, lb, tw, m.text.size, 'start');
+          B.rect(sx, m.y, SELF_W + 1, SELF_H);
+          return;
+        }
+        var dir = m.to.x > m.from.x ? 1 : -1;
+        var x1 = barX(m.from, m.sd, dir);
+        var x2 = m.kind === 'create' ? m.to.x - dir * m.to.w / 2 : barX(m.to, m.rd, -dir);
+        var pts2 = [{ x: x1, y: m.y }, { x: x2, y: m.y }];
+        out += el('path', attrsWith(strokeOf(color, dashed), { d: polyline(pts2) }));
+        out += m.kind === 'call' ? filledArrow(endDir(pts2), color) : openArrow(endDir(pts2), color);
+        out += drawLine(ctx, m.text, (x1 + x2) / 2, lb, { anchor: 'middle', fill: m.blank ? ctx.accent : null, halo: Math.abs(m.to.i - m.from.i) > 1 });
+        B.text((x1 + x2) / 2, lb, tw, m.text.size, 'middle');
+      })();
+      if (hide) { out = out.slice(0, snap[0]); }
     });
     B.pt(xs[0] - leftExtra, 0);
     B.pt(xs[n - 1] + rightExtra, endY);
@@ -1466,8 +1498,9 @@
       throw fail(fn, name + ' is not a statement: use a string or one of if, while, for, repeat/until, loop, switch, call, exit (got ' + show(b) + ').');
     }
 
-    listOf(o.blocks, fn, 'blocks', 1, 80, '["Anweisung", { if: "x > 0", then: [...], else: [...] }]');
-    var body = seq(o.blocks, 'blocks', 0);
+    var steps = o.steps !== undefined ? o.steps : o.blocks;
+    listOf(steps, fn, 'steps', 1, 80, '["Anweisung", { if: "x > 0", then: [...], else: [...] }]');
+    var body = seq(steps, 'steps', 0);
     var title = o.title !== undefined && o.title !== null && String(o.title).trim() ? mkLine(str(o.title, fn, 'title', 100), { bold: true }) : null;
 
     var emptyW = U.textWidth('∅', FS) + 2 * S_PAD;
@@ -1672,12 +1705,13 @@
     var fn = 'erDiagram';
     var o = U.optsOf(opts, fn);
     var ctx = context(o, fn);
-    var notation = o.notation === undefined || o.notation === null ? 'chen' : String(o.notation).toLowerCase().replace(/[^a-z]/g, '');
-    if (notation === 'crowfoot' || notation === 'crowsfoot' || notation === 'kraehenfuss' || notation === 'krähenfuß') notation = 'crowsfoot';
+    var notation = o.notation === undefined || o.notation === null ? 'chen' : String(o.notation).toLowerCase()
+      .replace(/ä/g, 'ae').replace(/ö/g, 'oe').replace(/ü/g, 'ue').replace(/ß/g, 'ss').replace(/[^a-z]/g, '');
+    if (notation === 'crowfoot' || notation === 'crowsfoot' || notation === 'kraehenfuss') notation = 'crowsfoot';
     if (notation === 'minmax') notation = 'chen';
     if (notation !== 'chen' && notation !== 'crowsfoot') throw fail(fn, '"notation" must be "chen", "minmax" or "crowsfoot" (got ' + show(o.notation) + ').');
     listOf(o.entities, fn, 'entities', 1, 12, '{ name, attributes: ["__id__", "name"] }');
-    var byKey = {};
+    var byKey = Object.create(null);
     var ents = o.entities.map(function (e, i) {
       if (typeof e === 'string') e = { name: e };
       objOf(e, fn, 'entities[' + i + ']', '{ name, attributes: [...] }');
@@ -1738,63 +1772,73 @@
     var lines = '';
     var marks = '';
     rels.forEach(function (r) {
-      if (r.blank && !ctx.show) return;
-      var color = r.blank ? ctx.accent : ctx.ink;
-      var d = lay.nodes[r.id];
-      var dc = byId[r.id];
-      [[r.from, r.fromCard], [r.to, r.toCard]].forEach(function (end, side) {
-        var en = lay.nodes[end[0].id];
-        var ec = byId[end[0].id];
-        var off = r.from === r.to ? (side === 0 ? -2.6 : 2.6) : 0;
-        var dx = d.x - en.x;
-        var dy = d.y - en.y;
-        var a = clipShape({ kind: 'rect', x: en.x, y: en.y + off, w: ec.coreW, h: ec.coreH }, dx, dy);
-        var b = clipShape({ kind: 'diamond', x: d.x, y: d.y + off, w: dc.coreW, h: dc.coreH }, -dx, -dy);
-        if (r.from === r.to) {
-          // self relationship: two lines from the top/bottom corner area
-          a = { x: en.x + ec.coreW / 2 * (dx >= 0 ? 1 : -1), y: en.y + off };
-        }
-        lines += el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: color, 'stroke-width': LW });
-        B.pt(a.x, a.y);
-        B.pt(b.x, b.y);
-        if (end[1]) {
-          var l = Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)) || 1;
-          var e = { x: a.x, y: a.y, ux: -(b.x - a.x) / l, uy: -(b.y - a.y) / l };
-          // a self relationship has two parallel lines: their cardinalities go above and below
-          marks += endLabel(ctx, end[1], e, 1.6, (side === 0 ? -1 : 1) * (r.from === r.to ? -1 : 1), color, B);
-        }
-      });
+      // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+      var hide = r.blank && !ctx.show;
+      var snap = [lines.length, marks.length];
+      (function () {
+        var color = r.blank ? ctx.accent : ctx.ink;
+        var d = lay.nodes[r.id];
+        var dc = byId[r.id];
+        [[r.from, r.fromCard], [r.to, r.toCard]].forEach(function (end, side) {
+          var en = lay.nodes[end[0].id];
+          var ec = byId[end[0].id];
+          var off = r.from === r.to ? (side === 0 ? -2.6 : 2.6) : 0;
+          var dx = d.x - en.x;
+          var dy = d.y - en.y;
+          var a = clipShape({ kind: 'rect', x: en.x, y: en.y + off, w: ec.coreW, h: ec.coreH }, dx, dy);
+          var b = clipShape({ kind: 'diamond', x: d.x, y: d.y + off, w: dc.coreW, h: dc.coreH }, -dx, -dy);
+          if (r.from === r.to) {
+            // self relationship: two lines from the top/bottom corner area
+            a = { x: en.x + ec.coreW / 2 * (dx >= 0 ? 1 : -1), y: en.y + off };
+          }
+          lines += el('line', { x1: a.x, y1: a.y, x2: b.x, y2: b.y, stroke: color, 'stroke-width': LW });
+          B.pt(a.x, a.y);
+          B.pt(b.x, b.y);
+          if (end[1]) {
+            var l = Math.sqrt((b.x - a.x) * (b.x - a.x) + (b.y - a.y) * (b.y - a.y)) || 1;
+            var e = { x: a.x, y: a.y, ux: -(b.x - a.x) / l, uy: -(b.y - a.y) / l };
+            // a self relationship has two parallel lines: their cardinalities go above and below
+            marks += endLabel(ctx, end[1], e, 1.6, (side === 0 ? -1 : 1) * (r.from === r.to ? -1 : 1), color, B);
+          }
+        });
+      })();
+      if (hide) { lines = lines.slice(0, snap[0]); marks = marks.slice(0, snap[1]); }
     });
     var nodes = '';
     clusters.forEach(function (k) {
-      if (k.blank && !ctx.show) return;
-      var p = lay.nodes[k.id];
-      var color = k.blank ? ctx.accent : ctx.ink;
-      function placeRow(list, cy) {
-        var x = p.x - k.rowW(list) / 2;
-        list.forEach(function (it) {
-          var ex = x + it.w / 2;
-          var toCore = clipShape({ kind: k.kind === 'entity' ? 'rect' : 'diamond', x: p.x, y: p.y, w: k.coreW, h: k.coreH }, ex - p.x, cy - p.y);
-          var fromEll = clipShape({ kind: 'ellipse', x: ex, y: cy, w: it.w, h: it.h }, toCore.x - ex, toCore.y - cy);
-          lines += el('line', { x1: fromEll.x, y1: fromEll.y, x2: toCore.x, y2: toCore.y, stroke: color, 'stroke-width': LW });
-          nodes += el('ellipse', { cx: ex, cy: cy, rx: it.w / 2, ry: it.h / 2, fill: '#ffffff', stroke: color, 'stroke-width': LW });
-          nodes += drawLine(ctx, it.L, ex, cy + FS * U.CAP / 2 - (it.L.full || it.L.empty ? -1 : 0), { anchor: 'middle', x1: ex - it.w / 2 + 3, x2: ex + it.w / 2 - 3 });
-          B.rect(ex - it.w / 2, cy - it.h / 2, it.w, it.h);
-          x += it.w + GAPX;
-        });
-      }
-      var rowOff = k.coreH / 2 + SIDE + ATTR_H / 2;
-      placeRow(k.top, p.y - rowOff);
-      placeRow(k.bottom, p.y + rowOff);
-      var hw = k.coreW / 2;
-      var hh = k.coreH / 2;
-      if (k.kind === 'entity') {
-        nodes += el('rect', { x: p.x - hw, y: p.y - hh, width: k.coreW, height: k.coreH, fill: ctx.fill, stroke: color, 'stroke-width': LW * 1.6 });
-      } else {
-        nodes += el('path', { d: 'M' + f(p.x - hw) + ' ' + f(p.y) + 'L' + f(p.x) + ' ' + f(p.y - hh) + 'L' + f(p.x + hw) + ' ' + f(p.y) + 'L' + f(p.x) + ' ' + f(p.y + hh) + 'Z', fill: '#ffffff', stroke: color, 'stroke-width': LW * 1.6 });
-      }
-      nodes += drawLine(ctx, k.nameL, p.x, p.y + FS * U.CAP / 2 + (k.nameL.full ? 1.2 : 0), { anchor: 'middle', x1: p.x - hw * (k.kind === 'entity' ? 1 : 0.6) + 1.5, x2: p.x + hw * (k.kind === 'entity' ? 1 : 0.6) - 1.5, fill: k.blank ? ctx.accent : null });
-      B.rect(p.x - hw, p.y - hh, k.coreW, k.coreH);
+      // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+      var hide = k.blank && !ctx.show;
+      var snap = [lines.length, nodes.length];
+      (function () {
+        var p = lay.nodes[k.id];
+        var color = k.blank ? ctx.accent : ctx.ink;
+        function placeRow(list, cy) {
+          var x = p.x - k.rowW(list) / 2;
+          list.forEach(function (it) {
+            var ex = x + it.w / 2;
+            var toCore = clipShape({ kind: k.kind === 'entity' ? 'rect' : 'diamond', x: p.x, y: p.y, w: k.coreW, h: k.coreH }, ex - p.x, cy - p.y);
+            var fromEll = clipShape({ kind: 'ellipse', x: ex, y: cy, w: it.w, h: it.h }, toCore.x - ex, toCore.y - cy);
+            lines += el('line', { x1: fromEll.x, y1: fromEll.y, x2: toCore.x, y2: toCore.y, stroke: color, 'stroke-width': LW });
+            nodes += el('ellipse', { cx: ex, cy: cy, rx: it.w / 2, ry: it.h / 2, fill: '#ffffff', stroke: color, 'stroke-width': LW });
+            nodes += drawLine(ctx, it.L, ex, cy + FS * U.CAP / 2 - (it.L.full || it.L.empty ? -1 : 0), { anchor: 'middle', x1: ex - it.w / 2 + 3, x2: ex + it.w / 2 - 3 });
+            B.rect(ex - it.w / 2, cy - it.h / 2, it.w, it.h);
+            x += it.w + GAPX;
+          });
+        }
+        var rowOff = k.coreH / 2 + SIDE + ATTR_H / 2;
+        placeRow(k.top, p.y - rowOff);
+        placeRow(k.bottom, p.y + rowOff);
+        var hw = k.coreW / 2;
+        var hh = k.coreH / 2;
+        if (k.kind === 'entity') {
+          nodes += el('rect', { x: p.x - hw, y: p.y - hh, width: k.coreW, height: k.coreH, fill: ctx.fill, stroke: color, 'stroke-width': LW * 1.6 });
+        } else {
+          nodes += el('path', { d: 'M' + f(p.x - hw) + ' ' + f(p.y) + 'L' + f(p.x) + ' ' + f(p.y - hh) + 'L' + f(p.x + hw) + ' ' + f(p.y) + 'L' + f(p.x) + ' ' + f(p.y + hh) + 'Z', fill: '#ffffff', stroke: color, 'stroke-width': LW * 1.6 });
+        }
+        nodes += drawLine(ctx, k.nameL, p.x, p.y + FS * U.CAP / 2 + (k.nameL.full ? 1.2 : 0), { anchor: 'middle', x1: p.x - hw * (k.kind === 'entity' ? 1 : 0.6) + 1.5, x2: p.x + hw * (k.kind === 'entity' ? 1 : 0.6) - 1.5, fill: k.blank ? ctx.accent : null });
+        B.rect(p.x - hw, p.y - hh, k.coreW, k.coreH);
+      })();
+      if (hide) { lines = lines.slice(0, snap[0]); nodes = nodes.slice(0, snap[1]); }
     });
     return finish(ctx, lines + nodes + marks, B, 'Use fewer entities or attributes, or shorter names.');
   }
@@ -1820,29 +1864,39 @@
     var lines = '';
     var marks = '';
     rels.forEach(function (r, i) {
-      if (r.blank && !ctx.show) return;
-      var pts = lay.edges[i].points;
-      if (pts.length < 2) return;
-      var color = r.blank ? ctx.accent : ctx.ink;
-      pts.forEach(function (p) { B.pt(p.x, p.y); });
-      lines += el('path', attrsWith(strokeOf(color), { d: polyline(pts) }));
-      [[r.toCard, endDir(pts)], [r.fromCard, startDir(pts)]].forEach(function (end) {
-        if (!end[0]) return;
-        var gap = hasGap(end[0]);
-        var foot = footOf(end[0].full ? end[0].answer : end[0].segs.map(function (s) { return s.t; }).join(''));
-        if (foot) {
-          if (!gap || ctx.show) marks += footEnd(end[1], foot, gap ? ctx.accent : color);
-        } else {
-          marks += endLabel(ctx, end[0], end[1], 1.5, 1, color, B);
+      // a blank element is laid out like the others (same size in both versions), but only drawn in the solution
+      var hide = r.blank && !ctx.show;
+      var snap = [lines.length, marks.length];
+      (function () {
+        var pts = lay.edges[i].points;
+        if (pts.length < 2) return;
+        var color = r.blank ? ctx.accent : ctx.ink;
+        pts.forEach(function (p) { B.pt(p.x, p.y); });
+        lines += el('path', attrsWith(strokeOf(color), { d: polyline(pts) }));
+        // 1, n, 0..1, 1..* … at an entity say how many of it belong to one of the other (read across): the foot goes
+        // there. A (min,max) pair says how often this entity takes part: its foot goes to the other end.
+        var ends = [endDir(pts), startDir(pts)];
+        [[r.toCard, 0], [r.fromCard, 1]].forEach(function (card) {
+          if (!card[0]) return;
+          var L = card[0];
+          var gap = hasGap(L);
+          var txt = L.full ? L.answer : L.segs.map(function (sg) { return sg.t; }).join('');
+          var foot = footOf(txt);
+          if (foot) {
+            if (!gap || ctx.show) marks += footEnd(ends[/^\s*\(/.test(txt) ? 1 - card[1] : card[1]], foot, gap ? ctx.accent : color);
+          } else {
+            marks += endLabel(ctx, L, ends[card[1]], 1.5, 1, color, B);
+          }
+        });
+        if (r.edgeName && lay.edges[i].label) {
+          var lp = lay.edges[i].label;
+          var L = r.edgeName;
+          var lb = lp.y + SMALL * U.CAP / 2;
+          B.text(lp.x, lb, lineWidth(L), SMALL, 'middle');
+          marks += drawLine(ctx, L, lp.x, lb, { anchor: 'middle', halo: true, fill: r.blank ? ctx.accent : null, x1: lp.x - lineWidth(L) / 2, x2: lp.x + lineWidth(L) / 2 });
         }
-      });
-      if (r.edgeName && lay.edges[i].label) {
-        var lp = lay.edges[i].label;
-        var L = r.edgeName;
-        var lb = lp.y + SMALL * U.CAP / 2;
-        B.text(lp.x, lb, lineWidth(L), SMALL, 'middle');
-        marks += drawLine(ctx, L, lp.x, lb, { anchor: 'middle', halo: true, fill: r.blank ? ctx.accent : null, x1: lp.x - lineWidth(L) / 2, x2: lp.x + lineWidth(L) / 2 });
-      }
+      })();
+      if (hide) { lines = lines.slice(0, snap[0]); marks = marks.slice(0, snap[1]); }
     });
     var nodes = '';
     boxes.forEach(function (b) {
