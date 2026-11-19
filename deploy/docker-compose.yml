@@ -57,6 +57,9 @@ services:
       # Default: trust X-Forwarded-For only from loopback and private networks (a reverse proxy in Docker).
       TRUST_PROXY: ${TRUST_PROXY:-loopback,uniquelocal}
       RATE_LIMIT_MAX: ${RATE_LIMIT_MAX:-30}
+      # Worksheet pictures: arasaac,commons,own (default) or none; own pictures = folder in each user's Nextcloud.
+      IMAGE_SOURCES: ${IMAGE_SOURCES:-}
+      IMAGE_FOLDER: ${IMAGE_FOLDER:-}
     volumes:
       - proxy-data:/data
     read_only: true

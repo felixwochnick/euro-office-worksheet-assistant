@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.6.0 – pictures on worksheets
+
+- **Pictures:** worksheets for primary and special-needs schools no longer have to be text only. The AI searches
+  pictures with the new tool `search_images` and places them with the new block `picture` (width, alignment, caption;
+  beside text with `columns`). Sources:
+  - **ARASAAC pictograms** – simple, consistent drawings of objects, animals, actions and feelings, made for
+    special-needs teaching, searched in German;
+  - **Wikimedia Commons** – photos, drawings and historical pictures;
+  - the teacher's **own pictures** – the folder `Arbeitsblatt-Bilder` in their Nextcloud (or a local folder without
+    Nextcloud), e.g. comic panels for Latin or own photos, found by file and folder names.
+  The licence credit of free pictures is printed under the picture automatically. The model never gives URLs: the
+  proxy only contacts the fixed hosts of the free sources and the user's own folder. The plugin loads the picture
+  data through the new endpoint `POST /v1/images/fetch` right before inserting, so no image data is kept in the chat
+  history. Works in the built-in chat and for MCP clients.
+- **Configuration:** `IMAGE_SOURCES` (default `arasaac,commons,own`, `none` = off) and `IMAGE_FOLDER` (default
+  `Arbeitsblatt-Bilder` in Nextcloud). The proxy needs HTTPS access to `api.arasaac.org`, `static.arasaac.org`,
+  `commons.wikimedia.org`, `upload.wikimedia.org` and `thumb.wikimedia.org`.
+- **Prompt:** primary, special-needs and DaZ worksheets get 1–4 meaningful pictures by default (pictograms next to
+  words, an introductory picture); older classes only on request.
+
 ## 0.5.1 – full-width tables in Google Docs and Pages
 
 - **Fix:** tables, boxes ("Merke") and the other table-based blocks from the assistant were shown extremely narrow in
