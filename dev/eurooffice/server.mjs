@@ -5,6 +5,8 @@
  *
  *   GET  /                 editor page (DocsAPI.DocEditor) for files/worksheet.docx
  *        ?pluginsData=1    additionally register the plugin explicitly via editorConfig.plugins
+ *        ?title=Name.docx  file name shown in the editor (default Worksheet.docx)
+ *        ?spellcheck=0     no spell checking (no red underlines in screenshots)
  *   GET  /files/current    the current version of the document (downloaded by the Document Server)
  *   GET  /reset            start again from files/worksheet.docx with a new document key
  *   POST /callback         save callback; saved versions go to dev/eurooffice/out/
@@ -42,12 +44,12 @@ function newKey() {
   return 'worksheet-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
 }
 
-function page(withPluginsData) {
+function page(withPluginsData, title = 'Worksheet.docx', spellcheck = true) {
   const config = {
     document: {
       fileType: 'docx',
       key: docKey,
-      title: 'Worksheet.docx',
+      title,
       url: `${STORAGE_URL}/files/current?key=${docKey}`,
       permissions: { edit: true, download: true },
     },
@@ -57,7 +59,7 @@ function page(withPluginsData) {
       lang: 'de',
       mode: 'edit',
       user: { id: 'teacher-1', name: 'Lehramtsstudentin' },
-      customization: { forcesave: true, compactHeader: false, features: { featuresTips: false } },
+      customization: { forcesave: true, compactHeader: false, features: { featuresTips: false, ...(spellcheck ? {} : { spellcheck: { mode: false, change: false } }) } },
       ...(withPluginsData ? { plugins: { pluginsData: [`${DS_URL}/sdkjs-plugins/worksheet-assistant/config.json`] } } : {}),
     },
     width: '100%',
@@ -117,7 +119,7 @@ http
     const url = new URL(req.url, 'http://localhost');
     try {
       if (req.method === 'GET' && url.pathname === '/') {
-        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(page(url.searchParams.has('pluginsData')));
+        res.writeHead(200, { 'content-type': 'text/html; charset=utf-8' }).end(page(url.searchParams.has('pluginsData'), url.searchParams.get('title') || undefined, url.searchParams.get('spellcheck') !== '0'));
       } else if (req.method === 'GET' && url.pathname === '/files/current') {
         const file = currentFile;
         res.writeHead(200, { 'content-type': 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' });
