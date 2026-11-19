@@ -1,9 +1,10 @@
 /*
  * worksheet-diagrams.js – diagrams for computer science worksheets (MIT License).
  *
- * UML class, object, sequence and state diagrams (also as finite automata), structograms
- * (Nassi-Shneiderman, DIN 66261) and ER diagrams (Chen, (min,max), crow's foot). Ported from and
- * extended beyond the diagrams of Klonk (github.com/felixwochnick/klonk, same author).
+ * UML class, object, sequence, state (also finite automata), activity and use case diagrams,
+ * structograms (Nassi-Shneiderman, DIN 66261), flowcharts (Programmablaufplan, DIN 66001) and ER
+ * diagrams (Chen, (min,max), crow's foot). Ported from and extended beyond the diagrams of Klonk
+ * (github.com/felixwochnick/klonk, same author).
  *
  * Used by the editor plugin (browser, global `WorksheetDiagrams`; needs `WorksheetSvg` and the
  * vendored dagre, global `dagre`) and by Node.js (CommonJS; `@dagrejs/dagre` from npm).
@@ -49,7 +50,8 @@
   var MIN_SCALE = 0.76;      // smallest scale: FS * 0.76 ≈ 2.6 mm text
   var MAX_SCALE = 1.6;
   var MAX_H = 250;
-  var GAP_RE = /\[\[([\s\S]*?)\]\]/g;
+  // a gap [[answer]]; "[[[x]]]" is a bracket, the gap x and a bracket (a guard such as [x > 0] to fill in)
+  var GAP_RE = /(\[?)\[\[([\s\S]*?)\]\](\]?)/g;
 
   // ---------------------------------------------------------------------------
   // dagre
@@ -106,8 +108,9 @@
     var m;
     GAP_RE.lastIndex = 0;
     while ((m = GAP_RE.exec(s))) {
-      if (m.index > last) segs.push({ t: s.slice(last, m.index), gap: false });
-      segs.push({ t: m[1].trim(), gap: true });
+      if (m.index > last || m[1]) segs.push({ t: s.slice(last, m.index) + m[1], gap: false });
+      segs.push({ t: m[2].trim(), gap: true });
+      if (m[3]) segs.push({ t: m[3], gap: false });
       last = m.index + m[0].length;
     }
     if (last < s.length) segs.push({ t: s.slice(last), gap: false });
@@ -143,7 +146,7 @@
   }
 
   function plainOf(s) {
-    return String(s === undefined || s === null ? '' : s).replace(GAP_RE, '$1').replace(/\s+/g, ' ').trim();
+    return String(s === undefined || s === null ? '' : s).replace(GAP_RE, '$1$2$3').replace(/\s+/g, ' ').trim();
   }
 
   function segWidth(seg, L) {
@@ -1940,12 +1943,466 @@
     return out;
   }
 
+  // ---------------------------------------------------------------------------
+  // Multi-line text in shapes (activity diagrams, flowcharts, use cases)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * A text that may wrap onto several lines. Without gaps it is wrapped at maxW; a text with gaps stays one
+   * line; "" gives an empty writing line when o.allowEmpty, otherwise no line.
+   */
+  function textBlock(s, maxW, o) {
+    o = o || {};
+    s = String(s === undefined || s === null ? '' : s).replace(/\s+/g, ' ').trim();
+    if (!s) return o.allowEmpty ? [emptyLine(o)] : [];
+    if (s.indexOf('[[') >= 0) return [mkLine(s, attrsWith(o, { full: true }))];
+    return U.wrapText(s, maxW, o.size || FS, !!o.bold, o.maxLines || 4).map(function (t) { return mkLine(t, o); });
+  }
+
+  function blockWidth(lines) {
+    var w = 0;
+    lines.forEach(function (L) { w = Math.max(w, lineWidth(L)); });
+    return w;
+  }
+
+  function blockHeight(lines, row) {
+    var h = 0;
+    lines.forEach(function (L) { h += lineHeight(L, row); });
+    return h;
+  }
+
+  /** Lines centred around (cx, cy); writing lines span x1 … x2. */
+  function drawBlock(ctx, lines, cx, cy, row, x1, x2, fill) {
+    var out = '';
+    var y = cy - blockHeight(lines, row) / 2;
+    lines.forEach(function (L) {
+      var h = lineHeight(L, row);
+      out += drawLine(ctx, L, cx, baselineIn(y, h, L), { anchor: 'middle', x1: x1, x2: x2, fill: fill });
+      y += h;
+    });
+    return out;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Activity diagram (UML) and flowchart (Programmablaufplan, DIN 66001)
+  // ---------------------------------------------------------------------------
+
+  var FLOW_KINDS = {
+    activity: {
+      start: 'start', initial: 'start', end: 'end', 'final': 'end', flow_end: 'flow_end', flow_final: 'flow_end',
+      action: 'action', activity: 'action', decision: 'decision', merge: 'merge', fork: 'fork', join: 'join', object: 'object'
+    },
+    pap: {
+      start: 'start', end: 'end', stop: 'end', operation: 'action', action: 'action', process: 'action',
+      decision: 'decision', branch: 'decision', io: 'io', input: 'io', output: 'io', subroutine: 'call', call: 'call',
+      connector: 'connector', merge: 'merge'
+    }
+  };
+
+  function flowDiagram(opts, notation) {
+    var pap = notation === 'pap';
+    var fn = pap ? 'flowchart' : 'activityDiagram';
+    var o = U.optsOf(opts, fn);
+    var ctx = context(o, fn);
+    var labels = o.labels || {};
+    var kinds = FLOW_KINDS[notation];
+    var kindNames = Object.keys(kinds).filter(function (k, i, a) { return a.indexOf(k) === i; });
+    listOf(o.nodes, fn, 'nodes', 1, 40, pap ? '{ id?, kind: "operation", text }' : '{ id?, kind: "action", text }');
+    var byKey = Object.create(null);
+    var byKind = Object.create(null);
+    var nodes = o.nodes.map(function (n, i) {
+      var nm = 'nodes[' + i + ']';
+      if (typeof n === 'string' || typeof n === 'number') n = { text: String(n) };
+      objOf(n, fn, nm, '{ id?, kind, text }');
+      var kindIn = n.kind === undefined || n.kind === null ? 'action' : String(n.kind).toLowerCase().trim();
+      var kind = kinds[kindIn];
+      if (!kind) throw fail(fn, nm + '.kind must be one of ' + kindNames.join(', ') + ' (got ' + show(n.kind) + ').');
+      var hasText = n.text !== undefined && n.text !== null;
+      var text = hasText ? str(n.text, fn, nm + '.text', 160) : '';
+      var N = { id: 'n' + i, kind: kind, label: '' };
+      // texts and sizes (millimetres; TB layout, the bars of fork/join are turned for LR below)
+      if (kind === 'start' || kind === 'end') {
+        if (pap) {
+          N.lines = textBlock(hasText ? text : (kind === 'start' ? labels.start || 'Start' : labels.end || 'Ende'), 40, { allowEmpty: true });
+          N.width = Math.max(22, blockWidth(N.lines) + 10);
+          N.height = Math.max(8, blockHeight(N.lines, ROW) + 3);
+        } else {
+          N.lines = [];
+          N.width = N.height = kind === 'start' ? 4.4 : 6;
+        }
+      } else if (kind === 'flow_end') {
+        N.lines = [];
+        N.width = N.height = 5.2;
+      } else if (kind === 'fork' || kind === 'join') {
+        N.lines = [];
+      } else if (kind === 'merge') {
+        N.lines = [];
+        N.width = N.height = pap ? 1.6 : 8;
+      } else if (kind === 'decision') {
+        N.lines = textBlock(text, 34, { allowEmpty: hasText });
+        if (N.lines.length) {
+          N.width = Math.max(16, blockWidth(N.lines) * 1.45 + 8);
+          N.height = Math.max(10, blockHeight(N.lines, ROW) * 1.6 + 5);
+        } else {
+          N.width = N.height = 8;
+        }
+      } else if (kind === 'connector') {
+        N.lines = textBlock(text, 14, {});
+        N.width = N.height = Math.max(7, blockWidth(N.lines) + 3);
+      } else {
+        if (!hasText && kind !== 'object') throw fail(fn, nm + ' needs "text" (use "" for an empty box to fill in).');
+        N.lines = textBlock(text, 46, { allowEmpty: true });
+        N.width = Math.max(24, blockWidth(N.lines) + 2 * PAD + 2 + (kind === 'io' ? 6 : kind === 'call' ? 4 : 0));
+        N.height = Math.max(8, blockHeight(N.lines, ROW) + 3);
+      }
+      N.label = plainOf(text) || kind;
+      var keys = [];
+      if (n.id !== undefined && n.id !== null && String(n.id).trim()) keys.push(keyOf(String(n.id)));
+      else if (plainOf(text)) keys.push(keyOf(text));
+      keys.forEach(function (k) { byKey[k] = byKey[k] ? 'ambiguous' : N; });
+      byKind[kind] = byKind[kind] ? 'ambiguous' : N;
+      return N;
+    });
+    function ref(v, name) {
+      var k = keyOf(v);
+      if (!k) throw fail(fn, '"' + name + '" is missing.');
+      var N = byKey[k];
+      if (!N && kinds[k] && byKind[kinds[k]] && byKind[kinds[k]] !== 'ambiguous') N = byKind[kinds[k]];
+      if (N === 'ambiguous') throw fail(fn, '"' + name + '": several nodes are called "' + plainOf(v) + '" – give them an "id" and use it in the edges.');
+      if (!N) {
+        throw fail(fn, '"' + name + '" is "' + plainOf(v) + '", which is not a node. Refer to a node by its id or text: ' +
+          Object.keys(byKey).filter(function (x) { return byKey[x] !== 'ambiguous'; }).join(', ') + '.');
+      }
+      return N;
+    }
+    var edges;
+    if (o.edges === undefined || o.edges === null) {
+      // no edges: the nodes in order form a sequence
+      edges = nodes.slice(1).map(function (N, i) { return { from: nodes[i], to: N, label: null, blank: false }; });
+    } else {
+      edges = listOf(o.edges, fn, 'edges', 0, 60).map(function (e, i) {
+        var nm = 'edges[' + i + ']';
+        objOf(e, fn, nm, '{ from, to, label? }');
+        var label = e.label !== undefined && e.label !== null ? str(e.label, fn, nm + '.label', 60) : '';
+        return { from: ref(e.from, nm + '.from'), to: ref(e.to, nm + '.to'), label: label ? mkLine(label, { size: SMALL * 1.07 }) : null, blank: blankOf(e) };
+      });
+    }
+    var rankdir = directionOf(o.direction, 'TB', fn);
+    nodes.forEach(function (N) {
+      if (N.kind !== 'fork' && N.kind !== 'join') return;
+      var deg = 0;
+      var din = 0;
+      edges.forEach(function (e) {
+        if (e.from === N) deg++;
+        if (e.to === N) din++;
+      });
+      var len = Math.max(18, 14 * Math.max(deg, din));
+      N.width = rankdir === 'TB' ? len : 1.8;
+      N.height = rankdir === 'TB' ? 1.8 : len;
+    });
+    // an edge from a node to itself is drawn as a loop over its corner; dagre lays out the others
+    var loops = {};
+    edges.forEach(function (e) {
+      if (e.from === e.to) e.loop = loops[e.from.id] = (loops[e.from.id] || 0) + 1;
+    });
+    var flow = edges.filter(function (e) { return !e.loop; });
+    var lay = layoutGraph(nodes.map(function (N) {
+      var sz = loopPadded(N, loops[N.id]);
+      return { id: N.id, width: sz.width, height: sz.height };
+    }), flow.map(function (e) { return { v: e.from.id, w: e.to.id, lw: e.label ? lineWidth(e.label) + 2 : 0, lh: e.label ? SMALL * 1.07 * 1.6 : 0 }; }),
+      { rankdir: rankdir, nodesep: 9, ranksep: 9, edgesep: 5 });
+    function shapeOf(N) {
+      var p = lay.nodes[N.id];
+      if (N.kind === 'start' && !pap) return { kind: 'circle', x: p.x, y: p.y, r: 2.2 };
+      if (N.kind === 'end' && !pap) return { kind: 'circle', x: p.x, y: p.y, r: 3 };
+      if (N.kind === 'flow_end') return { kind: 'circle', x: p.x, y: p.y, r: 2.6 };
+      if (N.kind === 'connector') return { kind: 'circle', x: p.x, y: p.y, r: N.width / 2 };
+      if (N.kind === 'merge' && pap) return { kind: 'circle', x: p.x, y: p.y, r: 0.1 };
+      if (N.kind === 'decision' || N.kind === 'merge') return { kind: 'diamond', x: p.x, y: p.y, w: N.width, h: N.height };
+      return { kind: 'rect', x: p.x, y: p.y, w: N.width, h: N.height };
+    }
+    var B = new Bounds();
+    var lines = '';
+    var marks = '';
+    edges.forEach(function (e) {
+      var hide = e.blank && !ctx.show;
+      var snap = [lines.length, marks.length];
+      var pts;
+      var lp;
+      if (e.loop) {
+        var lo = boxLoop(lay.nodes[e.from.id], e.from, e.loop - 1);
+        pts = lo.pts;
+        lp = lo.label;
+      } else {
+        var i = flow.indexOf(e);
+        pts = fixEnds(lay.edges[i].points, shapeOf(e.from), shapeOf(e.to));
+        lp = lay.edges[i].label;
+      }
+      if (pts.length >= 2) {
+        var color = e.blank ? ctx.accent : ctx.ink;
+        pts.forEach(function (q) { B.pt(q.x, q.y); });
+        lines += el('path', attrsWith(strokeOf(color), { d: polyline(pts) }));
+        marks += pap ? filledArrow(endDir(pts), color) : openArrow(endDir(pts), color);
+        if (e.label && lp) {
+          var lb = lp.y + e.label.size * U.CAP / 2;
+          B.text(lp.x, lb, lineWidth(e.label), e.label.size, 'middle');
+          marks += drawLine(ctx, e.label, lp.x, lb, { anchor: 'middle', fill: e.blank ? ctx.accent : null, halo: true });
+        }
+      }
+      if (hide) { lines = lines.slice(0, snap[0]); marks = marks.slice(0, snap[1]); }
+    });
+    var shapes = '';
+    nodes.forEach(function (N) {
+      var p = lay.nodes[N.id];
+      var x = p.x - N.width / 2;
+      var y = p.y - N.height / 2;
+      var w = N.width;
+      var h = N.height;
+      var line = { stroke: ctx.ink, 'stroke-width': LW };
+      B.rect(x, y, w, h);
+      var inner = [x + PAD, x + w - PAD];
+      switch (N.kind) {
+        case 'start':
+          if (!pap) { shapes += el('circle', { cx: p.x, cy: p.y, r: 2.2, fill: ctx.ink }); return; }
+          shapes += el('rect', attrsWith(line, { x: x, y: y, width: w, height: h, rx: h / 2, fill: ctx.fill }));
+          inner = [x + h / 2, x + w - h / 2];
+          break;
+        case 'end':
+          if (!pap) { shapes += el('circle', attrsWith(line, { cx: p.x, cy: p.y, r: 3, fill: '#ffffff' })) + el('circle', { cx: p.x, cy: p.y, r: 1.9, fill: ctx.ink }); return; }
+          shapes += el('rect', attrsWith(line, { x: x, y: y, width: w, height: h, rx: h / 2, fill: ctx.fill }));
+          inner = [x + h / 2, x + w - h / 2];
+          break;
+        case 'flow_end':
+          shapes += el('circle', attrsWith(line, { cx: p.x, cy: p.y, r: 2.6, fill: '#ffffff' })) +
+            el('path', attrsWith(line, { d: 'M' + f(p.x - 1.8) + ' ' + f(p.y - 1.8) + 'L' + f(p.x + 1.8) + ' ' + f(p.y + 1.8) + 'M' + f(p.x - 1.8) + ' ' + f(p.y + 1.8) + 'L' + f(p.x + 1.8) + ' ' + f(p.y - 1.8), fill: 'none' }));
+          return;
+        case 'fork':
+        case 'join':
+          shapes += el('rect', { x: x, y: y, width: w, height: h, rx: 0.4, fill: ctx.ink });
+          return;
+        case 'merge':
+          if (pap) { shapes += el('circle', { cx: p.x, cy: p.y, r: 0.8, fill: ctx.ink }); return; }
+          shapes += el('path', attrsWith(line, { d: diamondPath(p.x, p.y, w, h), fill: '#ffffff' }));
+          return;
+        case 'decision':
+          shapes += el('path', attrsWith(line, { d: diamondPath(p.x, p.y, w, h), fill: '#ffffff' }));
+          inner = [p.x - w / 4 - 1, p.x + w / 4 + 1];
+          break;
+        case 'connector':
+          shapes += el('circle', attrsWith(line, { cx: p.x, cy: p.y, r: w / 2, fill: '#ffffff' }));
+          break;
+        case 'io':
+          shapes += el('path', attrsWith(line, { d: 'M' + f(x + 3) + ' ' + f(y) + 'H' + f(x + w) + 'L' + f(x + w - 3) + ' ' + f(y + h) + 'H' + f(x) + 'Z', fill: ctx.fill }));
+          inner = [x + 3 + PAD, x + w - 3 - PAD];
+          break;
+        case 'call':
+          shapes += el('rect', attrsWith(line, { x: x, y: y, width: w, height: h, fill: ctx.fill })) +
+            el('path', attrsWith(line, { d: 'M' + f(x + 1.6) + ' ' + f(y) + 'V' + f(y + h) + 'M' + f(x + w - 1.6) + ' ' + f(y) + 'V' + f(y + h), fill: 'none' }));
+          inner = [x + 1.6 + PAD, x + w - 1.6 - PAD];
+          break;
+        case 'object':
+          shapes += el('rect', attrsWith(line, { x: x, y: y, width: w, height: h, fill: '#ffffff' }));
+          break;
+        default:
+          shapes += el('rect', attrsWith(line, { x: x, y: y, width: w, height: h, rx: pap ? 0 : Math.min(3.5, h / 2), fill: ctx.fill }));
+      }
+      shapes += drawBlock(ctx, N.lines, p.x, p.y, ROW, inner[0], inner[1]);
+    });
+    return finish(ctx, lines + shapes + marks, B, 'Use fewer nodes, shorter texts or direction "horizontal".');
+  }
+
+  function diamondPath(cx, cy, w, h) {
+    return 'M' + f(cx) + ' ' + f(cy - h / 2) + 'L' + f(cx + w / 2) + ' ' + f(cy) + 'L' + f(cx) + ' ' + f(cy + h / 2) + 'L' + f(cx - w / 2) + ' ' + f(cy) + 'Z';
+  }
+
+  function activityDiagram(opts) { return flowDiagram(opts, 'activity'); }
+  function flowchart(opts) { return flowDiagram(opts, 'pap'); }
+
+  // ---------------------------------------------------------------------------
+  // Use case diagram (UML)
+  // ---------------------------------------------------------------------------
+
+  var UC_KINDS = { association: 'association', include: 'include', includes: 'include', extend: 'extend', extends: 'extend',
+    generalization: 'generalization', inheritance: 'generalization' };
+
+  function useCaseDiagram(opts) {
+    var fn = 'useCaseDiagram';
+    var o = U.optsOf(opts, fn);
+    var ctx = context(o, fn);
+    var byKey = Object.create(null);
+    var actors = (o.actors === undefined || o.actors === null ? [] : listOf(o.actors, fn, 'actors', 0, 10)).map(function (a, i) {
+      if (typeof a === 'string' || typeof a === 'number') a = { name: String(a) };
+      objOf(a, fn, 'actors[' + i + ']', '{ name, side?: "left" | "right" }');
+      var nm = str(a.name, fn, 'actors[' + i + '].name', 60, true);
+      var side = a.side === undefined || a.side === null ? 'left' : String(a.side).toLowerCase();
+      if (side !== 'left' && side !== 'right') throw fail(fn, 'actors[' + i + '].side must be "left" or "right".');
+      var A = { id: 'a' + i, actor: true, side: side, label: plainOf(nm), lines: textBlock(nm, 28, { maxLines: 2 }) };
+      A.width = Math.max(10, blockWidth(A.lines) + 2);
+      A.height = 12.5 + blockHeight(A.lines, ROW);
+      var k = keyOf(nm);
+      if (byKey[k]) throw fail(fn, 'two elements are named "' + plainOf(nm) + '".');
+      byKey[k] = A;
+      return A;
+    });
+    listOf(o.use_cases !== undefined ? o.use_cases : o.useCases, fn, 'use_cases', 1, 16, '"Geld abheben"');
+    var cases = (o.use_cases !== undefined ? o.use_cases : o.useCases).map(function (u, i) {
+      if (typeof u === 'string' || typeof u === 'number') u = { name: String(u) };
+      objOf(u, fn, 'use_cases[' + i + ']', '{ name }');
+      var nm = str(u.name, fn, 'use_cases[' + i + '].name', 80, true);
+      var U2 = { id: 'u' + i, label: plainOf(nm), lines: textBlock(nm, 38, { maxLines: 3 }) };
+      U2.width = Math.max(26, blockWidth(U2.lines) * 1.22 + 8);
+      U2.height = Math.max(9, blockHeight(U2.lines, ROW) * 1.3 + 3.5);
+      var k = keyOf(nm);
+      if (byKey[k]) throw fail(fn, 'two elements are named "' + plainOf(nm) + '" – actors and use cases need different names.');
+      byKey[k] = U2;
+      return U2;
+    });
+    var links = (o.links === undefined || o.links === null ? [] : listOf(o.links, fn, 'links', 0, 40)).map(function (l, i) {
+      var nm = 'links[' + i + ']';
+      objOf(l, fn, nm, '{ from, to, kind? }');
+      var kind = UC_KINDS[String(l.kind === undefined || l.kind === null ? 'association' : l.kind).toLowerCase().trim()];
+      if (!kind) throw fail(fn, nm + '.kind must be association, include, extend or generalization (got ' + show(l.kind) + ').');
+      var from = lookup(byKey, l.from, fn, nm + '.from', 'actors and use cases');
+      var to = lookup(byKey, l.to, fn, nm + '.to', 'actors and use cases');
+      if (from === to) throw fail(fn, nm + ' connects "' + from.label + '" with itself.');
+      if ((kind === 'include' || kind === 'extend') && (from.actor || to.actor)) throw fail(fn, nm + ': ' + kind + ' connects two use cases, not actors.');
+      if (kind === 'generalization' && from.actor !== to.actor) throw fail(fn, nm + ': a generalization connects two actors or two use cases.');
+      var text = l.label !== undefined && l.label !== null && String(l.label).trim() ? str(l.label, fn, nm + '.label', 60) :
+        kind === 'include' ? '«include»' : kind === 'extend' ? '«extend»' : '';
+      return { kind: kind, from: from, to: to, blank: blankOf(l), label: text ? mkLine(text, { size: SMALL }) : null };
+    });
+    // use cases: a column (or columns, when include/extend/generalization connect them) laid out by dagre
+    var ucLinks = links.filter(function (l) { return !l.from.actor && !l.to.actor; });
+    var lay = layoutGraph(cases.map(function (u) { return { id: u.id, width: u.width, height: u.height }; }), ucLinks.map(function (l) {
+      // extend: the extending use case to the right of the base; generalization: the parent to the right
+      var flip = l.kind === 'extend';
+      return { v: flip ? l.to.id : l.from.id, w: flip ? l.from.id : l.to.id, lw: l.label ? lineWidth(l.label) + 2 : 0, lh: l.label ? SMALL * 1.6 : 0 };
+    }), { rankdir: 'LR', nodesep: 6, ranksep: 16, edgesep: 4 });
+    var pos = Object.create(null);
+    var ux0 = Infinity;
+    var uy0 = Infinity;
+    var ux1 = -Infinity;
+    var uy1 = -Infinity;
+    cases.forEach(function (u) {
+      var p = lay.nodes[u.id];
+      pos[u.id] = { x: p.x, y: p.y };
+      ux0 = Math.min(ux0, p.x - u.width / 2);
+      ux1 = Math.max(ux1, p.x + u.width / 2);
+      uy0 = Math.min(uy0, p.y - u.height / 2);
+      uy1 = Math.max(uy1, p.y + u.height / 2);
+    });
+    var system = o.system !== undefined && o.system !== null && String(o.system).trim() ? textBlock(str(o.system, fn, 'system', 80), 80, { bold: true, maxLines: 1 }) : [];
+    var box = { x0: ux0 - 6, y0: uy0 - (system.length ? ROW + 5 : 5), x1: ux1 + 6, y1: uy1 + 5 };
+    if (system.length) box.x1 = Math.max(box.x1, box.x0 + blockWidth(system) + 8);
+    // actors beside the system, each near the use cases it is connected to
+    ['left', 'right'].forEach(function (side) {
+      var list = actors.filter(function (a) { return a.side === side; });
+      list.forEach(function (a) {
+        var ys = [];
+        links.forEach(function (l) {
+          var other = l.from === a ? l.to : l.to === a ? l.from : null;
+          if (other && !other.actor) ys.push(pos[other.id].y);
+        });
+        a.want = ys.length ? ys.reduce(function (s, v) { return s + v; }, 0) / ys.length : (box.y0 + box.y1) / 2;
+      });
+      list.sort(function (p, q) { return p.want - q.want; });
+      var bottom = -Infinity;
+      list.forEach(function (a) {
+        var top = Math.max(a.want - 6, bottom + 4);
+        var cx = side === 'left' ? box.x0 - 12 - a.width / 2 : box.x1 + 12 + a.width / 2;
+        pos[a.id] = { x: cx, y: top };
+        bottom = top + a.height;
+      });
+    });
+    function actorAnchor(a, toward) {
+      var p = pos[a.id];
+      var dir = toward.x >= p.x ? 1 : -1;
+      return { x: p.x + dir * 3, y: p.y + 5 };
+    }
+    var B = new Bounds();
+    var lines = '';
+    var marks = '';
+    links.forEach(function (l) {
+      var hide = l.blank && !ctx.show;
+      var snap = [lines.length, marks.length];
+      var color = l.blank ? ctx.accent : ctx.ink;
+      var pts;
+      var lp = null;
+      if (!l.from.actor && !l.to.actor) {
+        var i = ucLinks.indexOf(l);
+        pts = lay.edges[i].points;
+        if (l.kind === 'extend') pts = pts.slice().reverse();
+        pts = fixEnds(pts, ellipseShape(l.from), ellipseShape(l.to));
+        lp = lay.edges[i].label;
+      } else {
+        // actor – use case (or actor – actor): a straight line
+        var a = l.from.actor ? actorAnchor(l.from, pos[l.to.id]) : null;
+        var b = l.to.actor ? actorAnchor(l.to, pos[l.from.id]) : null;
+        if (!a) a = clipShape(ellipseShape(l.from), b.x - pos[l.from.id].x, b.y - pos[l.from.id].y);
+        if (!b) b = clipShape(ellipseShape(l.to), a.x - pos[l.to.id].x, a.y - pos[l.to.id].y);
+        if (l.from.actor && l.to.actor) {
+          // actor generalization: from the figure to the figure, outside the drawings
+          a = { x: pos[l.from.id].x, y: pos[l.from.id].y + (pos[l.to.id].y > pos[l.from.id].y ? l.from.height : 0) };
+          b = { x: pos[l.to.id].x, y: pos[l.to.id].y + (pos[l.to.id].y > pos[l.from.id].y ? 0 : l.to.height) };
+        }
+        pts = [a, b];
+        if (l.label) lp = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      }
+      if (pts.length >= 2) {
+        pts.forEach(function (q) { B.pt(q.x, q.y); });
+        lines += el('path', attrsWith(strokeOf(color, l.kind === 'include' || l.kind === 'extend'), { d: polyline(pts) }));
+        if (l.kind === 'generalization') marks += triangle(endDir(pts), color);
+        else if (l.kind !== 'association') marks += openArrow(endDir(pts), color);
+        if (l.label && lp) {
+          var lb = lp.y + SMALL * U.CAP / 2;
+          B.text(lp.x, lb, lineWidth(l.label), SMALL, 'middle');
+          marks += drawLine(ctx, l.label, lp.x, lb, { anchor: 'middle', fill: l.blank ? ctx.accent : null, halo: true });
+        }
+      }
+      if (hide) { lines = lines.slice(0, snap[0]); marks = marks.slice(0, snap[1]); }
+    });
+    function ellipseShape(u) {
+      return { kind: 'ellipse', x: pos[u.id].x, y: pos[u.id].y, w: u.width, h: u.height };
+    }
+    var out = '';
+    if (system.length) {
+      out += el('rect', { x: box.x0, y: box.y0, width: box.x1 - box.x0, height: box.y1 - box.y0, fill: 'none', stroke: ctx.ink, 'stroke-width': LW });
+      out += drawLine(ctx, system[0], (box.x0 + box.x1) / 2, box.y0 + 1.2 + FS * U.CAP + 0.8, { anchor: 'middle', x1: box.x0 + 3, x2: box.x1 - 3 });
+      B.rect(box.x0, box.y0, box.x1 - box.x0, box.y1 - box.y0);
+    }
+    var figures = '';
+    cases.forEach(function (u) {
+      var p = pos[u.id];
+      figures += el('ellipse', { cx: p.x, cy: p.y, rx: u.width / 2, ry: u.height / 2, fill: ctx.fill, stroke: ctx.ink, 'stroke-width': LW });
+      figures += drawBlock(ctx, u.lines, p.x, p.y, ROW, p.x - u.width / 2 + 4, p.x + u.width / 2 - 4);
+      B.rect(p.x - u.width / 2, p.y - u.height / 2, u.width, u.height);
+    });
+    actors.forEach(function (a) {
+      var p = pos[a.id];
+      var stroke = { fill: 'none', stroke: ctx.ink, 'stroke-width': LW, 'stroke-linecap': 'round' };
+      figures += el('circle', { cx: p.x, cy: p.y + 1.8, r: 1.6, fill: '#ffffff', stroke: ctx.ink, 'stroke-width': LW });
+      figures += el('path', attrsWith(stroke, { d: 'M' + f(p.x) + ' ' + f(p.y + 3.4) + 'V' + f(p.y + 8) + 'M' + f(p.x - 3) + ' ' + f(p.y + 5) + 'H' + f(p.x + 3) +
+        'M' + f(p.x - 2.6) + ' ' + f(p.y + 11.5) + 'L' + f(p.x) + ' ' + f(p.y + 8) + 'L' + f(p.x + 2.6) + ' ' + f(p.y + 11.5) }));
+      var y = p.y + 12.6;
+      a.lines.forEach(function (L) {
+        var h = lineHeight(L, ROW);
+        figures += drawLine(ctx, L, p.x, baselineIn(y, h, L), { anchor: 'middle', x1: p.x - a.width / 2, x2: p.x + a.width / 2 });
+        y += h;
+      });
+      B.rect(p.x - a.width / 2, p.y, a.width, a.height);
+    });
+    return finish(ctx, out + lines + figures + marks, B, 'Use fewer use cases or shorter names.');
+  }
+
   return {
     classDiagram: classDiagram,
     objectDiagram: objectDiagram,
     sequenceDiagram: sequenceDiagram,
     stateDiagram: stateDiagram,
     structogram: structogram,
-    erDiagram: erDiagram
+    erDiagram: erDiagram,
+    activityDiagram: activityDiagram,
+    flowchart: flowchart,
+    useCaseDiagram: useCaseDiagram
   };
 });

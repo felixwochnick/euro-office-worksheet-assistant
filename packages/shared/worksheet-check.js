@@ -335,21 +335,24 @@
     });
   }
 
-  var DIAGRAM_GRAPHICS = ['class_diagram', 'object_diagram', 'sequence_diagram', 'state_diagram', 'structogram', 'er_diagram'];
+  var DIAGRAM_GRAPHICS = ['class_diagram', 'object_diagram', 'sequence_diagram', 'state_diagram', 'activity_diagram', 'use_case_diagram',
+    'structogram', 'flowchart', 'er_diagram'];
   var STEP_KEYS = ['steps', 'then', 'else', 'do', 'repeat', 'loop', 'forever', 'default'];
 
-  /** A diagram to fill in: gaps [[…]], elements with blank: true, empty lines (a number) or empty statements. */
+  /** A diagram to fill in: gaps [[…]], elements with blank: true, empty lines (a number), empty statements or nodes. */
   function diagramHasSpace(g) {
     var found = false;
     (function walk(v, key) {
       if (found) return;
       if (typeof v === 'string') {
-        if (v.indexOf('[[') >= 0 || (key === 'step' && !v.trim())) found = true;
+        if (v.indexOf('[[') >= 0 || ((key === 'step' || key === 'node') && !v.trim())) found = true;
       } else if (typeof v === 'number') {
         if (v > 0 && /^(attributes|methods|operations|values)$/.test(key)) found = true;
       } else if (Array.isArray(v)) {
-        v.forEach(function (x) { walk(x, STEP_KEYS.indexOf(key) >= 0 ? 'step' : key); });
+        v.forEach(function (x) { walk(x, STEP_KEYS.indexOf(key) >= 0 ? 'step' : key === 'nodes' ? 'node' : key); });
       } else if (v && typeof v === 'object') {
+        // an activity/flowchart node with an empty text is a box to fill in
+        if (key === 'node' && typeof v.text === 'string' && !v.text.trim()) found = true;
         Object.keys(v).forEach(function (k) {
           if ((k === 'blank' || k === 'hidden') && v[k] === true) found = true;
           else walk(v[k], k);

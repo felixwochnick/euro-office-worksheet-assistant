@@ -318,3 +318,87 @@ test("crow's foot: (min,max) cards describe their own entity, the others read ac
   assert.notEqual(er('(1,1)', '(0,*)'), er('1', '0..*'));
 });
 
+test('activity diagram: UML nodes, guards, fork/join, fill-in', () => {
+  const opts = {
+    nodes: [
+      { kind: 'start' }, { id: 'pin', text: 'PIN eingeben' }, { id: 'ok', kind: 'decision' },
+      { id: 'betrag', text: 'Betrag wählen' }, { id: 'fork', kind: 'fork' }, { id: 'geld', text: 'Geld ausgeben' },
+      { id: 'beleg', text: '[[Beleg drucken]]' }, { id: 'join', kind: 'join' }, { id: 'stop', kind: 'flow_end' },
+      { id: 'merge', kind: 'merge' }, { kind: 'end' },
+    ],
+    edges: [
+      { from: 'start', to: 'pin' }, { from: 'pin', to: 'ok' },
+      { from: 'ok', to: 'betrag', label: '[PIN richtig]' }, { from: 'ok', to: 'stop', label: '[[[3× falsch]]]' },
+      { from: 'betrag', to: 'fork' }, { from: 'fork', to: 'geld' }, { from: 'fork', to: 'beleg' },
+      { from: 'geld', to: 'join' }, { from: 'beleg', to: 'join' }, { from: 'join', to: 'merge' }, { from: 'merge', to: 'end', blank: true },
+    ],
+  };
+  const { student, solution } = pair('activityDiagram', opts, ['Beleg drucken', '3× falsch']);
+  assert.match(student.svg, />\[PIN richtig\]</);
+  assert.match(student.svg, />\]</, 'the brackets around a guard gap stay');
+  assert.match(solution.svg, />\[<tspan[^>]*>3× falsch<\/tspan>\]</);
+  // fork and join: two filled bars, as wide as their branches need
+  const bars = student.svg.match(/<rect [^>]*height="1\.8" rx="0\.4"/g) || [];
+  assert.equal(bars.length, 2);
+  assert.match(student.svg, /rx="3\.5"/, 'actions have rounded corners');
+  // without edges the nodes form a sequence; nodes are found by id, text or (unique) kind
+  const seq = render('activityDiagram', { nodes: [{ kind: 'start' }, 'Teig rühren', 'Backen', { kind: 'end' }] });
+  assert.equal((seq.svg.match(/<path [^>]*d="M[^"]*"\/>/g) || []).length >= 3, true);
+  assert.throws(() => wd.activityDiagram({ nodes: ['A', 'A', 'B'], edges: [{ from: 'A', to: 'B' }] }), /several nodes are called "A" – give them an "id"/);
+  assert.throws(() => wd.activityDiagram({ nodes: ['A'], edges: [{ from: 'A', to: 'X' }] }), /edges\[0\]\.to" is "X", which is not a node/);
+  assert.throws(() => wd.activityDiagram({ nodes: [{ kind: 'io', text: 'x' }] }), /nodes\[0\]\.kind must be one of start, initial, end/);
+  assert.throws(() => wd.activityDiagram({ nodes: [{ kind: 'action' }] }), /nodes\[0\] needs "text"/);
+});
+
+test('flowchart (PAP, DIN 66001): terminals, operations, decisions, input/output, subroutines, loops', () => {
+  const opts = {
+    nodes: [
+      { kind: 'start' }, { id: 'ein', kind: 'io', text: 'Eingabe: n' }, { id: 'init', text: 'summe ← 0' },
+      { id: 'frage', kind: 'decision', text: 'i ≤ n?' }, { id: 'add', text: '[[summe ← summe + i]]' },
+      { id: 'aus', kind: 'io', text: '' }, { id: 'log', kind: 'subroutine', text: 'protokolliere()' }, { kind: 'end' },
+    ],
+    edges: [
+      { from: 'start', to: 'ein' }, { from: 'ein', to: 'init' }, { from: 'init', to: 'frage' },
+      { from: 'frage', to: 'add', label: 'ja' }, { from: 'add', to: 'frage' },
+      { from: 'frage', to: 'aus', label: '[[nein]]' }, { from: 'aus', to: 'log' }, { from: 'log', to: 'end' },
+    ],
+    labels: { start: 'Anfang', end: 'Stopp' },
+  };
+  const { student } = pair('flowchart', opts, ['summe ← summe + i', 'nein</tspan>']);
+  assert.match(student.svg, />Anfang</);
+  assert.match(student.svg, />Stopp</);
+  assert.match(student.svg, />i ≤ n\?</);
+  assert.match(student.svg, /<path [^>]*d="M[\d.]+ [\d.]+H[\d.]+L[\d.]+ [\d.]+H[\d.]+Z"/, 'parallelogram for input/output');
+  // filled arrow heads (DIN 66001), not the open ones of UML
+  assert.ok((student.svg.match(/Z" fill="#1f2937"/g) || []).length >= 7);
+  const horizontal = render('flowchart', { nodes: [{ kind: 'start' }, 'x ← 1', { kind: 'end' }], direction: 'horizontal' });
+  assert.ok(horizontal.widthMm > horizontal.heightMm);
+});
+
+test('use case diagram: system boundary, actors on both sides, include/extend/generalization', () => {
+  const opts = {
+    system: 'Geldautomat',
+    actors: ['Kunde', { name: 'Bank', side: 'right' }, 'Premiumkunde'],
+    use_cases: ['Geld abheben', 'PIN prüfen', 'Quittung drucken', '[[Kontostand anzeigen]]'],
+    links: [
+      { from: 'Kunde', to: 'Geld abheben' }, { from: 'Kunde', to: 'Kontostand anzeigen' },
+      { from: 'Geld abheben', to: 'PIN prüfen', kind: 'include' },
+      { from: 'Quittung drucken', to: 'Geld abheben', kind: 'extend', blank: true },
+      { from: 'Bank', to: 'PIN prüfen' }, { from: 'Premiumkunde', to: 'Kunde', kind: 'generalization' },
+    ],
+  };
+  const { student, solution } = pair('useCaseDiagram', opts, ['Kontostand anzeigen', '«extend»']);
+  assert.match(student.svg, />Geldautomat</);
+  assert.match(student.svg, />«include»</);
+  assert.equal((student.svg.match(/<ellipse/g) || []).length, 4);
+  assert.equal((student.svg.match(/<circle/g) || []).length, 3, 'three actor heads');
+  assert.ok(solution.svg.includes('stroke-dasharray="1.6 1.1"'));
+  assert.throws(() => wd.useCaseDiagram({ actors: ['A'], use_cases: ['A'] }), /actors and use cases need different names/);
+  assert.throws(() => wd.useCaseDiagram({ actors: ['A'], use_cases: ['U'], links: [{ from: 'A', to: 'U', kind: 'include' }] }), /include connects two use cases/);
+  assert.throws(() => wd.useCaseDiagram({ actors: ['A'], use_cases: ['U'], links: [{ from: 'A', to: 'U', kind: 'generalization' }] }), /connects two actors or two use cases/);
+  assert.throws(() => wd.useCaseDiagram({ use_cases: [] }), /"use_cases" needs 1–16 entries/);
+  // without a system name there is no boundary
+  const plain = render('useCaseDiagram', { actors: ['A'], use_cases: ['U'], links: [{ from: 'A', to: 'U' }] });
+  assert.doesNotMatch(plain.svg, /fill="none" stroke="#1f2937" stroke-width="0\.3"\/><text[^>]*font-weight="700"/);
+});
+

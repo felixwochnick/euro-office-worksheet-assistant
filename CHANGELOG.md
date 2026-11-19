@@ -2,7 +2,7 @@
 
 ## 0.8.0 – computer science diagrams
 
-- **Diagrams for Informatik worksheets:** six new blocks, drawn from a model the AI describes (the layout is computed,
+- **Diagrams for Informatik worksheets:** nine new blocks, drawn from a model the AI describes (the layout is computed,
   so boxes and arrows are always straight and readable):
   - `class_diagram` – UML class diagram: classes, interfaces, abstract classes and enumerations with attributes and
     methods (visibility, static underlined, abstract italic); inheritance, implementation, association (label,
@@ -12,13 +12,19 @@
     self calls, activation bars and `alt`/`opt`/`loop`/`par`/`break` fragments;
   - `state_diagram` – UML state machines (entry/do/exit, initial and final state, `event [guard] / action`) and, with
     `notation: "automaton"`, finite automata (accepting states as double circles, start arrow);
+  - `activity_diagram` – UML activity diagrams: start/end node, flow end, actions, decision/merge with guards,
+    fork/join, object nodes;
+  - `use_case_diagram` – UML use case diagrams: system boundary, actors on the left or right, use cases,
+    associations, «include», «extend» and generalization;
   - `structogram` – Nassi-Shneiderman diagrams (DIN 66261) with branches, case selection, loops, calls and exits;
     *wahr*/*falsch*/*sonst* in the worksheet's language;
+  - `flowchart` – Programmablaufpläne (DIN 66001): start/end (*Start*/*Ende* in the worksheet's language), operations,
+    decisions, input/output, subroutines, connectors and loops;
   - `er_diagram` – ER diagrams in Chen notation (1:n, n:m), (min,max) or crow's foot.
   Ported from and extended beyond the diagrams of [Klonk](https://github.com/felixwochnick/klonk).
-- **To fill in and solutions:** gaps `[[…]]` in any diagram text (whole writing lines for members or statements),
-  relations/links/messages/transitions/relationships with `blank: true` for students to draw, empty lines for
-  attributes and methods; `show_answers: true` gives the solution in the same layout. `check_worksheet` counts such a
+- **To fill in and solutions:** gaps `[[…]]` in any diagram text (whole writing lines for members or statements,
+  `[[[…]]]` for a guard in brackets), relations/links/messages/transitions/edges/relationships with `blank: true` for
+  students to draw, empty lines for attributes and methods, empty boxes in structograms, activity diagrams and flowcharts; `show_answers: true` gives the solution in the same layout. `check_worksheet` counts such a
   diagram as space to answer.
 - **Prompt:** a section on Informatik worksheets – which diagram for which topic, German school notation, fill-in
   tasks with a solution sheet, diagrams small enough for A4.

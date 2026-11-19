@@ -26,6 +26,12 @@ class, object and ER diagrams from code). Drawing them with the free `svg` block
   5. **structogram** (Nassi-Shneiderman, DIN 66261) – actions, branches, case selection, pre-/post-test and endless
      loops, calls, exits;
   6. **ER diagram** – Chen notation (1:n), (min,max) and crow's foot.
+  7. **activity diagram** (UML) – start/end node, flow end, actions, decision/merge with guards, fork/join, object
+     nodes *(added at the owner's request after the first review)*;
+  8. **use case diagram** (UML) – system boundary, actors (left or right), use cases, associations, «include»,
+     «extend», generalization *(added at the owner's request)*;
+  9. **flowchart** (Programmablaufplan, DIN 66001) – start/end, operation, decision, input/output, subroutine,
+     connector, loops *(added at the owner's request)*.
 - Every diagram exists **finished** and **to fill in**, with a matching **solution version** (`show_answers`):
   - any text in a diagram can contain gaps `[[answer]]` (the cloze syntax): an empty writing line on the sheet, the
     answer in the accent colour in the solution; a text that is only a gap becomes a full-width writing line;
@@ -40,8 +46,7 @@ class, object and ER diagrams from code). Drawing them with the free `svg` block
 ## Non-goals
 
 - Parsing program code into diagrams (Klonk does this; here the AI writes the model directly).
-- Use case, activity, component and deployment diagrams, Programmablaufpläne *(my call: not asked for; activity
-  diagrams / PAP can follow with the same infrastructure)*.
+- Component and deployment diagrams; swimlanes (partitions) in activity diagrams *(my call)*.
 - Weak entities, ISA hierarchies and the relational schema in ER diagrams *(my call: the relational schema is plain
   text and can already be written with `__underline__`)*.
 - Editing diagrams by hand in the editor (they are images, like every graphic of the plugin).
@@ -95,9 +100,14 @@ the AI what to fix. Text 3.4 mm by default; a diagram wider than the available w
 | state_diagram | `states[{name, activities?[] ("entry / …")} or string]`, `transitions[{from, to, label?, blank?}]` with `[*]` for the initial/final state, `notation? uml/automaton`, `accepting?[]` (automaton), `direction?` |
 | structogram | `title?`, `blocks[]`: a string (action) or `{if, then[], else[]}`, `{while, do[]}`, `{for, do[]}`, `{repeat[], until}`, `{loop[]}`, `{switch, cases[{label, do[]}], default?[]}`, `{call}`, `{exit}` |
 | er_diagram | `entities[{name, attributes[] (key: "__id__")}]`, `relationships[{name, from, to, from_card, to_card, attributes?[]}]`, `notation? chen/minmax/crowsfoot` |
+| activity_diagram | `nodes[{id?, kind start/end/flow_end/action/decision/merge/fork/join/object, text}]`, `edges[{from, to, label?, blank?}]` (by id or text; without edges a sequence), `direction?` |
+| use_case_diagram | `system?`, `actors[{name, side? left/right}]`, `use_cases[]`, `links[{from, to, kind association/include/extend/generalization, blank?}]` |
+| flowchart | `nodes[{id?, kind start/end/operation/decision/io/subroutine/connector/merge, text}]`, `edges[{from, to, label?, blank?}]`, `direction?` |
 
 Conventions *(my calls)*: `from` of an inheritance/implementation is the subclass; of an aggregation/composition the
-whole (diamond end). In member texts `static`/`abstract` (or `{static}`/`{abstract}`) become underline/italic; `__x__`
+whole (diamond end); of an include the base use case, of an extend the extending one. Activity diagrams and flowcharts
+share one renderer (top to bottom by default, UML open arrows vs. DIN filled arrows); use case diagrams lay out the use
+cases with dagre and place the actors beside the system boundary, near their use cases. In member texts `static`/`abstract` (or `{static}`/`{abstract}`) become underline/italic; `__x__`
 underlines (ER keys), `*x*` italic. UML keywords stay English («interface», «abstract», «enumeration»).
 Direction: class diagrams vertical (superclasses on top) when there is inheritance, else horizontal; state diagrams
 and object diagrams horizontal.

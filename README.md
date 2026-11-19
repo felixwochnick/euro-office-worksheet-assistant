@@ -26,8 +26,9 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
 - **Computer science diagrams (Informatik)** – UML **class diagrams** (classes, interfaces, abstract classes,
   enumerations, inheritance, associations with multiplicities, aggregation, composition), **object diagrams**,
   **sequence diagrams** (actors, calls, replies, object creation, activation bars, `alt`/`opt`/`loop` fragments),
-  **state diagrams** and **finite automata** (DEA/NEA), **structograms** (Nassi-Shneiderman, DIN 66261) and
-  **ER diagrams** (Chen, (min,max), crow's foot). The AI only describes the model; the layout is computed (dagre), so
+  **state diagrams** and **finite automata** (DEA/NEA), **activity diagrams**, **use case diagrams**, **structograms**
+  (Nassi-Shneiderman, DIN 66261), **flowcharts** (Programmablaufplan, DIN 66001) and **ER diagrams** (Chen, (min,max),
+  crow's foot). The AI only describes the model; the layout is computed (dagre), so
   the diagrams look like those of the textbook and of [Klonk](https://github.com/felixwochnick/klonk). Every diagram
   also exists **to fill in** – gaps, writing lines, relations or transitions left out for students to draw, empty
   lines for members – with a matching **solution version** in the same layout. See
@@ -127,7 +128,7 @@ packages are named `@worksheet-assistant/<name>`.
 | ↳ `worksheet-themes.js` | Designs (fonts, sizes, colours) and printed labels in seven languages |
 | ↳ `worksheet-generators.js` | Crossword, word search, cloze, matching, grade key (deterministic) |
 | ↳ `worksheet-svg.js` | Icons, task badges, lineatures, number lines, coordinate systems, charts, mind maps, QR codes, SVG sanitiser |
-| ↳ `worksheet-diagrams.js` | Computer science diagrams: UML class, object, sequence and state diagrams, finite automata, structograms, ER diagrams (layout with dagre; fill-in and solution versions) |
+| ↳ `worksheet-diagrams.js` | Computer science diagrams: UML class, object, sequence, state, activity and use case diagrams, finite automata, structograms, flowcharts (PAP), ER diagrams (layout with dagre; fill-in and solution versions) |
 | ↳ `german-syllables.js`, `worksheet-check.js` | Syllables for Silbenfärbung; the worksheet quality check |
 | `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js`, `qrcode-generator`, `dagre` (see `vendor/SOURCES.md`) |
 | `scripts/build.sh` | Builds the plugin: `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
@@ -598,6 +599,9 @@ Computer science (see [Computer science diagrams](#computer-science-diagrams)):
 - „Füge ein Sequenzdiagramm zum Geldabheben am Automaten ein, mit alt-Fragment für zu wenig Guthaben.“
 - „Zeichne einen DEA, der alle Wörter über {a, b} erkennt, die auf ab enden. Die Übergänge sollen die Schüler beschriften.“
 - „Erstelle ein Struktogramm zum euklidischen Algorithmus, in dem die Bedingung und eine Anweisung fehlen.“
+- „Zeichne denselben Algorithmus als Programmablaufplan.“
+- „Erstelle ein Anwendungsfalldiagramm für eine Schulbibliothek mit Schüler, Bibliothekarin und include/extend.“
+- „Zeichne ein Aktivitätsdiagramm zum Ablauf einer Online-Bestellung mit Verzweigung und paralleler Verarbeitung; die Bedingungen sollen die Schüler ergänzen.“
 - „Modelliere Schüler, Kurs und Lehrer als ER-Diagramm in Chen-Notation, die Kardinalitäten als Lücken.“
 - „Zeige dasselbe Datenmodell in Krähenfußnotation.“
 
@@ -809,7 +813,7 @@ photos from the internet out.
 
 ## Computer science diagrams
 
-Six blocks for Informatik worksheets (`packages/shared/worksheet-diagrams.js`; the diagrams of
+Nine blocks for Informatik worksheets (`packages/shared/worksheet-diagrams.js`; the diagrams of
 [Klonk](https://github.com/felixwochnick/klonk), the same author's programming-learning app, ported and extended):
 
 | Block | Shows | The AI describes |
@@ -818,12 +822,16 @@ Six blocks for Informatik worksheets (`packages/shared/worksheet-diagrams.js`; t
 | `object_diagram` | objects `name : Klasse` (underlined) with attribute values, links | `objects [{name, class, values ["kontostand = 100"]}]`, `links` |
 | `sequence_diagram` | lifelines (objects, actors), synchronous/asynchronous calls, replies, object creation, self calls, activation bars, `alt`/`opt`/`loop`/`par`/`break` fragments | `participants`, `messages [{from, to, text, kind}]` or `{fragment, label, messages, else}` |
 | `state_diagram` | UML states with entry/do/exit, initial and final state, transitions `event [guard] / action`; with `notation: "automaton"` a finite automaton (circles, accepting states as double circles, start arrow) | `states`, `transitions [{from, to, label}]` (`[*]` = initial/final state), `initial`, `accepting` |
+| `activity_diagram` | UML activity diagram: start and end node, flow end, actions, decision/merge, fork/join, object nodes; guards on the edges | `nodes [{id, kind, text}]`, `edges [{from, to, label}]` (without edges: a sequence) |
+| `use_case_diagram` | UML use case diagram: system boundary, actors (left or right), use cases, associations, «include», «extend», generalization | `system`, `actors`, `use_cases`, `links [{from, to, kind}]` |
 | `structogram` | Nassi-Shneiderman diagram (DIN 66261): statements, branches (*wahr*/*falsch*), case selection (*sonst*), pre-/post-test and endless loops, calls, exits | `steps ["…", {if, then, else}, {while, do}, {repeat, until}, {switch, cases}, …]` |
+| `flowchart` | Programmablaufplan (DIN 66001): start/end (*Start*/*Ende* in the worksheet's language), operations, decisions, input/output, subroutines, connectors, loops | `nodes [{id, kind, text}]`, `edges [{from, to, label "ja"/"nein"}]` |
 | `er_diagram` | Chen notation (1:n, n:m) or (min,max): entities, attributes (keys underlined), relationships with attributes; or crow's foot with PK/FK | `entities [{name, attributes ["__id__"]}]`, `relationships [{name, from, to, from_card, to_card}]`, `notation` |
 
 **To fill in:** `[[answer]]` in any text is a gap (a dotted writing line; a text that is only a gap becomes a whole
-writing line, e.g. an attribute to add), `blank: true` leaves out a relation, link, message, transition or
-relationship for the students to draw, and a number instead of a list of attributes/methods gives empty lines.
+writing line, e.g. an attribute to add; `[[[x > 0]]]` is a guard in brackets to fill in), `blank: true` leaves out a
+relation, link, message, transition, edge or relationship for the students to draw, a number instead of a list of
+attributes/methods gives empty lines, and an empty text gives an empty box (structogram, activity diagram, flowchart).
 `show_answers: true` is the solution: the same layout, the answers in the design's accent colour. The quality check
 counts such a diagram as space to answer.
 

@@ -52,6 +52,9 @@ const ALL_BLOCKS = [
   { type: 'state_diagram', notation: 'automaton', states: ['q0', 'q1'], initial: 'q0', accepting: ['q1'], transitions: [{ from: 'q0', to: 'q1', label: '1' }, { from: 'q1', to: 'q1', label: '0, 1' }, { from: 'q0', to: 'q0', label: '0', blank: true }] },
   { type: 'structogram', title: 'Summe', steps: ['summe ← 0', { for: 'für i von 1 bis n', do: ['[[summe ← summe + i]]'] }, { if: 'summe > 100', then: ['Ausgabe: groß'], else: [] }] },
   { type: 'er_diagram', entities: [{ name: 'Klasse', attributes: ['__Bezeichnung__'] }, { name: 'Schüler', attributes: ['__ID__', 'Name'] }], relationships: [{ name: 'gehört zu', from: 'Schüler', to: 'Klasse', from_card: 'n', to_card: '[[1]]' }] },
+  { type: 'activity_diagram', nodes: [{ kind: 'start' }, { id: 'a', text: 'Teig rühren' }, { id: 'd', kind: 'decision' }, { id: 'b', text: '[[Backen]]' }, { kind: 'end' }], edges: [{ from: 'start', to: 'a' }, { from: 'a', to: 'd' }, { from: 'd', to: 'b', label: '[fertig]' }, { from: 'd', to: 'a', label: '[sonst]' }, { from: 'b', to: 'end' }] },
+  { type: 'use_case_diagram', system: 'Bibliothek', actors: ['Leser', { name: 'Bibliothekar', side: 'right' }], use_cases: ['Buch ausleihen', 'Ausweis prüfen'], links: [{ from: 'Leser', to: 'Buch ausleihen' }, { from: 'Buch ausleihen', to: 'Ausweis prüfen', kind: 'include' }, { from: 'Bibliothekar', to: 'Ausweis prüfen', blank: true }] },
+  { type: 'flowchart', nodes: [{ kind: 'start' }, { kind: 'io', text: 'Eingabe: x' }, { id: 'q', kind: 'decision', text: 'x > 0?' }, { id: 'p', kind: 'io', text: 'Ausgabe: positiv' }, { id: 'n', kind: 'io', text: '' }, { id: 'm', kind: 'merge' }, { kind: 'end' }], edges: [{ from: 'start', to: 'Eingabe: x' }, { from: 'Eingabe: x', to: 'q' }, { from: 'q', to: 'p', label: 'ja' }, { from: 'q', to: 'n', label: 'nein' }, { from: 'p', to: 'm' }, { from: 'n', to: 'm' }, { from: 'm', to: 'end' }] },
   { type: 'staff', abc: ABC },
   { type: 'empty_staves', clef: 'bass', count: 2 },
   { type: 'spacer', lines: 2 },
@@ -286,3 +289,12 @@ test('computer science diagrams: theme colours, solution version, printed labels
     /^Error: blocks\[0\] \(class_diagram\): classDiagram: "relations\[0\]\.to" is "X"/);
   assert.deepEqual(layout.DIAGRAM_TYPES.filter((t) => !layout.GRAPHIC_TYPES.includes(t)), []);
 });
+
+test('flowchart: Start/Ende in the language of the worksheet', () => {
+  const block = { type: 'flowchart', nodes: [{ kind: 'start' }, 'x ← 1', { kind: 'end' }] };
+  const svg = (lang) => layout.collectImages(layout.compose([block], { lang }).elements)[0].svg;
+  assert.match(svg('de'), />Ende</);
+  assert.match(svg('en'), />End</);
+  assert.match(svg('fr'), />Début</);
+});
+

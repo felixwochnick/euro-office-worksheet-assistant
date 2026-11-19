@@ -241,6 +241,9 @@ test('tools: computer science diagrams keep deeply nested steps and are validate
         { type: 'state_diagram', notation: 'automaton', states: ['q0', 'q1'], initial: 'q0', accepting: ['q1'], transitions: [{ from: 'q0', to: 'q1', label: 'a' }] },
         { type: 'er_diagram', entities: [{ name: 'A', attributes: ['__id__'] }, { name: 'B' }], relationships: [{ name: 'r', from: 'A', to: 'B', from_card: '1', to_card: 'n' }] },
         { type: 'object_diagram', objects: [{ name: 'o', class: 'K' }], links: [] },
+        { type: 'activity_diagram', nodes: [{ kind: 'start' }, { id: 'a', text: 'Tun' }, { kind: 'end' }], edges: [{ from: 'start', to: 'a' }, { from: 'a', to: 'end', blank: true }] },
+        { type: 'flowchart', nodes: [{ kind: 'start' }, { id: 'q', kind: 'decision', text: 'x > 0?' }, { kind: 'end' }], edges: [{ from: 'start', to: 'q' }, { from: 'q', to: 'end', label: 'ja' }] },
+        { type: 'use_case_diagram', system: 'S', actors: [{ name: 'A', side: 'right' }], use_cases: ['U', 'V'], links: [{ from: 'A', to: 'U' }, { from: 'U', to: 'V', kind: 'include' }] },
       ],
     },
   });
@@ -249,6 +252,10 @@ test('tools: computer science diagrams keep deeply nested steps and are validate
   assert.deepEqual(b[0].steps[1], deep);
   assert.equal(b[1].messages[0].messages[0].messages[0].messages[0].text, 'm()');
   assert.equal(b[2].relations[0].blank, true);
+  assert.equal(b[6].edges[1].blank, true);
+  assert.equal(b[7].nodes[1].kind, 'decision');
+  assert.deepEqual(b[8].links[1], { from: 'U', to: 'V', kind: 'include' });
+  assert.equal(b[8].actors[0].side, 'right');
   // diagram texts are code: a literal backslash-n stays as it is
   let nested: unknown = 'tief';
   for (const v of ['d', 'c', 'b', 'a']) nested = { switch: v, cases: [{ label: v, do: [nested] }] };

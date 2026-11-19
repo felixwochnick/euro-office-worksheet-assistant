@@ -69,7 +69,8 @@
   var SYMBOL_FONT = 'DejaVu Sans';
 
   /** Computer science diagrams (worksheet-diagrams.js). */
-  var DIAGRAM_TYPES = ['class_diagram', 'object_diagram', 'sequence_diagram', 'state_diagram', 'structogram', 'er_diagram'];
+  var DIAGRAM_TYPES = ['class_diagram', 'object_diagram', 'sequence_diagram', 'state_diagram', 'activity_diagram', 'use_case_diagram',
+    'structogram', 'flowchart', 'er_diagram'];
   var BLOCK_TYPES = [
     'title', 'name_line', 'heading', 'paragraph', 'task', 'list', 'table', 'lines', 'box', 'cloze', 'word_bank',
     'multiple_choice', 'true_false', 'matching', 'crossword', 'word_search', 'reading_text', 'formula',
@@ -884,6 +885,23 @@
       title: b.title, steps: b.steps, labels: { yes: c.L.structYes, no: c.L.structNo, otherwise: c.L.structOtherwise }
     }));
     return graphicBlock(c, b, g, 'Struktogramm' + (b.title ? ': ' + str(b.title) : ''), sourceOf(b, 'structogram'));
+  };
+
+  builders.activity_diagram = function (b, c) {
+    var g = diagramLib().activityDiagram(diagramOpts(c, b, { nodes: b.nodes, edges: b.edges, direction: b.direction }));
+    return graphicBlock(c, b, g, 'Aktivitätsdiagramm (' + countOf(b.nodes) + ' Knoten)', sourceOf(b, 'activity_diagram'));
+  };
+
+  builders.flowchart = function (b, c) {
+    var g = diagramLib().flowchart(diagramOpts(c, b, {
+      nodes: b.nodes, edges: b.edges, direction: b.direction, labels: { start: c.L.flowStart, end: c.L.flowEnd }
+    }));
+    return graphicBlock(c, b, g, 'Programmablaufplan' + (b.title ? ': ' + str(b.title) : '') + ' (' + countOf(b.nodes) + ' Knoten)', sourceOf(b, 'flowchart'));
+  };
+
+  builders.use_case_diagram = function (b, c) {
+    var g = diagramLib().useCaseDiagram(diagramOpts(c, b, { system: b.system, actors: b.actors, use_cases: b.use_cases, links: b.links }));
+    return graphicBlock(c, b, g, 'Anwendungsfalldiagramm' + (b.system ? ': ' + str(b.system) : '') + ' (' + countOf(b.use_cases) + ' Anwendungsfälle)', sourceOf(b, 'use_case_diagram'));
   };
 
   builders.er_diagram = function (b, c) {

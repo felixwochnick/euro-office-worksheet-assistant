@@ -188,10 +188,13 @@ test('diagrams to fill in count as workspace, finished diagrams do not', () => {
     TASK(2, 'Zeichne die Vererbung ein.'), P('', { graphic: { type: 'class_diagram', classes: [{ name: 'A' }, { name: 'B' }], relations: [{ from: 'B', to: 'A', kind: 'inheritance', blank: true }] } }),
     TASK(3, 'Ergänze sinnvolle Methoden.'), P('', { graphic: { type: 'class_diagram', classes: [{ name: 'Auto', methods: 3 }] } }),
     TASK(4, 'Vervollständige das Struktogramm.'), P('', { graphic: { type: 'structogram', steps: ['x ← 1', { while: 'x < 10', do: [''] }] } }),
-    TASK(5, 'Beschreibe den Ablauf in eigenen Worten.'), P('', { graphic: { type: 'sequence_diagram', participants: ['a', 'b'], messages: [{ from: 'a', to: 'b', text: 'm()' }] } })
+    TASK(5, 'Beschreibe den Ablauf in eigenen Worten.'), P('', { graphic: { type: 'sequence_diagram', participants: ['a', 'b'], messages: [{ from: 'a', to: 'b', text: 'm()' }] } }),
+    TASK(6, 'Ergänze den Programmablaufplan.'), P('', { graphic: { type: 'flowchart', nodes: [{ kind: 'start' }, { kind: 'io', text: '' }, { kind: 'end' }] } }),
+    TASK(7, 'Ergänze das Aktivitätsdiagramm.'), P('', { graphic: { type: 'activity_diagram', nodes: [{ kind: 'start' }, '', { kind: 'end' }] } }),
+    TASK(8, 'Zeichne die Beziehungen ein.'), P('', { graphic: { type: 'use_case_diagram', actors: ['A'], use_cases: ['U'], links: [{ from: 'A', to: 'U', blank: true }] } })
   ]);
   const r = wc.check(doc);
-  assert.deepEqual(r.tasks.map((t) => t.has_workspace), [true, true, true, true, false]);
+  assert.deepEqual(r.tasks.map((t) => t.has_workspace), [true, true, true, true, false, true, true, true]);
   assert.deepEqual(codes(r), ['no_workspace']);
 });
 
