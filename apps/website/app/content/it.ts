@@ -222,7 +222,7 @@ const it: SiteContent = {
       { title: 'Installa Euro-Office', description: 'Installa l’app desktop di Euro-Office o Nextcloud Office per Windows, macOS o Linux e avviala una volta.' },
       {
         title: 'Installa l’app Worksheet Assistant',
-        description: 'Scarica il programma di installazione per il tuo sistema e installa l’app come qualsiasi altra (macOS: trascinala in **Applicazioni**); si chiama **Arbeitsblatt-Assistent**. All’avvio si apre la sua finestra: configura il plugin e lavora in modo invisibile in background. L’app non è ancora firmata – se macOS non la apre: **Impostazioni di Sistema → Privacy e sicurezza → Apri comunque**; Windows: **Ulteriori informazioni → Esegui comunque**.'
+        description: 'Scarica il programma di installazione per il tuo sistema e installa l’app come qualsiasi altra (macOS: trascinala in **Applicazioni**); si chiama **Arbeitsblatt-Assistent**. All’avvio si apre la sua finestra: configura il plugin e lavora in modo invisibile in background. Su macOS l’app è notarizzata da Apple. Su Windows non è ancora firmata – se SmartScreen mostra un avviso: **Ulteriori informazioni → Esegui comunque**.'
       },
       {
         title: 'Scegli la tua IA',

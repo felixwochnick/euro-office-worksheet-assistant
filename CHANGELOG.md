@@ -1,10 +1,15 @@
 # Changelog
 
-## 0.7.1 – the desktop app updates itself
+## 0.7.1 – self-updates and a notarized macOS app
 
 - **Self-updates:** releases now carry signed update bundles and `latest.json`. From this version on the desktop app
   (macOS, Windows, AppImage) installs a new version with one click from its update notice (see README, *Updates*);
   the `.deb` package still links to the download page.
+- **macOS: signed and notarized.** The app and its server program are signed with a Developer ID certificate and
+  notarized by Apple – macOS opens the app without the detour via *Privacy & Security → Open Anyway*. Release
+  workflow: new secrets `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`,
+  `APPLE_TEAM_ID` (README, *Releases*); `scripts/check-macos-signature.sh` checks the signature, the stapled ticket
+  and Gatekeeper. Windows installers are still unsigned (SmartScreen).
 - **Updating from 0.7.0 or older:** those versions do not contain the update key yet. They show 0.7.1 with a link to
   the download page – install it once by hand, later versions arrive by themselves.
 

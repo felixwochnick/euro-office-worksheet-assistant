@@ -317,11 +317,8 @@ You need the Euro-Office or Nextcloud Office desktop editor: install it and star
 and updates need its final place); on Linux make the AppImage executable and start it, or install the `.deb`
 (`sudo apt install ./Arbeitsblatt-Assistent_<version>_amd64.deb`).
 
-The app has no developer signature yet, so the system may warn on the first start:
-
-- **macOS** – if macOS refuses to open the app: *System Settings → Privacy & Security → Open Anyway* (the app is
-  ad-hoc signed, not notarized).
-- **Windows** – SmartScreen: *More info → Run anyway*.
+On macOS the app is signed with a Developer ID and notarized by Apple (from 0.7.1), so it opens without a warning.
+On Windows it has no developer signature yet: SmartScreen may warn on the first start – *More info → Run anyway*.
 
 **3. First start.** A window opens. The app installs (or updates) the plugin in the Euro-Office and Nextcloud Office
 desktop editors and starts the local server in the background. The page *Übersicht* (overview) shows what is set up:
@@ -689,8 +686,23 @@ and store the private key as repository secret `TAURI_SIGNING_PRIVATE_KEY` (its 
 Secrets and variables → Actions*). Without them releases still work, but the app only links to the download page
 instead of installing updates.
 
-The installers have no developer signature: macOS builds are ad-hoc signed, not notarized, and Windows shows
-SmartScreen (see [D](#d--desktop-app-windows-macos-linux)). Code signing can be added later through GitHub secrets.
+**macOS signature and notarization** (once, needs a paid Apple Developer account): create a *Developer ID
+Application* certificate, export it with its private key as `.p12` and store these repository secrets:
+
+| Secret | Value |
+|---|---|
+| `APPLE_CERTIFICATE` | the `.p12` file, base64 (`base64 -i developer-id.p12`) |
+| `APPLE_CERTIFICATE_PASSWORD` | the `.p12` export password |
+| `APPLE_ID` | the Apple account's email address |
+| `APPLE_PASSWORD` | an app-specific password of that account (account.apple.com) |
+| `APPLE_TEAM_ID` | the 10-character team ID (developer.apple.com → *Membership details*) |
+
+The macOS jobs then sign the app and its server program with the certificate (hardened runtime, the entitlements
+in `apps/desktop/src-tauri/macos/entitlements.plist`); Tauri notarizes and staples the app, and
+`scripts/check-macos-signature.sh` checks the Developer ID signature, the ticket and Gatekeeper – a failure keeps
+the release a draft. Without the secrets macOS builds stay ad-hoc signed (users then need *System Settings →
+Privacy & Security → Open Anyway*). Windows installers have no developer signature (SmartScreen, see
+[D](#d--desktop-app-windows-macos-linux)).
 
 ### Website
 
