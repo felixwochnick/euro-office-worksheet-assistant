@@ -24,13 +24,27 @@
   Ported from and extended beyond the diagrams of [Klonk](https://github.com/felixwochnick/klonk).
 - **To fill in and solutions:** gaps `[[…]]` in any diagram text (whole writing lines for members or statements,
   `[[[…]]]` for a guard in brackets), relations/links/messages/transitions/edges/relationships with `blank: true` for
-  students to draw, empty lines for attributes and methods, empty boxes in structograms, activity diagrams and flowcharts; `show_answers: true` gives the solution in the same layout. `check_worksheet` counts such a
-  diagram as space to answer.
+  students to draw, empty lines for attributes and methods, empty boxes in structograms, activity diagrams and
+  flowcharts; `show_answers: true` gives the solution in the same layout. `check_worksheet` counts such a diagram as
+  space to answer.
 - **Prompt:** a section on Informatik worksheets – which diagram for which topic, German school notation, fill-in
   tasks with a solution sheet, diagrams small enough for A4.
 - **Layout library:** [dagre](https://github.com/dagrejs/dagre) 3.1.2 (MIT) – vendored for the plugin
   (`vendor/dagre/dagre.min.js`, checksum in `vendor/SHA256SUMS`), the npm package for the proxy and the desktop app.
 - **Proxy:** structogram steps and sequence diagram fragments may be nested deeper than other block fields.
+
+## 0.7.1 – self-updates and a notarized macOS app
+
+- **Self-updates:** releases now carry signed update bundles and `latest.json`. From this version on the desktop app
+  (macOS, Windows, AppImage) installs a new version with one click from its update notice (see README, *Updates*);
+  the `.deb` package still links to the download page.
+- **macOS: signed and notarized.** The app and its server program are signed with a Developer ID certificate and
+  notarized by Apple – macOS opens the app without the detour via *Privacy & Security → Open Anyway*. Release
+  workflow: new secrets `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_ID`, `APPLE_PASSWORD`,
+  `APPLE_TEAM_ID` (README, *Releases*); `scripts/check-macos-signature.sh` checks the signature, the stapled ticket
+  and Gatekeeper. Windows installers are still unsigned (SmartScreen).
+- **Updating from 0.7.0 or older:** those versions do not contain the update key yet. They show 0.7.1 with a link to
+  the download page – install it once by hand, later versions arrive by themselves.
 
 ## 0.7.0 – pictures on worksheets
 

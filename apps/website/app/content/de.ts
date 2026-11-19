@@ -224,7 +224,7 @@ const de: SiteContent = {
       { title: 'Euro-Office installieren', description: 'Die Desktop-App von Euro-Office oder Nextcloud Office für Windows, macOS oder Linux installieren und einmal starten.' },
       {
         title: 'App Arbeitsblatt-Assistent installieren',
-        description: 'Installationsdatei für dein System laden und wie jede andere App installieren (macOS: in **Programme** ziehen). Beim Start öffnet sich ihr Fenster: Sie richtet das Plugin ein und arbeitet unsichtbar im Hintergrund. Die App ist noch nicht signiert – falls macOS sie nicht öffnet: **Systemeinstellungen → Datenschutz & Sicherheit → Dennoch öffnen**; Windows: **Weitere Informationen → Trotzdem ausführen**.'
+        description: 'Installationsdatei für dein System laden und wie jede andere App installieren (macOS: in **Programme** ziehen). Beim Start öffnet sich ihr Fenster: Sie richtet das Plugin ein und arbeitet unsichtbar im Hintergrund. Unter macOS ist die App von Apple beglaubigt (notarisiert). Unter Windows ist sie noch nicht signiert – falls SmartScreen warnt: **Weitere Informationen → Trotzdem ausführen**.'
       },
       {
         title: 'KI wählen',
