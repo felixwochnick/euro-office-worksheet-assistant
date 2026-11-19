@@ -710,16 +710,69 @@ and store the private key as repository secret `TAURI_SIGNING_PRIVATE_KEY` (its 
 Secrets and variables → Actions*). Without them releases still work, but the app only links to the download page
 instead of installing updates.
 
-**macOS signature and notarization** (once, needs a paid Apple Developer account): create a *Developer ID
-Application* certificate, export it with its private key as `.p12` and store these repository secrets:
+**macOS signature and notarization** (once, needs a paid Apple Developer account): the release needs a
+**Developer ID Application** certificate with its private key and five repository secrets:
 
 | Secret | Value |
 |---|---|
-| `APPLE_CERTIFICATE` | the `.p12` file, base64 (`base64 -i developer-id.p12`) |
+| `APPLE_CERTIFICATE` | the `.p12` file (certificate + private key), base64 |
 | `APPLE_CERTIFICATE_PASSWORD` | the `.p12` export password |
 | `APPLE_ID` | the Apple account's email address |
-| `APPLE_PASSWORD` | an app-specific password of that account (account.apple.com) |
-| `APPLE_TEAM_ID` | the 10-character team ID (developer.apple.com → *Membership details*) |
+| `APPLE_PASSWORD` | an app-specific password of that account (not the account password) |
+| `APPLE_TEAM_ID` | the 10-character team ID |
+
+> **Not "Developer ID Installer".** That certificate only signs `.pkg` installers. With it the macOS jobs fail with
+> `failed to bundle project: failed codesign application: failed to resolve signing identity` (the keychain holds
+> 0 code signing identities). Check the `.p12` (step 3) before you store it.
+
+1. **Key and certificate request.** On Linux (or any system with OpenSSL), in a folder outside the repository:
+
+   ```bash
+   mkdir -p ~/apple-developer-id && cd ~/apple-developer-id && chmod 700 .
+   openssl genrsa -out developer-id.key 2048
+   openssl req -new -key developer-id.key -out developer-id.csr \
+     -subj "/emailAddress=you@example.org/CN=Your Name/C=DE"     # Apple ignores these fields
+   ```
+
+   On a Mac use *Keychain Access → Certificate Assistant → Request a Certificate From a Certificate Authority*
+   (your email, *Saved to disk*) instead; the key then stays in the keychain.
+2. **Certificate.** As the account holder on [developer.apple.com](https://developer.apple.com/account/resources/certificates/list)
+   → *Certificates* → **+** → **Developer ID Application** (profile type *G2 Sub-CA*), upload the `.csr` and download
+   the certificate (`developerID_application.cer`).
+3. **`.p12` with the private key** (plus Apple's intermediate certificate; the 3DES/SHA-1 format is the one macOS
+   imports):
+
+   ```bash
+   curl -fsSLO https://www.apple.com/certificateauthority/DeveloperIDG2CA.cer
+   openssl x509 -inform DER -in developerID_application.cer -out developer-id.pem
+   openssl x509 -inform DER -in DeveloperIDG2CA.cer -out developer-id-g2-ca.pem
+   read -rs -p 'p12 password: ' P12_PASSWORD; echo; export P12_PASSWORD
+   openssl pkcs12 -export -inkey developer-id.key -in developer-id.pem -certfile developer-id-g2-ca.pem \
+     -name "Developer ID Application" -keypbe PBE-SHA1-3DES -certpbe PBE-SHA1-3DES -macalg sha1 \
+     -passout env:P12_PASSWORD -out developer-id-application.p12
+   # must print "CN=Developer ID Application: <name> (<team ID>)" – the OU is the team ID
+   openssl pkcs12 -in developer-id-application.p12 -nokeys -passin env:P12_PASSWORD | openssl x509 -noout -subject
+   ```
+
+   On a Mac: double-click the downloaded `.cer`, then in *Keychain Access → My Certificates* export
+   *Developer ID Application: …* (with the key below it) as `.p12`.
+4. **App-specific password**: [account.apple.com](https://account.apple.com) → *Sign-In and Security* →
+   *App-Specific Passwords* → **+**. The team ID is shown under *Membership details* on developer.apple.com (and is
+   the OU of the certificate).
+5. **Secrets** (with the GitHub CLI, from the folder of step 3):
+
+   ```bash
+   R=felixwochnick/euro-office-worksheet-assistant
+   base64 -w0 developer-id-application.p12 | gh secret set APPLE_CERTIFICATE -R $R   # macOS: base64 -i … without -w0
+   printf '%s' "$P12_PASSWORD" | gh secret set APPLE_CERTIFICATE_PASSWORD -R $R
+   gh secret set APPLE_ID -R $R          # prompts for the value
+   gh secret set APPLE_PASSWORD -R $R    # the app-specific password
+   gh secret set APPLE_TEAM_ID -R $R
+   ```
+
+   Keep the folder (or at least the `.p12` and its password) somewhere safe – the private key cannot be downloaded
+   again. If a release already failed at the macOS jobs, `gh run rerun <run id> --failed` builds them again and then
+   publishes the draft.
 
 The macOS jobs then sign the app and its server program with the certificate (hardened runtime, the entitlements
 in `apps/desktop/src-tauri/macos/entitlements.plist`); Tauri notarizes and staples the app, and
