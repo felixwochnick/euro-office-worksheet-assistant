@@ -50,6 +50,25 @@ const numArray = (maxItems: number) => ({ type: 'array', items: { type: 'number'
 const PICTURE_DOC =
   'picture {image_id, width_cm? (default 5), align? left|center|right, caption?} = a picture (pictogram, photo, clipart or the user\'s own picture) – image_id ONLY from search_images; ';
 
+const DIAGRAM_DOC =
+  'Computer science diagrams: ' +
+  'class_diagram {classes [{name, kind? class|abstract|interface|enum, attributes ["- name: String", "- static anzahl: int"], methods ["+ getName(): String", "+ abstract flaeche(): double"], values? (enum literals)}], ' +
+  'relations [{from, to, kind inheritance (from = subclass)|implementation|association|aggregation|composition (from = the whole)|dependency, label?, from_mult?, to_mult?, directed? (navigable arrow)}], direction? vertical|horizontal} = UML class diagram; ' +
+  'object_diagram {objects [{name, class, values ["kontostand = 100"]}], links [{from, to, label?}]} = UML object diagram; ' +
+  'sequence_diagram {participants [":Automat" or {name, kind: "actor"}], messages [{from, to, text, kind? call|async|return|create} or a fragment {fragment alt|opt|loop|par|break, label (condition), messages [...], else? {label, messages [...]}}], activations? (default true)} = UML sequence diagram; ' +
+  'state_diagram {states ["Bereit" or {name, activities ["entry / …", "do / …"]}], transitions [{from, to, label "event [guard] / action"}] ("[*]" as from = initial state, as to = final state), ' +
+  'notation? uml|automaton (finite automaton DEA/NEA: circles, initial = start state, accepting [] = accepting states), direction?} = UML state diagram or automaton; ' +
+  'structogram {title?, steps ["statement", {if, then [], else []}, {while, do []}, {for, do []}, {repeat [], until}, {loop []} (endless), {switch, cases [{label, do []}], default? []}, {call}, {exit}]} = Nassi-Shneiderman diagram (DIN 66261); ' +
+  'er_diagram {entities [{name, attributes ["__id__" (key, underlined), "name", "klasse_id (FK)"]}], relationships [{name, from, to, from_card, to_card (1, n, m; (0,*); 0..* or 1..* for crow\'s foot), attributes?}], notation? chen|minmax|crowsfoot} = ER diagram. ' +
+  'Diagrams to fill in: gaps [[answer]] in any diagram text (a text that is only "[[…]]" = a whole writing line, e.g. an attribute to add), ' +
+  'blank: true on a relation/link/message/transition/relationship leaves it out for students to draw, a number instead of attributes/methods/values = that many empty lines, ' +
+  'an empty string in steps = an empty structogram box; show_answers: true = the solution with the same layout. ';
+
+const looseList = (maxItems: number, description: string) => ({
+  type: 'array', maxItems, description, items: { anyOf: [{ type: 'string' }, { type: 'object' }] },
+});
+const linesOrCount = { anyOf: [strArray(15, 160), { type: 'integer', minimum: 0, maximum: 15 }] };
+
 const BLOCK_TYPE_DOC =
   'title {text, subtitle?, subject?, grade?} = worksheet title (top of the sheet); ' +
   'name_line {fields?} = Name/Klasse/Datum fields; ' +
@@ -76,7 +95,8 @@ const BLOCK_TYPE_DOC =
   'grade_key {total_points, thresholds?[5] (percent for grades 1-5), step? 0.5|1} = points-to-grade table; ' +
   'columns {columns [[blocks], [blocks]], widths?} = 2-3 columns side by side; ' +
   'staff {abc, width_cm?} = music staff from ABC; empty_staves {clef, count, measures?}; page_break; spacer {lines?}. ' +
-  'Graphics (number_line, coordinate_system, chart, mindmap, svg) also take caption? and width_cm?.';
+  DIAGRAM_DOC +
+  'Graphics (number_line, coordinate_system, chart, mindmap, svg and the diagrams) also take caption? and width_cm?.';
 
 /** JSON Schema of one worksheet block (see packages/shared/worksheet-layout.js). Flat: the fields of all types. */
 const blockSchema = {
@@ -173,6 +193,69 @@ const blockSchema = {
     clef: { type: 'string', enum: ['treble', 'bass'] },
     measures: { type: 'integer', minimum: 0, maximum: 8 },
     lines: { type: 'integer', minimum: 1, maximum: 10 },
+    // computer science diagrams (packages/shared/worksheet-diagrams.js)
+    classes: {
+      type: 'array', maxItems: 16, description: 'class_diagram: the classes',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' }, kind: { type: 'string', enum: ['class', 'abstract', 'interface', 'enum'] },
+          attributes: linesOrCount, methods: linesOrCount, values: linesOrCount,
+        },
+        required: ['name'],
+      },
+    },
+    relations: {
+      type: 'array', maxItems: 30, description: 'class_diagram: relations between classes',
+      items: {
+        type: 'object',
+        properties: {
+          from: { type: 'string' }, to: { type: 'string' },
+          kind: { type: 'string', enum: ['inheritance', 'implementation', 'association', 'aggregation', 'composition', 'dependency'] },
+          label: { type: 'string' }, from_mult: { type: 'string' }, to_mult: { type: 'string' }, directed: { type: 'boolean' }, blank: { type: 'boolean' },
+        },
+        required: ['from', 'to'],
+      },
+    },
+    direction: { type: 'string', enum: ['vertical', 'horizontal'], description: 'class/object/state diagram layout (default: class diagrams with inheritance vertical, else horizontal)' },
+    objects: {
+      type: 'array', maxItems: 16, description: 'object_diagram: the objects',
+      items: { type: 'object', properties: { name: { type: 'string' }, class: { type: 'string' }, values: linesOrCount }, required: ['class'] },
+    },
+    links: {
+      type: 'array', maxItems: 30, description: 'object_diagram: links between objects',
+      items: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string' }, directed: { type: 'boolean' }, blank: { type: 'boolean' } }, required: ['from', 'to'] },
+    },
+    participants: looseList(10, 'sequence_diagram: lifelines, e.g. ":Kunde" or {name, kind: "actor"}'),
+    messages: {
+      type: 'array', maxItems: 60, description: 'sequence_diagram: {from, to, text, kind?, blank?} or a fragment {fragment, label, messages, else?}',
+      items: { type: 'object' },
+    },
+    activations: { type: 'boolean', description: 'sequence_diagram: activation bars (default true)' },
+    states: looseList(20, 'state_diagram: states, e.g. "Bereit" or {name, activities: ["entry / …"]}'),
+    transitions: {
+      type: 'array', maxItems: 40, description: 'state_diagram: transitions; "[*]" = initial/final state',
+      items: { type: 'object', properties: { from: { type: 'string' }, to: { type: 'string' }, label: { type: 'string' }, blank: { type: 'boolean' } }, required: ['from', 'to'] },
+    },
+    notation: { type: 'string', enum: ['uml', 'automaton', 'chen', 'minmax', 'crowsfoot'], description: 'state_diagram: uml|automaton; er_diagram: chen|minmax|crowsfoot' },
+    initial: { type: 'string', description: 'state_diagram: the start state (instead of a transition from "[*]")' },
+    accepting: strArray(20, 60),
+    steps: looseList(80, 'structogram: statements (strings) and control structures'),
+    entities: {
+      type: 'array', maxItems: 12, description: 'er_diagram: entities (tables)',
+      items: { type: 'object', properties: { name: { type: 'string' }, attributes: linesOrCount }, required: ['name'] },
+    },
+    relationships: {
+      type: 'array', maxItems: 16, description: 'er_diagram: relationships between entities',
+      items: {
+        type: 'object',
+        properties: {
+          name: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' }, from_card: { type: 'string' }, to_card: { type: 'string' },
+          attributes: strArray(6, 120), blank: { type: 'boolean' },
+        },
+        required: ['from', 'to'],
+      },
+    },
   },
   required: ['type'],
 };
@@ -266,7 +349,8 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       'Insert worksheet content in a consistent design: title, name line, numbered tasks, texts, cloze texts with word bank, lists, tables, ' +
       'multiple choice, true/false, matching, crossword, word search, reading texts with line numbers, formulas, number lines, coordinate ' +
-      'systems, charts, mind maps, QR codes, own SVG drawings, writing lines and lineatures, info boxes, hint cards, self-assessment, ' +
+      'systems, charts, mind maps, QR codes, own SVG drawings, computer science diagrams (UML class, object, sequence and state ' +
+      'diagrams, finite automata, structograms, ER diagrams – also to fill in), writing lines and lineatures, info boxes, hint cards, self-assessment, ' +
       'grade key, columns, music staves, page breaks. Use it to create a whole worksheet in one call (in reading order) or to add parts. ' +
       'Returns the index range of the new elements.',
     parameters: {
@@ -491,20 +575,23 @@ function str(v: unknown, max: number): string | null {
   return t.length > max ? t.slice(0, max) : t;
 }
 
+/** Nested structures that go deeper than other fields: structogram steps, sequence diagram fragments. */
+const DEEP_KEYS = new Set(['steps', 'messages']);
+
 /** Copy a value from the model: strings unescaped and bounded, arrays/objects bounded in size and depth. */
-function cleanValue(v: unknown, key: string, depth: number): unknown {
+function cleanValue(v: unknown, key: string, depth: number, maxDepth = 5): unknown {
   if (typeof v === 'string') {
     if (RAW_KEYS.has(key)) return v.slice(0, key === 'svg' ? 200000 : 20000);
     return unescapeText(v).slice(0, 4000);
   }
   if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
   if (typeof v === 'boolean' || v == null) return v;
-  if (depth > 5) return undefined;
-  if (Array.isArray(v)) return v.slice(0, 120).map((x) => cleanValue(x, key, depth + 1));
+  if (depth > maxDepth) return undefined;
+  if (Array.isArray(v)) return v.slice(0, 120).map((x) => cleanValue(x, key, depth + 1, maxDepth));
   if (typeof v === 'object') {
     const o: Record<string, unknown> = {};
     for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 40)) {
-      const c = cleanValue(x, k, depth + 1);
+      const c = cleanValue(x, k, depth + 1, maxDepth);
       if (c !== undefined) o[k] = c;
     }
     return o;
@@ -532,7 +619,7 @@ export function checkBlocks(raw: unknown, opts: { nested?: boolean; layout?: boo
     const base: Record<string, unknown> = {};
     for (const k of Object.keys(b)) {
       if (!ALLOWED_BLOCK_KEYS.has(k) || k === 'columns') continue;
-      const c = cleanValue(b[k], k, 0);
+      const c = cleanValue(b[k], k, 0, DEEP_KEYS.has(k) ? 16 : 5);
       if (c !== undefined) base[k] = c;
     }
     switch (type) {

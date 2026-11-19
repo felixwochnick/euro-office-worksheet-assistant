@@ -205,6 +205,30 @@ try {
     console.log('ok - picture via search_images (pictogram beside text, credit)');
   }
 
+  // 1h) computer science diagram: a class diagram to fill in and its solution (dagre layout in the browser, rasterised)
+  const cardsBefore = await frame.locator('.card').count();
+  await frame.locator('#chat-text').fill('Füge ein Klassendiagramm zum Ergänzen mit Lösung ein');
+  await frame.locator('#chat-send').click();
+  const umlCard = frame.locator('.card').nth(cardsBefore);
+  await umlCard.locator('button.primary').waitFor({ timeout: 15000 });
+  if (shot) await umlCard.screenshot({ path: `${shot}-uml.png` });
+  await umlCard.locator('button.primary').click();
+  await frame.locator('.msg.assistant', { hasText: 'Klassendiagramm zum Ergänzen' }).waitFor({ timeout: 15000 });
+  const uml = await page.evaluate(() => {
+    const out = [];
+    window.HarnessMock.state.elements.forEach((e) => (e.drawings || []).forEach((dr) => out.push({ descr: dr.descr || '', src: String(dr.src || '').slice(0, 22), wMm: dr.wMm, hMm: dr.hMm })));
+    return out.filter((x) => /^Klassendiagramm/.test(x.descr));
+  });
+  assert.equal(uml.length, 2, 'student version and solution');
+  assert.match(uml[0].descr, /^Klassendiagramm \(3 Klassen\)\n\nWSGRAPHIC \{"type":"class_diagram"/);
+  assert.match(uml[1].descr, /"show_answers":true/);
+  for (const u of uml) {
+    assert.equal(u.src, 'data:image/png;base64,');
+    assert.ok(u.wMm > 40 && u.wMm <= 171, `class diagram width ${u.wMm} mm`);
+  }
+  assert.equal(uml[0].wMm, uml[1].wMm, 'same layout');
+  console.log('ok - class diagram to fill in and its solution');
+
   // 2) manual mode: template after element 0, load + replace selected image
   await frame.locator('.tab[data-tab=manual]').click();
   await frame.locator('#m-template').selectOption('melody');
