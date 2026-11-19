@@ -8,7 +8,7 @@
  *   (cd apps/server && docker compose up -d)         # .env: LLM_PROVIDER=mock,
  *                                                    #   PROXY_TOKEN=dev-token-change-me-0123,
  *                                                    #   CORS_ORIGINS=http://localhost:8090
- *   npm install                                      # playwright-core (root)
+ *   pnpm install                                     # playwright-core (root)
  *
  *   node dev/eurooffice/e2e-real-editor.mjs [screenshot-dir]
  *

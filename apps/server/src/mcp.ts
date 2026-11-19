@@ -9,8 +9,9 @@
 import { createMcpHandler, McpServer, type CallToolResult, type McpHttpHandler, type StandardSchemaWithJSON } from '@modelcontextprotocol/server';
 import type { Identity } from './auth.js';
 import { Bridge, BridgeError } from './bridge.js';
-import { BASE_SYSTEM_PROMPT, renderDocumentContext } from './prompt.js';
-import { checkClientToolCall, CLIENT_TOOLS, executeServerTool, SERVER_TOOLS, TOOL_DEFINITIONS } from './tools.js';
+import { BASE_SYSTEM_PROMPT, PICTURE_PROMPT, renderDocumentContext } from './prompt.js';
+import type { ImageService } from './images.js';
+import { checkToolCall, CLIENT_TOOLS, runServerTool, SERVER_TOOLS, toolDefinitions } from './tools.js';
 import type { DocumentContext, ToolDefinition } from './types.js';
 
 export const MCP_INSTRUCTIONS =
@@ -39,12 +40,15 @@ const TITLES: Record<string, string> = {
   insert_empty_staves: 'Insert empty staves',
   replace_staff: 'Change music staff',
   convert_german_notes: 'Convert German note names to ABC',
+  search_images: 'Search pictures for worksheets',
   add_lyrics: 'Add lyrics to a tune',
   setup_page: 'Page setup, header and footer',
   check_worksheet: 'Check the worksheet',
 };
 
-const READ_ONLY = new Set(['list_open_documents', 'get_document_outline', 'get_elements', 'convert_german_notes', 'add_lyrics', 'check_worksheet']);
+const READ_ONLY = new Set(['list_open_documents', 'get_document_outline', 'get_elements', 'convert_german_notes', 'add_lyrics', 'check_worksheet', 'search_images']);
+/** Tools that reach services outside this server and the editor. */
+const OPEN_WORLD = new Set(['search_images']);
 const DESTRUCTIVE = new Set(['replace_elements', 'delete_elements', 'replace_staff']);
 
 /**
@@ -77,6 +81,8 @@ function withDocumentId(def: ToolDefinition): Record<string, unknown> {
 export interface McpOptions {
   bridge: Bridge;
   version: string;
+  /** Picture search (null/undefined = pictures switched off). */
+  images?: ImageService | null;
   /** Called after every tool call (for logging). */
   onToolCall?: (info: { user: string; tool: string; ok: boolean; ms: number }) => void;
 }
@@ -85,7 +91,7 @@ export interface McpOptions {
 export function buildMcpServer(identity: Identity, opts: McpOptions): McpServer {
   const server = new McpServer(
     { name: 'worksheet-assistant', title: 'Worksheet Assistant (Euro-Office)', version: opts.version },
-    { instructions: MCP_INSTRUCTIONS },
+    { instructions: opts.images ? `${MCP_INSTRUCTIONS}\n\n${PICTURE_PROMPT}` : MCP_INSTRUCTIONS },
   );
   const { bridge } = opts;
 
@@ -125,7 +131,8 @@ export function buildMcpServer(identity: Identity, opts: McpOptions): McpServer 
       }),
   );
 
-  for (const def of TOOL_DEFINITIONS) {
+  const ctx = { userId: identity.userId, images: opts.images ?? null };
+  for (const def of toolDefinitions(ctx)) {
     const name = def.name;
     const isClient = CLIENT_TOOLS.has(name);
     if (!isClient && !SERVER_TOOLS.has(name)) continue;
@@ -139,17 +146,17 @@ export function buildMcpServer(identity: Identity, opts: McpOptions): McpServer 
           readOnlyHint: READ_ONLY.has(name),
           destructiveHint: DESTRUCTIVE.has(name),
           idempotentHint: READ_ONLY.has(name),
-          openWorldHint: false,
+          openWorldHint: OPEN_WORLD.has(name),
         },
       },
       async (rawArgs: Record<string, unknown>) =>
         run(name, async () => {
           const { document_id, ...args } = rawArgs;
           if (!isClient) {
-            const result = executeServerTool({ id: 'mcp', name, arguments: args }) as { ok?: boolean };
+            const result = (await runServerTool({ id: 'mcp', name, arguments: args }, ctx)) as { ok?: boolean };
             return text(result, result?.ok === false);
           }
-          const check = checkClientToolCall({ id: 'mcp', name, arguments: args });
+          const check = await checkToolCall({ id: 'mcp', name, arguments: args }, ctx);
           if (!check.ok) return text({ ok: false, error: check.error }, true);
           const session = bridge.pick(identity.userId, typeof document_id === 'string' ? document_id : undefined);
           const result = (await session.call(name, check.args)) as Record<string, unknown> | null;

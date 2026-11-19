@@ -21,7 +21,9 @@
  *   table { t:'table', rows: [{ height?, cells: [{ content: [elements], shd?, valign?, borders?, width? }] }],
  *           widths? (percent), borders? (top…insideV: border or null = none), cellMargins?, description?, jc? }
  *   image runs: { image: { svg, widthMm, heightMm, alt } } or { image: { abc, widthCm, kind: 'staff' } };
- *           the plugin rasterises them and adds { dataUrl, wEmu, hEmu }.
+ *           the plugin rasterises them and adds { dataUrl, wEmu, hEmu }. Pictures (block picture) arrive with
+ *           { dataUrl, wEmu, hEmu, widthMm, heightMm, alt, kind: 'picture' } when the plugin loaded them
+ *           (block.picture_data), otherwise without dataUrl (layout check in the proxy).
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -66,12 +68,12 @@
   var BLOCK_TYPES = [
     'title', 'name_line', 'heading', 'paragraph', 'task', 'list', 'table', 'lines', 'box', 'cloze', 'word_bank',
     'multiple_choice', 'true_false', 'matching', 'crossword', 'word_search', 'reading_text', 'formula',
-    'number_line', 'coordinate_system', 'chart', 'mindmap', 'qr_code', 'svg', 'cut_line', 'self_assessment',
+    'number_line', 'coordinate_system', 'chart', 'mindmap', 'qr_code', 'picture', 'svg', 'cut_line', 'self_assessment',
     'hint_cards', 'grade_key', 'columns', 'staff', 'empty_staves', 'page_break', 'spacer'
   ];
   var LINE_STYLES = ['plain', 'school1', 'school2', 'school3', 'school4', 'grid5', 'grid10'];
   var GRAPHIC_TYPES = ['lineature', 'crossword', 'word_search', 'number_line', 'coordinate_system', 'chart', 'mindmap',
-    'qr_code', 'svg', 'cut_line'];
+    'qr_code', 'picture', 'svg', 'cut_line'];
 
   // ---------------------------------------------------------------------------
   // Units and small helpers
@@ -831,6 +833,46 @@
   builders.qr_code = function (b, c) {
     var g = svgLib().qrCode(str(b.url), svgOpts(c, { sizeMm: b.size_cm != null ? clamp(num(b.size_cm, 2.5), 1.5, 8) * 10 : 25, label: b.caption, color: '#000000' }));
     return [imagePara(c, imageRun(g, graphicAlt('QR-Code: ' + str(b.url), sourceOf(b, 'qr_code'))), { jc: b.align === 'left' ? 'left' : b.align === 'right' ? 'right' : 'center', after: 160 })];
+  };
+
+  /**
+   * A picture from search_images. b.picture_data = { dataUrl, width, height } is added by the plugin (loaded through the
+   * proxy), b.picture_meta = { title, credit, width?, height? } by the proxy. The credit (licence) is printed below.
+   */
+  builders.picture = function (b, c) {
+    var id = str(b.image_id).trim();
+    if (!/^(arasaac|commons|own):./.test(id)) throw blockError('picture needs "image_id" from search_images.');
+    var data = b.picture_data && typeof b.picture_data === 'object' ? b.picture_data : null;
+    var meta = b.picture_meta && typeof b.picture_meta === 'object' ? b.picture_meta : {};
+    var pw = num(data && data.width, 0) || num(meta.width, 0) || 4;
+    var ph = num(data && data.height, 0) || num(meta.height, 0) || 3;
+    var wMm = clamp(num(b.width_cm, 5), 1.5, c.widthMm / 10) * 10;
+    var hMm = wMm * ph / pw;
+    var maxH = 160; // fits the text area of A4/A5 in portrait and landscape
+    if (hMm > maxH) { wMm = wMm * maxH / hMm; hMm = maxH; }
+    var title = str((data && data.title) || meta.title || '').trim();
+    var credit = str(data && data.credit != null ? data.credit : meta.credit || '').trim();
+    var source = { type: 'picture', image_id: id };
+    ['width_cm', 'align', 'caption'].forEach(function (k) { if (b[k] != null) source[k] = b[k]; });
+    var im = { widthMm: wMm, heightMm: hMm, alt: graphicAlt(title ? 'Bild: ' + title : 'Bild', source), kind: 'picture' };
+    if (data && data.dataUrl) {
+      im.dataUrl = data.dataUrl;
+      im.wEmu = Math.round(wMm * 36000);
+      im.hEmu = Math.round(hMm * 36000);
+    }
+    var jc = b.align === 'left' || b.align === 'right' ? b.align : 'center';
+    var below = [];
+    if (b.caption) below.push(para(textRuns(b.caption, c.small), { jc: jc, after: 0, keepNext: !!credit }));
+    if (credit) {
+      // a plain run: author names must not be read as **markup**
+      var cr = { text: credit, size: Math.max(6, (c.small.size || 9) - 2) };
+      if (c.small.font) cr.font = c.small.font;
+      if (c.small.color) cr.color = c.small.color;
+      below.push(para([cr], { jc: jc, after: 0 }));
+    }
+    var out = [imagePara(c, { image: im }, { jc: jc, after: below.length ? 20 : 160, keepNext: below.length ? true : undefined })];
+    if (below.length) below[below.length - 1].after = 160;
+    return out.concat(below);
   };
 
   builders.svg = function (b, c) {

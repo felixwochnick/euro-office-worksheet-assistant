@@ -4,7 +4,7 @@
  * application). Use an official Node 24 LTS build: newer official Linux builds need libatomic.so.1, distribution
  * builds link system libraries – both would not run everywhere.
  *
- *   npm ci                           # dependencies of all workspaces
+ *   pnpm install                     # dependencies of all workspaces
  *   bash scripts/build.sh            # plugin (dist/worksheet-assistant/)
  *   node scripts/build-companion.mjs # -> dist/companion/worksheet-assistant[.exe]
  *                                    #    dist/worksheet-assistant-<os>-<arch>.zip

@@ -14,17 +14,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
-      # npm workspaces: build tools (root), packages/shared and apps/server – not the desktop app or the website
+      # pnpm workspace: build tools (root), packages/shared and apps/server – not the desktop app or the website
       - name: Install dependencies
-        run: npm ci --include-workspace-root -w @worksheet-assistant/shared -w @worksheet-assistant/server
+        run: pnpm install --frozen-lockfile --filter '!@worksheet-assistant/desktop' --filter '!@worksheet-assistant/website'
 
       - name: Unit tests (packages/shared + apps/server)
-        run: npm test
+        run: pnpm test
 
       - name: Build plugin
         run: bash scripts/build.sh
@@ -44,7 +46,7 @@ jobs:
             CORS_ORIGINS=http://localhost:8080 PORT=8788 LOG_LEVEL=warn node build/src/server.js &)
           node scripts/serve.mjs 8080 &
           for i in $(seq 1 30); do curl -fs http://localhost:8788/healthz && curl -fs -o /dev/null http://localhost:8080/apps/plugin/harness/ && break; sleep 1; done
-          npm run e2e
+          pnpm e2e
 
       - name: Server Docker image builds
         run: docker build -f apps/server/Dockerfile -t worksheet-assistant-server:ci .
@@ -81,11 +83,13 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           # Node 24 LTS: its Linux build does not need libatomic (Node >= 25 does)
           node-version: 24
-          cache: npm
+          cache: pnpm
 
       - uses: dtolnay/rust-toolchain@stable
         with:
@@ -108,7 +112,7 @@ jobs:
 
       - name: Build
         run: |
-          npm ci --include-workspace-root -w @worksheet-assistant/server -w @worksheet-assistant/desktop
+          pnpm install --frozen-lockfile --filter '!@worksheet-assistant/website'
           node scripts/build-desktop.mjs --target ${{ matrix.target }} -- --debug
 
       - name: Rust checks

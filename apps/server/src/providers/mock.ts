@@ -173,6 +173,38 @@ export class MockProvider implements LLMProvider {
       };
     }
 
+    // W0a) "Füge ein Bild vom Fuchs ein" -> search_images, then the first result beside a short text (columns)
+    const picture = /\b(bild|piktogramm|picture)\b/i.exec(userText) && /(?:vo[mn]|zum|zur|of an?|of)\s+(?:dem\s+|der\s+|einem\s+|einer\s+|the\s+)?([\p{L}-]+)/iu.exec(userText);
+    if (picture) {
+      if (!req.tools.some((t) => t.name === 'search_images')) {
+        return { content: 'Mock-Modus: Bilder sind auf diesem Server ausgeschaltet.', tool_calls: [] };
+      }
+      const query = picture[1];
+      if (done('search_images').length === 0) {
+        return { content: '', tool_calls: [{ id: nextId(), name: 'search_images', arguments: { query, source: /foto|photo/i.test(userText) ? 'photos' : /eigen|own/i.test(userText) ? 'own' : 'pictograms', limit: 3 } }] };
+      }
+      const found = parseResult(done('search_images')[0]) as { ok?: boolean; results?: Array<{ image_id: string; title: string }>; error?: string; notes?: string[] };
+      const first = found.results?.[0];
+      if (!first) return { content: `Mock-Modus: kein Bild zu „${query}“ gefunden. ${(found.notes ?? []).join(' ')}${found.error ?? ''}`.trim(), tool_calls: [] };
+      if (done('insert_blocks').length === 0) {
+        const blocks = [
+          {
+            type: 'columns',
+            widths: [1, 3],
+            columns: [
+              [{ type: 'picture', image_id: first.image_id, width_cm: 3 }],
+              [{ type: 'paragraph', text: `Das ist **${first.title}**. Schreibe das Wort ab.` }, { type: 'lines', count: 2, style: 'school2' }],
+            ],
+          },
+        ];
+        return { content: '', tool_calls: [{ id: nextId(), name: 'insert_blocks', arguments: { position: 'end', blocks } }] };
+      }
+      const res = parseResult(done('insert_blocks')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Einfügen fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      if (res.inserted === false) return { content: 'Mock-Modus: Bild verworfen.', tool_calls: [] };
+      return { content: `Fertig (Mock-Modus): Bild „${first.title}“ (${first.image_id}) eingefügt.`, tool_calls: [] };
+    }
+
     // W0b) "Richte die Seite ein …" -> setup_page (header with school and logo, page numbers)
     if (/(seite einrichten|richte die seite|kopfzeile|page setup)/i.test(userText)) {
       if (done('setup_page').length === 0) {

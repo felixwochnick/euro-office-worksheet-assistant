@@ -10,14 +10,14 @@ on:
       - "apps/website/**"
       - "packages/shared/abc-tools.js"
       - "apps/desktop/package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
       - "apps/website/**"
       - "packages/shared/abc-tools.js"
       - "apps/desktop/package.json"
-      - "package-lock.json"
+      - "pnpm-lock.yaml"
       - ".github/workflows/pages.yml"
   workflow_dispatch:
 
@@ -36,16 +36,18 @@ jobs:
         with:
           persist-credentials: false
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
+          cache: pnpm
 
-      # npm workspaces: only the website (and the shared package it imports)
-      - run: npm ci -w @worksheet-assistant/website
+      # pnpm workspace: only the website (and the shared package it imports)
+      - run: pnpm install --frozen-lockfile --filter '@worksheet-assistant/website...'
 
       - name: Build (static, github_pages preset)
-        run: npm run build -w @worksheet-assistant/website
+        run: pnpm --filter @worksheet-assistant/website build
         env:
           NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
 

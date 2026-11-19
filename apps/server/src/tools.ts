@@ -4,13 +4,14 @@
  * Client tools are executed by the plugin inside the editor:
  *   insert_staff, insert_empty_staves, replace_staff, get_document_outline
  * Server tools are executed directly by the proxy (no round trip):
- *   convert_german_notes, add_lyrics
+ *   convert_german_notes, add_lyrics, search_images
  *
  * Arguments of client tools are validated here first. Invalid ABC never
  * reaches the plugin – the model gets the validation errors as tool result
  * and can correct itself.
  */
 import { abcTools } from './abc.js';
+import { ImageError, type ImageService, type ImageSource } from './images.js';
 import { worksheet } from './worksheet.js';
 import type { ToolCall, ToolDefinition } from './types.js';
 
@@ -46,6 +47,9 @@ const textSchema = (desc: string) => ({ type: 'string', maxLength: 4000, descrip
 const strArray = (maxItems: number, maxLength = 500) => ({ type: 'array', items: { type: 'string', maxLength }, maxItems });
 const numArray = (maxItems: number) => ({ type: 'array', items: { type: 'number' }, maxItems });
 
+const PICTURE_DOC =
+  'picture {image_id, width_cm? (default 5), align? left|center|right, caption?} = a picture (pictogram, photo, clipart or the user\'s own picture) – image_id ONLY from search_images; ';
+
 const BLOCK_TYPE_DOC =
   'title {text, subtitle?, subject?, grade?} = worksheet title (top of the sheet); ' +
   'name_line {fields?} = Name/Klasse/Datum fields; ' +
@@ -66,6 +70,7 @@ const BLOCK_TYPE_DOC =
   'coordinate_system {x_min, x_max, y_min, y_max, step?, unit_mm?, grid?, points[{x,y,label}]?, segments[{from:[x,y], to:[x,y]}]?, polygons[{points:[[x,y]…], label}]?}; ' +
   'chart {chart_type column|bar|line|pie, title?, labels[], series[{name, values[]}], x_label?, y_label?, blank? (empty axes to draw in)}; ' +
   'mindmap {center, branches[{text, children[]}], blank? (empty bubbles)}; qr_code {url, caption?, size_cm?}; ' +
+  PICTURE_DOC +
   'svg {svg, width_cm?, caption?} = your own simple drawing (SVG markup); cut_line {label?}; ' +
   'self_assessment {statements[], title?} = "Das kann ich" table with smileys; hint_cards {cards[{title?, text}], columns? 1-3} = cut-out tip cards; ' +
   'grade_key {total_points, thresholds?[5] (percent for grades 1-5), step? 0.5|1} = points-to-grade table; ' +
@@ -164,6 +169,7 @@ const blockSchema = {
     thresholds: numArray(5),
     abc: { type: 'string' },
     width_cm: { type: 'number', minimum: 1, maximum: 19 },
+    image_id: { type: 'string', maxLength: 600, description: 'picture: id from a search_images result' },
     clef: { type: 'string', enum: ['treble', 'bass'] },
     measures: { type: 'integer', minimum: 0, maximum: 8 },
     lines: { type: 'integer', minimum: 1, maximum: 10 },
@@ -372,6 +378,30 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
         },
       },
       required: ['notes'],
+      additionalProperties: false,
+    },
+  },
+  {
+    name: 'search_images',
+    description:
+      'Find pictures for a worksheet: pictograms (ARASAAC – simple, clear drawings of objects, animals, actions and feelings, ' +
+      'ideal for primary and special-needs schools; search in German), photos/drawings/historical pictures (Wikimedia Commons – ' +
+      'real animals, plants, places, art, Roman or medieval pictures; English search terms often find more) and the user\'s own ' +
+      'pictures (a picture folder the teacher fills, e.g. comic panels, scans, own photos; matched by file and folder names). ' +
+      'Returns image_id, title, keywords/description and size; put a chosen picture on the sheet with a picture block {image_id}. ' +
+      'The licence credit is printed automatically.',
+    parameters: {
+      type: 'object',
+      properties: {
+        query: { type: 'string', minLength: 1, maxLength: 100, description: 'One or two words for what the picture shows, e.g. "Fuchs", "lesen", "Roman legionary". "*" lists the user\'s own pictures.' },
+        source: {
+          type: 'string',
+          enum: ['all', 'pictograms', 'photos', 'own'],
+          description: 'pictograms = ARASAAC, photos = Wikimedia Commons, own = the user\'s picture folder, all (default) = every available source.',
+        },
+        limit: { type: 'integer', minimum: 1, maximum: 12, description: 'Results per source (default 6).' },
+      },
+      required: ['query'],
       additionalProperties: false,
     },
   },
@@ -606,6 +636,21 @@ export function checkBlocks(raw: unknown, opts: { nested?: boolean; layout?: boo
         out.push({ ...base, type, columns: Number.isInteger(n) && n >= 1 && n <= 3 ? n : 2 });
         break;
       }
+      case 'picture': {
+        const id = typeof b.image_id === 'string' ? b.image_id.trim() : '';
+        if (!/^(arasaac|commons|own):./s.test(id)) {
+          return { error: `${at}: picture needs "image_id" from a search_images result (e.g. "arasaac:2623") – call search_images first.` };
+        }
+        const p: Record<string, unknown> = { ...base, type, image_id: id };
+        if (b.width_cm != null) {
+          const w = Number(b.width_cm);
+          if (!Number.isFinite(w)) return { error: `${at}: picture "width_cm" must be a number.` };
+          p.width_cm = Math.min(19, Math.max(1.5, w));
+        }
+        if (!['left', 'center', 'right'].includes(String(b.align))) delete p.align;
+        out.push(p);
+        break;
+      }
       case 'qr_code': {
         const url = str(b.url, 600);
         if (!url?.trim()) return { error: `${at}: qr_code needs "url".` };
@@ -650,7 +695,98 @@ function checkRange(a: Record<string, unknown>, needTo: boolean): { from: number
   if (to - from > 200) return 'At most 200 elements per call.';
   return { from, to };
 }
-export const SERVER_TOOLS = new Set(['convert_german_notes', 'add_lyrics']);
+export const SERVER_TOOLS = new Set(['convert_german_notes', 'add_lyrics', 'search_images']);
+
+/** What async tool handling needs: the user (own pictures) and the picture service (null = pictures off). */
+export interface ToolContext {
+  userId: string;
+  images?: ImageService | null;
+}
+
+/** The tools offered to the model (search_images only when pictures are available). */
+export function toolDefinitions(ctx: { images?: ImageService | null }): ToolDefinition[] {
+  return ctx.images ? TOOL_DEFINITIONS : TOOLS_WITHOUT_PICTURES;
+}
+
+/** Without pictures the model is not told about picture blocks either. */
+const TOOLS_WITHOUT_PICTURES: ToolDefinition[] = TOOL_DEFINITIONS.filter((d) => d.name !== 'search_images').map((d) => {
+  if (d.name !== 'insert_blocks' && d.name !== 'replace_elements') return d;
+  const params = JSON.parse(JSON.stringify(d.parameters)) as { properties: { blocks: { items: { properties: Record<string, { description?: string; enum?: string[] }> } } } };
+  const props = params.properties.blocks.items.properties;
+  props.type.description = String(props.type.description).replace(PICTURE_DOC, '');
+  props.type.enum = props.type.enum!.filter((t) => t !== 'picture');
+  delete props.image_id;
+  return { ...d, parameters: params };
+});
+
+function pictureBlocks(blocks: Record<string, unknown>[], out: Record<string, unknown>[] = []): Record<string, unknown>[] {
+  for (const b of blocks) {
+    if (b.type === 'picture') out.push(b);
+    else if (b.type === 'columns' && Array.isArray(b.columns)) for (const col of b.columns) if (Array.isArray(col)) pictureBlocks(col as Record<string, unknown>[], out);
+  }
+  return out;
+}
+
+/**
+ * Validate a client tool call, including what needs the network: picture blocks must name a picture that exists.
+ * Their metadata (title, credit, aspect ratio – a few bytes, no image data) is stored on the block as picture_meta.
+ */
+export async function checkToolCall(call: ToolCall, ctx: ToolContext): Promise<ToolCheck> {
+  const check = checkClientToolCall(call);
+  if (!check.ok || (call.name !== 'insert_blocks' && call.name !== 'replace_elements')) return check;
+  const pics = pictureBlocks(check.args.blocks as Record<string, unknown>[]);
+  if (!pics.length) return check;
+  const verb = call.name === 'insert_blocks' ? 'Nothing was inserted.' : 'Nothing was changed.';
+  if (!ctx.images) return { ok: false, args: call.arguments, error: `${verb} Pictures are switched off on this server – remove the picture blocks.` };
+  try {
+    await Promise.all(
+      pics.map(async (b) => {
+        const m = await ctx.images!.describe(String(b.image_id), ctx.userId);
+        b.image_id = m.image_id; // canonical id (what the plugin fetches)
+        b.picture_meta = { title: m.title, credit: m.credit, ...(m.width && m.height ? { width: m.width, height: m.height } : {}) };
+      }),
+    );
+  } catch (err) {
+    const msg = err instanceof ImageError ? err.message : `A picture could not be checked (${(err as Error).message}) – try again or leave it out.`;
+    return { ok: false, args: call.arguments, error: `${verb} ${msg}` };
+  }
+  return check;
+}
+
+const SOURCE_ARG: Record<string, ImageSource[] | undefined> = { pictograms: ['arasaac'], photos: ['commons'], own: ['own'] };
+
+/** Execute a server tool (async: search_images needs the network). */
+export async function runServerTool(call: ToolCall, ctx: ToolContext): Promise<unknown> {
+  if (call.name !== 'search_images') return executeServerTool(call);
+  const a = call.arguments ?? {};
+  const images = ctx.images;
+  if (!images) return { ok: false, error: 'Pictures are switched off on this server.' };
+  const query = typeof a.query === 'string' ? a.query.trim() : '';
+  if (!query) return { ok: false, error: '"query" must be a non-empty string.' };
+  const source = a.source == null || a.source === 'all' ? undefined : SOURCE_ARG[String(a.source)];
+  if (a.source != null && a.source !== 'all' && !source) return { ok: false, error: '"source" must be all, pictograms, photos or own.' };
+  if (source && !images.sources.has(source[0])) {
+    return { ok: false, error: source[0] === 'own' ? 'Own pictures are not set up on this server.' : `The source "${a.source}" is switched off on this server.` };
+  }
+  const limit = Number.isInteger(a.limit) ? Number(a.limit) : undefined;
+  const r = await images.search(query, { sources: source, limit, userId: ctx.userId });
+  const results = r.results.map((m) => {
+    const o: Record<string, unknown> = { image_id: m.image_id, source: m.source === 'arasaac' ? 'pictogram' : m.source === 'commons' ? 'photo/drawing' : 'own', title: m.title };
+    if (m.description) o.description = m.description;
+    if (m.keywords?.length) o.keywords = m.keywords;
+    if (m.width && m.height) o.size = `${m.width}x${m.height}`;
+    if (m.license) o.license = m.license;
+    return o;
+  });
+  const out: Record<string, unknown> = { ok: true, query, results };
+  if (r.notes.length) out.notes = r.notes;
+  out.hint = results.length
+    ? 'Choose pictures that clearly show what the task is about and add them as picture blocks {image_id} (beside text: columns). ' +
+      'Prefer one picture style per worksheet. If nothing fits, try another word (singular, a synonym, English for photos) or leave it out.'
+    : 'Nothing found. Try a simpler or more general word (singular), another source, or English terms for photos.' +
+      (images.sources.has('own') ? ` Own pictures are searched by file and folder names in ${images.folderName}.` : '');
+  return out;
+}
 
 /** Lyrics that do not fit the notes are rejected for the AI (the manual mode only warns). */
 function lyricsProblem(v: { warnings: Array<{ code: string; line?: number; syllables?: number; notes?: number }> }): string | null {

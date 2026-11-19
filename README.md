@@ -23,6 +23,12 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
   QR codes, simple SVG drawings by the AI, German primary-school **lineatures** (Lineatur 1–4) and squared paper.
   Formulas are inserted as native, editable equations from LaTeX. Graphics keep their source in the alt text, so the
   AI can change them later.
+- **Pictures** – worksheets for primary and special-needs schools need not be text only: the AI searches pictures
+  (tool `search_images`) and places them (block `picture`, beside text with `columns`). Sources: **ARASAAC**
+  pictograms (simple, consistent drawings made for special-needs teaching, German keywords), **Wikimedia Commons**
+  (photos, drawings, historical pictures) and the teacher's **own pictures** – a folder in their Nextcloud
+  (`Arbeitsblatt-Bilder`), e.g. comic panels for Latin or own photos. The licence credit of free pictures is printed
+  under the picture automatically. See [Pictures](#pictures).
 - **Page setup and house style** – paper size, orientation, margins, columns, header with school name and logo
   (from the settings) and footer with page numbers (tool `setup_page`).
 - **Quality check** – after creating a worksheet the AI runs `check_worksheet`: task numbering, instructions, space
@@ -95,7 +101,8 @@ note converter and installation guide in German, English, French, Spanish, Itali
 
 ## Repository layout
 
-A monorepo with npm workspaces: one `npm ci` in the root installs everything (one `package-lock.json`); the
+A monorepo with a pnpm workspace (`pnpm-workspace.yaml`): one `pnpm install` in the root installs everything (one
+`pnpm-lock.yaml`; pnpm's version is pinned in `packageManager` of `package.json`, e.g. via `corepack enable`); the
 packages are named `@worksheet-assistant/<name>`.
 
 | Path | Content |
@@ -124,12 +131,12 @@ Root scripts:
 
 | Command | What it does |
 |---------|--------------|
-| `npm ci` | Installs all workspaces (CI installs only the ones a job needs, e.g. `npm ci --include-workspace-root -w @worksheet-assistant/server`) |
-| `npm test` | Unit tests of `packages/shared` and `apps/server` |
-| `npm run build` | Plugin (`scripts/build.sh`) and server (`tsc`) |
-| `npm run build:companion` / `build:desktop` / `build:website` | The desktop app's server program / the desktop app / the website |
-| `npm run e2e` | End-to-end test of the plugin in the harness (see [Local test harness](#local-test-harness-no-euro-office-needed)) |
-| `npm run dev:server` / `dev:desktop` / `dev:website` | Server with `apps/server/.env` / the desktop app (`tauri dev`) / the website |
+| `pnpm install` | Installs all packages (CI installs only the ones a job needs, e.g. `pnpm install --frozen-lockfile --filter '!@worksheet-assistant/desktop' --filter '!@worksheet-assistant/website'`) |
+| `pnpm test` | Unit tests of `packages/shared` and `apps/server` |
+| `pnpm build` | Plugin (`scripts/build.sh`) and server (`tsc`) |
+| `pnpm build:companion` / `build:desktop` / `build:website` | The desktop app's server program / the desktop app / the website |
+| `pnpm e2e` | End-to-end test of the plugin in the harness (see [Local test harness](#local-test-harness-no-euro-office-needed)) |
+| `pnpm dev:server` / `dev:desktop` / `dev:website` | Server with `apps/server/.env` / the desktop app (`tauri dev`) / the website |
 
 ## Build
 
@@ -153,7 +160,7 @@ builds need `libatomic.so.1`, distribution packages link system libraries – th
 everywhere). On Linux also `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf`.
 
 ```bash
-npm ci                                 # all workspaces (or: npm run build:desktop, which installs if needed)
+pnpm install                           # all packages (or: pnpm build:desktop, which installs if needed)
 node scripts/build-desktop.mjs         # -> apps/desktop/src-tauri/target/<target>/release/bundle/
 node scripts/collect-desktop.mjs <target>   # optional: installers under the release names in dist/desktop/
 ```
@@ -166,10 +173,10 @@ checks that the server program starts on a minimal Ubuntu.
 
 Working on the window's UI:
 
-- without Rust: `npm run dev -w @worksheet-assistant/desktop` opens the UI in the browser with a simulated backend
+- without Rust: `pnpm --filter @worksheet-assistant/desktop dev` opens the UI in the browser with a simulated backend
   (URL parameter `?scenario=fresh|ready|error|update|starting`);
 - with Rust: `node scripts/build-desktop.mjs --stub` (placeholders for the server program), then
-  `npm run dev:desktop` (`tauri dev`).
+  `pnpm dev:desktop` (`tauri dev`).
 
 ## Installation
 
@@ -388,8 +395,8 @@ curl http://localhost:8787/healthz           # {"ok":true}
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8787/v1/info
 ```
 
-The image is built from the repository root (npm workspaces: the proxy uses `packages/shared`); `docker compose`
-handles that. Without Docker: `npm ci` in the repository root, then `npm run dev:server` (builds and starts it with
+The image is built from the repository root (pnpm workspace: the proxy uses `packages/shared`); `docker compose`
+handles that. Without Docker: `pnpm install` in the repository root, then `pnpm dev:server` (builds and starts it with
 `apps/server/.env`).
 
 | Variable | Default | Meaning |
@@ -411,6 +418,8 @@ handles that. Without Docker: `npm ci` in the repository root, then `npm run dev
 | `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`, `LLM_TIMEOUT_MS` | `0.2`, `8192`, `120000` | Model parameters. Reasoning models (current `mistral-large-latest`) spend part of `LLM_MAX_TOKENS` on "thinking" – values that are too low end in empty answers |
 | `LLM_REASONING_EFFORT` | `medium` for Mistral, otherwise not sent | `reasoning_effort` for reasoning models (`low`/`medium`/`high`, `off` = not sent). Without it `mistral-large-latest` can "think" for minutes and run out of tokens. Models that reject it are retried automatically without the parameter |
 | `MAX_ITERATIONS` | `6` | Max. tool rounds per user message; afterwards the model must answer in text |
+| `IMAGE_SOURCES` | `arasaac,commons,own` | Picture sources for worksheets (see [Pictures](#pictures)); `none` switches pictures off |
+| `IMAGE_FOLDER` | `Arbeitsblatt-Bilder` with `AUTH_MODE=nextcloud`, otherwise – | Own pictures: folder in each user's Nextcloud; in `token`/`local` mode an absolute local path (e.g. `/pictures`, mounted into the container) |
 | `BODY_LIMIT_BYTES`, `PORT`, `HOST`, `LOG_LEVEL` | `1000000`, `8787`, `0.0.0.0`, `info` | Server settings |
 
 Local model with Ollama: `docker compose --profile ollama up -d`, `docker compose exec ollama ollama pull qwen2.5:7b`,
@@ -428,6 +437,7 @@ Serve the proxy via HTTPS: the editor runs on HTTPS and browsers block requests 
 | `GET /v1/meta` | public: version, `auth_mode`, chat available, MCP address |
 | `GET /v1/info` | connection test (authenticated) |
 | `POST /v1/chat` | one agent step of the AI chat (below) |
+| `POST /v1/images/fetch` | a picture for a worksheet as data URL (`{image_id}` from `search_images`; the plugin loads pictures right before inserting, so no image data is kept in the chat history) |
 | `POST /v1/auth/login`, `/v1/auth/login/poll`, `/v1/auth/logout` | `AUTH_MODE=nextcloud`: plugin sign-in with Nextcloud Login Flow v2 |
 | `GET /v1/bridge` | WebSocket from the plugin (MCP bridge) |
 | `POST /mcp` | MCP endpoint (Streamable HTTP, stateless; protocol 2026-07-28 and 2025 clients) |
@@ -458,6 +468,7 @@ Tools offered to the model (JSON Schema in `apps/server/src/tools.ts`):
 | `get_document_outline()` | plugin | headings/paragraphs with indices, cursor, ABC of existing staves |
 | `convert_german_notes({notes, clef, digits})` | proxy | deterministic German note names → ABC |
 | `add_lyrics({abc, lyrics, mode})` | proxy | distribute hyphenated text over the notes (`w:` lines); `mode: "verse"` adds a verse |
+| `search_images({query, source, limit})` | proxy | pictures for worksheets: `pictograms` (ARASAAC), `photos` (Wikimedia Commons), `own` (picture folder) or `all`; returns `image_id`s for `picture` blocks |
 
 ABC in `insert_staff` is validated on the proxy (headers `X: M: L: K:` incl. `clef=`, no German `h`/`fis` in the
 body, balanced brackets …). Invalid ABC is sent back to the model with the errors instead of reaching the editor.
@@ -565,6 +576,9 @@ Worksheets (any subject):
 - „Richte die Seite im Querformat ein, mit unserem Schullogo in der Kopfzeile und Seitenzahlen.“
 - „Füge die Lösungen auf einer neuen Seite hinzu.“
 - „Prüfe das Arbeitsblatt.“
+- „Erstelle ein Arbeitsblatt zu Haustieren für die Förderschule (Lernen), Klasse 2 – mit Piktogrammen zu jedem Wort.“
+- „Setze neben Aufgabe 1 ein Bild von einem Fuchs.“
+- „Nimm für das Latein-Arbeitsblatt Bilder aus meinem Asterix-Ordner.“ (own pictures, see [Pictures](#pictures))
 
 Music:
 
@@ -645,8 +659,8 @@ separate notes only in lists of lower-case names (`c, f, g`); after upper-case n
 ## Development
 
 ```bash
-npm ci                      # all workspaces; playwright-core for the e2e test (no browser download)
-npm test                    # unit tests (packages/shared) + server tests (agent loop, providers, server, companion)
+pnpm install                # all packages; playwright-core for the e2e test (no browser download)
+pnpm test                   # unit tests (packages/shared) + server tests (agent loop, providers, server, companion)
 ```
 
 ### Releases
@@ -665,7 +679,7 @@ then:
 **Signing key for the app's self-updates** (once): create a key pair with
 
 ```bash
-npm ci && npx tauri signer generate -w ~/.tauri/worksheet-assistant.key
+pnpm install && pnpm --filter @worksheet-assistant/desktop exec tauri signer generate -w ~/.tauri/worksheet-assistant.key
 ```
 
 and store the private key as repository secret `TAURI_SIGNING_PRIVATE_KEY` (its password as
@@ -679,9 +693,9 @@ SmartScreen (see [D](#d--desktop-app-windows-macos-linux)). Code signing can be 
 ### Website
 
 ```bash
-npm ci
-npm run dev:website                                                    # http://localhost:3000
-NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ npm run build:website   # static site in apps/website/.output/public
+pnpm install
+pnpm dev:website                                                    # http://localhost:3000
+NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ pnpm build:website   # static site in apps/website/.output/public
 ```
 
 The live demo imports `@worksheet-assistant/shared/abc-tools.js`, so it always uses the same converter as the plugin. The site is
@@ -710,7 +724,7 @@ like the example above; with a real provider key the harness talks to the real m
 Note: with `LLM_PROVIDER=mock` the chat is **not an AI** – the mock only recognises a note list (the longest run of
 note names in the message), a task heading ("Aufgabe 2") and "leere Zeile". Use a real provider to test free-form requests.
 
-`npm run e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
+`pnpm e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
 `/usr/bin/chromium`).
 
 ### Testing with a real Nextcloud (sign-in, MCP, OAuth)
@@ -721,7 +735,7 @@ flow (registration, PKCE, Nextcloud login, consent, refresh, revocation in Nextc
 Euro-Office (next section):
 
 ```bash
-bash scripts/build.sh && npm run build:server
+bash scripts/build.sh && pnpm build:server
 (cd dev/eurooffice && docker compose up -d)
 (cd dev/nextcloud && docker compose up -d && ./setup.sh)
 node dev/nextcloud/e2e-nextcloud.mjs
@@ -743,6 +757,33 @@ node dev/eurooffice/e2e-real-editor.mjs       # automated test incl. saving and 
 
 After a rebuild the mounted plugin is updated in place; just reload the editor page. `GET /reset` on the storage
 starts again from the original worksheet with a new document key.
+
+## Pictures
+
+The AI can put pictures on worksheets – by default in primary and special-needs worksheets, otherwise when asked. It
+searches with `search_images`, chooses by title, keywords and description and places a `picture` block (size,
+alignment, caption; beside text with `columns`). Pictures keep their id in the alt text, so the AI can change or
+replace them later.
+
+| Source | What | Licence / credit |
+|--------|------|------------------|
+| `arasaac` | [ARASAAC](https://arasaac.org) pictograms: simple, consistent drawings of objects, animals, actions and feelings, made for special-needs teaching; searched in German | CC BY-NC-SA 4.0 – free for non-commercial use such as school; the credit (*Sergio Palao, ARASAAC*) is printed under the picture |
+| `commons` | [Wikimedia Commons](https://commons.wikimedia.org): photos, drawings, maps, art and historical pictures | free licences (CC0, CC BY, CC BY-SA …); author and licence are printed under the picture |
+| `own` | the teacher's own pictures in the picture folder, matched by file and folder names (`Asterix/obelix-hinkelstein.png`) | none – the teacher decides what may be used in class |
+
+**Own pictures:** with `AUTH_MODE=nextcloud` every user creates the folder **`Arbeitsblatt-Bilder`** (`IMAGE_FOLDER`)
+in their Nextcloud and puts pictures in it (subfolders up to three levels and 150 folders, PNG, JPEG, GIF, WebP, SVG,
+and HEIC/TIFF when Nextcloud can make previews of them; good file names help the AI find them). The proxy reads it with the app password of the user's plugin sign-in (so the plugin must be
+signed in, also for MCP clients) and loads large photos as a Nextcloud preview (max. 1600 px). In `token`/`local`
+mode (one school server) `IMAGE_FOLDER` can be an absolute local folder that all users share; the desktop app's
+window does not offer it yet.
+Copyrighted material such as comic panels is only ever taken from this folder – the assistant never downloads it
+from the internet.
+
+The proxy needs HTTPS access to `api.arasaac.org`, `static.arasaac.org`, `commons.wikimedia.org`,
+`upload.wikimedia.org` and `thumb.wikimedia.org` (only these hosts are contacted; the model never gives URLs).
+Pictures are at most 8 MB. `IMAGE_SOURCES=none` switches the feature off; `IMAGE_SOURCES=arasaac,own` e.g. keeps
+photos from the internet out.
 
 ## Known limitations
 
@@ -849,3 +890,7 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   © Kazuhiko Arase, **MIT** (`vendor/qrcode-generator/LICENSE`) – QR codes on worksheets.
 
 Exact versions and checksums: `vendor/SOURCES.md`.
+
+Pictures that the AI puts on worksheets are not part of this project: ARASAAC pictograms are by Sergio Palao,
+property of the Government of Aragón, licensed **CC BY-NC-SA 4.0**; Wikimedia Commons files carry their own free
+licences. The credit is printed under each picture.

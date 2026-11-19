@@ -192,8 +192,27 @@ function renderStyleInfo(ctx: DocumentContext): string {
   return lines.length ? lines.join('\n') + '\n' : '';
 }
 
-export function buildSystemPrompt(ctx: DocumentContext | undefined, opts: { forceFinal?: boolean } = {}): string {
-  let prompt = `${BASE_SYSTEM_PROMPT}\n\n${renderDocumentContext(ctx)}`;
+/** Added to the system prompt when the server can search pictures (search_images, picture blocks). */
+export const PICTURE_PROMPT = `PICTURES
+- Worksheets for primary schools (grades 1–4), special-needs schools (Förderschule, Förderbedarf), German as a second language
+  and younger classes should not be text only: add 1–4 pictures that carry meaning – a pictogram next to each word or
+  instruction for weak readers, pictures to label, count or sort, an illustration that introduces the topic. Older classes:
+  only when the user asks or a picture really helps (e.g. a historical picture to describe). Do not decorate tests.
+- Always call search_images first and use only image_id values it returned – never invent ids or URLs. Several searches in
+  one step are fine. Choose by title, keywords and description; skip results that do not clearly fit.
+- Sources: pictograms (ARASAAC) for simple things, animals, actions and feelings – one consistent style, best for primary
+  and special-needs schools (search in German, singular: "Fuchs", "lesen", "traurig"). Photos/drawings (Wikimedia Commons)
+  for real animals, plants, places, art and history (English terms often work better: "red fox", "Roman legionary").
+  Own pictures (the user's picture folder) when the user mentions their own pictures, a folder, a comic or a character
+  that free sources cannot have (e.g. Asterix and Obelix for Latin) – search "*" lists them.
+- Place pictures with picture {image_id, width_cm, align, caption?}: a picture beside a text or task with columns
+  (e.g. widths [1, 3] with the picture in the narrow column; two or three pictures side by side = one picture per
+  column), an introductory picture after the title (width_cm 6–10). Pictograms 2.5–4 cm, photos 5–8 cm.
+- The licence credit is printed under free pictures automatically – do not write it yourself. If the user asks for a
+  picture that cannot be found, say so and offer a pictogram or the own picture folder instead.`;
+
+export function buildSystemPrompt(ctx: DocumentContext | undefined, opts: { forceFinal?: boolean; pictures?: boolean } = {}): string {
+  let prompt = `${BASE_SYSTEM_PROMPT}\n\n${opts.pictures ? PICTURE_PROMPT + '\n\n' : ''}${renderDocumentContext(ctx)}`;
   if (opts.forceFinal) {
     prompt +=
       '\n\nThe maximum number of tool steps for this request has been reached. Do not call tools. Summarise in German what was done and what is still missing.';

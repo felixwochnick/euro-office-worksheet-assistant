@@ -39,5 +39,5 @@ http
   .listen(port, () => {
     console.log(`Harness: http://localhost:${port}/apps/plugin/harness/`);
     console.log('Start the proxy with the mock provider for a full chat test, e.g.:');
-    console.log('  LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 CORS_ORIGINS=http://localhost:' + port + ' npm run dev:server');
+    console.log('  LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 CORS_ORIGINS=http://localhost:' + port + ' pnpm dev:server');
   });

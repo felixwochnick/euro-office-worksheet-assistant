@@ -39,6 +39,7 @@ const ALL_BLOCKS = [
   { type: 'chart', chart_type: 'column', title: 'Regentage', labels: ['Jan', 'Feb', 'Mär'], series: [{ name: '2024', values: [10, 8, 12] }], caption: 'Quelle: eigene Messung' },
   { type: 'mindmap', center: 'Wasser', branches: [{ text: 'Regen', children: ['Tropfen'] }, { text: 'Meer' }] },
   { type: 'qr_code', url: 'https://example.org/video', caption: 'Video' },
+  { type: 'picture', image_id: 'arasaac:2623', width_cm: 3, picture_meta: { title: 'Fuchs', credit: 'Piktogramm: Sergio Palao, ARASAAC (arasaac.org), CC BY-NC-SA 4.0', width: 500, height: 500 } },
   { type: 'svg', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50"><rect x="5" y="5" width="90" height="40" fill="none" stroke="#000"/><script>alert(1)</script></svg>', caption: 'Rechteck' },
   { type: 'cut_line' },
   { type: 'self_assessment', statements: ['Ich kann den Wasserkreislauf erklären.'] },
@@ -74,6 +75,7 @@ test('every block type is laid out in every theme', () => {
     assert.ok(images.length > 20, `${id}: ${images.length} images`);
     for (const im of images) {
       if (im.kind === 'staff' || im.kind === 'empty_staves') assert.ok(im.widthCm > 0);
+      else if (im.kind === 'picture') assert.ok(im.widthMm === 30 && im.heightMm === 30, `${id}: picture ${im.widthMm}x${im.heightMm} mm`);
       else {
         assert.match(im.svg, /^<svg[\s>]/);
         assert.ok(im.widthMm > 0 && im.heightMm > 0 && im.widthMm <= 171, `${id}: image ${im.widthMm} mm`);
@@ -195,4 +197,61 @@ test('labels follow the document language', () => {
   assert.equal(label(de), 'Klasse:');
   assert.equal(label(en), 'Class:');
   for (const l of themes.LANGUAGES) assert.deepEqual(Object.keys(themes.LABELS[l]).sort(), Object.keys(themes.LABELS.de).sort(), l);
+});
+
+// ---------------------------------------------------------------------------
+// picture
+// ---------------------------------------------------------------------------
+
+const PNG = 'data:image/png;base64,iVBORw0KGgo=';
+
+test('picture: loaded image with size from the aspect ratio, credit below, source in the alt text', () => {
+  const r = layout.compose([
+    { type: 'picture', image_id: 'commons:Red fox.jpg', width_cm: 6, caption: 'Ein **Fuchs**', align: 'left',
+      picture_data: { dataUrl: PNG, width: 800, height: 600, title: 'Rotfuchs', credit: 'Bild: A__B, CC BY-SA 4.0, Wikimedia Commons' } },
+  ], { theme: 'primary', textWidthMm: 170 });
+  const [pic, caption, credit] = r.elements;
+  const im = pic.runs[0].image;
+  assert.equal(im.kind, 'picture');
+  assert.equal(im.dataUrl, PNG);
+  assert.equal(im.widthMm, 60);
+  assert.equal(im.heightMm, 45);
+  assert.equal(im.wEmu, 60 * 36000);
+  assert.equal(im.hEmu, 45 * 36000);
+  assert.equal(pic.jc, 'left');
+  assert.equal(pic.keepNext, true, 'picture stays with its caption/credit');
+  assert.match(im.alt, /^Bild: Rotfuchs/);
+  const src = layout.parseMarker(im.alt, layout.GRAPHIC_MARKER);
+  assert.deepEqual(src, { type: 'picture', image_id: 'commons:Red fox.jpg', width_cm: 6, align: 'left', caption: 'Ein **Fuchs**' });
+  assert.ok(!JSON.stringify(src).includes('base64'), 'no image data in the alt text');
+  assert.equal(layout.plainText(caption.runs.map((x) => x.text || '').join('')), 'Ein Fuchs');
+  assert.equal(credit.runs.length, 1, 'credit is one plain run (no markup parsing)');
+  assert.equal(credit.runs[0].text, 'Bild: A__B, CC BY-SA 4.0, Wikimedia Commons');
+  assert.equal(credit.after, 160);
+  assert.deepEqual(layout.collectImages(r.elements), [im]);
+});
+
+test('picture: without data (layout check in the proxy) a placeholder of the right size; own pictures without credit', () => {
+  const r = layout.compose([
+    { type: 'picture', image_id: 'own:Asterix/obelix.png', picture_meta: { title: 'obelix', credit: '' } },
+    { type: 'picture', image_id: 'arasaac:1', width_cm: 40, picture_meta: { width: 100, height: 1000, credit: 'x' } },
+  ], { theme: 'modern', textWidthMm: 160 });
+  const first = r.elements[0].runs[0].image;
+  assert.equal(first.dataUrl, undefined);
+  assert.equal(first.widthMm, 50, 'default width 5 cm');
+  assert.equal(first.heightMm, 37.5, 'unknown aspect ratio: 4:3');
+  assert.equal(r.elements[0].after, 160, 'no credit line for own pictures');
+  const tall = r.elements[1].runs[0].image;
+  assert.equal(tall.heightMm, 160, 'very tall pictures are limited to 16 cm');
+  assert.equal(tall.widthMm, 16);
+});
+
+test('picture: needs an image id from search_images; works inside columns', () => {
+  assert.throws(() => layout.compose([{ type: 'picture', image_id: 'https://example.org/a.png' }], {}), /image_id/);
+  const r = layout.compose([
+    { type: 'columns', widths: [1, 3], columns: [[{ type: 'picture', image_id: 'arasaac:2', width_cm: 3 }], [{ type: 'paragraph', text: 'Text' }]] },
+  ], { theme: 'primary', textWidthMm: 170 });
+  const imgs = layout.collectImages(r.elements);
+  assert.equal(imgs.length, 1);
+  assert.ok(imgs[0].widthMm <= 170 / 4 + 0.01, 'picture fits its column');
 });

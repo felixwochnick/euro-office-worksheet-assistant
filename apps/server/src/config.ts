@@ -1,6 +1,8 @@
 /**
  * Configuration from environment variables. See apps/server/.env.example.
  */
+import path from 'node:path';
+
 export type ProviderName = 'mistral' | 'openai' | 'anthropic' | 'mock' | 'none';
 
 /**
@@ -47,6 +49,10 @@ export interface Config {
   dataDir: string;
   /** Host names accepted in the Host header in local mode (DNS rebinding protection). */
   allowedHosts: string[];
+  /** Picture sources for worksheets (empty = pictures switched off). */
+  imageSources: Array<'arasaac' | 'commons' | 'own'>;
+  /** Folder with the users' own pictures: in Nextcloud (AUTH_MODE=nextcloud) or an absolute local path. */
+  imageFolder: string;
 }
 
 const DEFAULTS: Record<ProviderName, { model: string; baseUrl: string; keyVar: string }> = {
@@ -130,6 +136,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
     }
   }
 
+  // Empty values (e.g. from docker compose "${IMAGE_SOURCES:-}") mean "default".
+  const rawSources = (env.IMAGE_SOURCES || 'arasaac,commons,own').trim().toLowerCase();
+  const imageSources = rawSources === 'none' || rawSources === 'off'
+    ? []
+    : [...new Set(rawSources.split(',').map((s) => s.trim()).filter(Boolean))];
+  for (const s of imageSources) {
+    if (!['arasaac', 'commons', 'own'].includes(s)) throw new Error(`IMAGE_SOURCES may contain arasaac, commons and own (or "none"), got "${s}"`);
+  }
+  // Own pictures: a folder in each user's Nextcloud, or – without Nextcloud – a local folder (absolute path).
+  const imageFolder = (env.IMAGE_FOLDER || (authMode === 'nextcloud' ? 'Arbeitsblatt-Bilder' : '')).trim();
+  if (imageFolder && authMode !== 'nextcloud' && !path.isAbsolute(imageFolder)) {
+    throw new Error(`IMAGE_FOLDER must be an absolute path without Nextcloud (AUTH_MODE=${authMode}), got "${imageFolder}"`);
+  }
+
   const trust = env.TRUST_PROXY;
   return {
     host,
@@ -174,5 +194,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): Config {
       .split(',')
       .map((s) => s.trim().toLowerCase())
       .filter(Boolean),
+    imageSources: imageSources as Config['imageSources'],
+    imageFolder,
   };
 }

@@ -722,13 +722,114 @@
     }, Promise.resolve()).then(function () { return elements; });
   }
 
+  /** Picture blocks (top level and inside columns), in document order. */
+  function pictureBlocks(blocks, out) {
+    out = out || [];
+    (blocks || []).forEach(function (b) {
+      if (!b || typeof b !== 'object') return;
+      if (b.type === 'picture') out.push(b);
+      else if (b.type === 'columns' && Array.isArray(b.columns)) b.columns.forEach(function (col) { pictureBlocks(col, out); });
+    });
+    return out;
+  }
+
+  /** Copy of the blocks (the originals belong to the chat history and must not receive image data). */
+  function copyBlocks(blocks) {
+    return (blocks || []).map(function (b) {
+      if (!b || typeof b !== 'object') return b;
+      var o = {};
+      Object.keys(b).forEach(function (k) { o[k] = b[k]; });
+      if (b.type === 'columns' && Array.isArray(b.columns)) o.columns = b.columns.map(copyBlocks);
+      return o;
+    });
+  }
+
+  /** [width, height] from the viewBox of an SVG data URL, or null. */
+  function svgViewBox(dataUrl) {
+    try {
+      var i = dataUrl.indexOf(',');
+      var head = dataUrl.slice(0, i);
+      var body = /;base64/.test(head) ? atob(dataUrl.slice(i + 1)) : decodeURIComponent(dataUrl.slice(i + 1));
+      var m = /viewBox\s*=\s*["']\s*[-\d.eE]+[\s,]+[-\d.eE]+[\s,]+([\d.eE]+)[\s,]+([\d.eE]+)/.exec(body);
+      var w = m ? Number(m[1]) : 0;
+      var h = m ? Number(m[2]) : 0;
+      return w > 0 && h > 0 && isFinite(w) && isFinite(h) ? [w, h] : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  /** Decode a data URL; formats the editor cannot show (WebP, SVG, BMP) become PNG. Resolves { dataUrl, width, height }. */
+  function normalizePicture(dataUrl, mime) {
+    return new Promise(function (resolve, reject) {
+      var img = new Image();
+      img.onload = function () {
+        var w = img.naturalWidth || 0;
+        var h = img.naturalHeight || 0;
+        if (/^image\/(png|jpeg|gif)$/.test(mime) && w && h) return resolve({ dataUrl: dataUrl, width: w, height: h });
+        var svg = /^image\/svg/.test(mime);
+        if (!w || !h) {
+          // SVG without a size: aspect ratio from the viewBox
+          var vb = svg ? svgViewBox(dataUrl) : null;
+          w = vb ? vb[0] : 1000;
+          h = vb ? vb[1] : 1000;
+        }
+        // vector graphics are drawn sharp (long side 2000 px), bitmaps only scaled down
+        var scale = svg ? 2000 / Math.max(w, h) : Math.min(1, 2000 / Math.max(w, h));
+        var canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(w * scale));
+        canvas.height = Math.max(1, Math.round(h * scale));
+        var ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+        try {
+          resolve({ dataUrl: canvas.toDataURL('image/png'), width: canvas.width, height: canvas.height });
+        } catch (e) {
+          reject(e);
+        }
+      };
+      img.onerror = function () { reject(new Error('the picture could not be decoded')); };
+      img.src = dataUrl;
+    });
+  }
+
+  /**
+   * Load the pictures of picture blocks through the proxy (POST /v1/images/fetch) and attach them as picture_data.
+   * Sequential and cached per id, so the same pictogram used twice is loaded once.
+   */
+  function loadPictures(blocks, settings) {
+    var pics = pictureBlocks(blocks);
+    if (!pics.length) return Promise.resolve(blocks);
+    if (!settings || !settings.proxyUrl || !window.MusicAgent) {
+      return Promise.reject(new Error('Pictures need the connection to the proxy (settings).'));
+    }
+    var cache = {};
+    return pics.reduce(function (p, b) {
+      return p.then(function () {
+        var id = String(b.image_id || '');
+        if (!cache[id]) {
+          cache[id] = window.MusicAgent.request(settings, '/v1/images/fetch', { image_id: id }, null).then(function (r) {
+            if (!r || !r.ok || !r.data_url) throw new Error('picture ' + id + ' could not be loaded');
+            return normalizePicture(r.data_url, String(r.mime || '')).then(function (n) {
+              return { dataUrl: n.dataUrl, width: n.width, height: n.height, title: r.title, credit: r.credit || '' };
+            });
+          }).catch(function (err) {
+            var msg = err && err.detail ? err.detail : err && err.message ? err.message : String(err);
+            throw new Error('picture "' + id + '": ' + msg);
+          });
+        }
+        return cache[id].then(function (d) { b.picture_data = d; });
+      });
+    }, Promise.resolve()).then(function () { return blocks; });
+  }
+
   /**
    * Blocks from the AI -> layout elements with rasterised images.
    * opts: { theme, lang } (requested by the AI, optional). Resolves { elements, theme, lang, warnings }.
    */
   function prepare(blocks, settings, opts) {
     opts = opts || {};
-    return docInfo().then(function (info) {
+    blocks = copyBlocks(blocks);
+    return loadPictures(blocks, settings).then(docInfo).then(function (info) {
       var theme = resolveTheme(opts.theme, info, settings);
       var lang = opts.lang || info.lang || 'de';
       var themeSpec = theme;

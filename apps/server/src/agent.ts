@@ -13,7 +13,8 @@
  * loop forever: when the limit is reached the model is forced to answer in text.
  */
 import { buildSystemPrompt } from './prompt.js';
-import { CLIENT_TOOLS, SERVER_TOOLS, TOOL_DEFINITIONS, checkClientToolCall, executeServerTool } from './tools.js';
+import type { ImageService } from './images.js';
+import { CLIENT_TOOLS, SERVER_TOOLS, checkToolCall, runServerTool, toolDefinitions, type ToolContext } from './tools.js';
 import type { AssistantMessage, ChatMessage, DocumentContext, LLMProvider, ToolCall, ToolMessage } from './types.js';
 
 export interface TurnResult {
@@ -45,7 +46,13 @@ export async function runTurn(opts: {
   messages: ChatMessage[];
   documentContext?: DocumentContext;
   maxIterations: number;
+  /** Signed-in user (own pictures). */
+  userId?: string;
+  /** Picture search (null/undefined = pictures switched off). */
+  images?: ImageService | null;
 }): Promise<TurnResult> {
+  const ctx: ToolContext = { userId: opts.userId ?? 'default', images: opts.images ?? null };
+  const tools = toolDefinitions(ctx);
   const history: ChatMessage[] = [...opts.messages];
   const appended: ChatMessage[] = [];
   const max = opts.maxIterations;
@@ -56,9 +63,9 @@ export async function runTurn(opts: {
     const rounds = countToolRounds(history);
     const forceFinal = rounds >= max;
     const result = await opts.provider.complete({
-      system: buildSystemPrompt(opts.documentContext, { forceFinal }),
+      system: buildSystemPrompt(opts.documentContext, { forceFinal, pictures: !!ctx.images }),
       messages: history,
-      tools: TOOL_DEFINITIONS,
+      tools,
       toolChoice: forceFinal ? 'none' : 'auto',
     });
 
@@ -85,10 +92,10 @@ export async function runTurn(opts: {
     const clientCalls: ToolCall[] = [];
     const rejected: ToolMessage[] = [];
     for (const call of calls) {
-      if (SERVER_TOOLS.has(call.name)) {
-        serverResults.push(toolMessage(call, executeServerTool(call)));
+      if (SERVER_TOOLS.has(call.name) && tools.some((t) => t.name === call.name)) {
+        serverResults.push(toolMessage(call, await runServerTool(call, ctx)));
       } else if (CLIENT_TOOLS.has(call.name)) {
-        const check = checkClientToolCall(call);
+        const check = await checkToolCall(call, ctx);
         if (check.ok) {
           call.arguments = check.args; // normalised arguments (also stored in history)
           clientCalls.push(call);

@@ -1,6 +1,6 @@
 {
   "name": "@worksheet-assistant/server",
-  "version": "0.6.0",
+  "version": "0.7.0",
   "private": true,
   "description": "Server for the Euro-Office worksheet assistant: AI chat proxy (keeps API keys server-side, runs the tool-calling agent loop) and MCP endpoint.",
   "license": "MIT",
@@ -21,7 +21,7 @@
     "@modelcontextprotocol/client": "^2.4.0",
     "@modelcontextprotocol/node": "^2.1.2",
     "@modelcontextprotocol/server": "^2.4.0",
-    "@worksheet-assistant/shared": "*",
+    "@worksheet-assistant/shared": "workspace:*",
     "fastify": "^5.6.0",
     "zod": "^4.6.7"
   },

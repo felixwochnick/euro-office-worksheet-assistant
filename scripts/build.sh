@@ -36,15 +36,15 @@ update_vendor() {
   curl -fsSL -o "$VENDOR/onlyoffice/plugins.js" "$base/sdkjs-plugins/v1/plugins.js"
   curl -fsSL -o "$VENDOR/onlyoffice/plugins-ui.js" "$base/sdkjs-plugins/v1/plugins-ui.js"
   curl -fsSL -o "$VENDOR/onlyoffice/LICENSE" "$base/LICENSE"
-  (cd "$tmp" && npm pack "abcjs@$ABCJS_VERSION" --silent >/dev/null && tar xzf "abcjs-$ABCJS_VERSION.tgz")
+  curl -fsSL "$(pnpm view "abcjs@$ABCJS_VERSION" dist.tarball)" | tar xz -C "$tmp"
   cp "$tmp/package/dist/abcjs-basic-min.js" "$tmp/package/dist/abcjs-basic-min.js.LICENSE" "$tmp/package/LICENSE.md" "$VENDOR/abcjs/"
   # qrcode-generator: the npm package ships no LICENSE file – take it from the
   # GitHub repository at the commit the npm release was built from (gitHead).
   mkdir -p "$tmp/qrcode"
-  (cd "$tmp/qrcode" && npm pack "qrcode-generator@$QRCODE_VERSION" --silent >/dev/null && tar xzf "qrcode-generator-$QRCODE_VERSION.tgz")
+  curl -fsSL "$(pnpm view "qrcode-generator@$QRCODE_VERSION" dist.tarball)" | tar xz -C "$tmp/qrcode"
   cp "$tmp/qrcode/package/dist/qrcode.js" "$VENDOR/qrcode-generator/qrcode.js"
   local qrcode_ref
-  qrcode_ref="$(npm view "qrcode-generator@$QRCODE_VERSION" gitHead)"
+  qrcode_ref="$(pnpm view "qrcode-generator@$QRCODE_VERSION" gitHead)"
   curl -fsSL -o "$VENDOR/qrcode-generator/LICENSE" \
     "https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/$qrcode_ref/LICENSE"
   (cd "$VENDOR" && sha256sum onlyoffice/plugins.js onlyoffice/plugins-ui.js abcjs/abcjs-basic-min.js \
