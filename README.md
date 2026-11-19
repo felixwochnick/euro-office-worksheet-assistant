@@ -106,8 +106,9 @@ service, the proxy.
   staff ABC); the proxy forwards them to the configured model provider – choose the provider accordingly (e.g. an EU
   provider such as Mistral, or a local model via Ollama).
 
-**Website:** https://felixwochnick.github.io/euro-office-worksheet-assistant/ – overview, live demo of the German
-note converter and installation guide in German, English, French, Spanish, Italian, Dutch and Polish.
+**Website:** https://felixwochnick.github.io/euro-office-worksheet-assistant/ – all features with screenshots from the
+real editor, example requests and the installation guide in German, English, French, Spanish, Italian, Dutch and
+Polish.
 
 ## Repository layout
 
@@ -121,8 +122,8 @@ packages are named `@worksheet-assistant/<name>`.
 | `apps/server/` | The server (proxy, TypeScript, Fastify): AI chat, MCP endpoint, `Dockerfile`, `docker-compose.yml`, `compose.release.yml`, `.env.example` |
 | `apps/server/src/companion/` | The desktop app's server program `worksheet-assistant` (plugin installation, local server, autostart, MCP over stdio; `claude.ts`: Claude Desktop / Claude Code entries); `scripts/build-companion.mjs` builds it as a single executable |
 | `apps/desktop/` | Desktop app for the desktop editors (installation D): UI of the window in `app/` (Nuxt 4 + Nuxt UI 4), Tauri 2 shell in `src-tauri/` (`src/sidecar.rs` starts and supervises the server program, `src/tray.rs` tray / menu bar icon, `src/updates.rs` update check); icon sources in `icon-src/` |
-| `apps/website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
-| `packages/shared/` | Modules shared by the plugin (browser globals), the server and the website (CommonJS), with their unit tests in `test/`: |
+| `apps/website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) in seven languages |
+| `packages/shared/` | Modules shared by the plugin (browser globals) and the server (CommonJS, also in the desktop app's server program), with their unit tests in `test/`: |
 | ↳ `abc-tools.js` | ABC validation/normalisation and German note names → ABC |
 | ↳ `worksheet-layout.js` | Worksheet blocks → document elements (design decisions; used by the plugin and, for validation, by the server) |
 | ↳ `worksheet-themes.js` | Designs (fonts, sizes, colours) and printed labels in seven languages |
@@ -735,12 +736,17 @@ pnpm dev:website                                                    # http://loc
 NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ pnpm build:website   # static site in apps/website/.output/public
 ```
 
-The live demo imports `@worksheet-assistant/shared/abc-tools.js`, so it always uses the same converter as the plugin. The site is
-deployed by `.github/workflows/pages.yml` on pushes to `main` (one-time setup: *Settings → Pages → Source: GitHub
+The site is deployed by `.github/workflows/pages.yml` on pushes to `main` (one-time setup: *Settings → Pages → Source: GitHub
 Actions*). Texts live in `apps/website/app/content/<language>.ts` (typed by `types.ts`, so a missing text fails the build);
 German is served at `/`, the other languages at `/en/`, `/fr/`, `/es/`, `/it/`, `/nl/`, `/pl/` (`@nuxtjs/i18n`, with
-hreflang links). The screenshots in `apps/website/public/img/` were taken in a real Euro-Office 9.3.8 with Mistral by
-`dev/eurooffice/website-screenshots.mjs`, except `companion.webp` (the desktop app's window, page *Übersicht*).
+hreflang links). The download buttons link to the release of the version in `apps/desktop/package.json`.
+
+The screenshots in `apps/website/public/img/` are taken in a real Euro-Office 9.3.8 by
+`dev/eurooffice/website-screenshots.mjs`: it inserts fixed worksheet blocks over MCP (no language model needed – the
+server's `mock` provider is enough; the pictures need access to ARASAAC), crops excerpts of the page (designs, task
+types, graphics, pictures, the computer science diagrams) and shoots the desktop app's window from its built UI with
+the simulated backend (which shows the version of `apps/desktop/package.json`). The commands are in the comment at the
+top of the script; `ONLY=themes,diagrams` retakes some of the pictures.
 
 ### Local test harness (no Euro-Office needed)
 
@@ -793,7 +799,8 @@ node dev/eurooffice/e2e-real-editor.mjs       # automated test incl. saving and 
 ```
 
 After a rebuild the mounted plugin is updated in place; just reload the editor page. `GET /reset` on the storage
-starts again from the original worksheet with a new document key.
+starts again from the original worksheet with a new document key; `/?title=Name.docx` sets the file name shown in the
+editor and `/?spellcheck=0` switches spell checking off (both used for the website screenshots).
 
 ## Pictures
 

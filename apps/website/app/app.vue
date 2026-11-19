@@ -25,9 +25,9 @@ useSeoMeta({
 
 const items = computed<NavigationMenuItem[]>(() => [
   { label: c.value.nav.features, to: '#features' },
-  { label: c.value.nav.ways, to: '#ways' },
+  { label: c.value.nav.informatics, to: '#informatics' },
   { label: c.value.nav.mcp, to: '#mcp' },
-  { label: c.value.nav.demo, to: '#demo' },
+  { label: c.value.nav.ways, to: '#ways' },
   { label: c.value.nav.install, to: '#install' },
   { label: c.value.nav.faq, to: '#faq' }
 ])

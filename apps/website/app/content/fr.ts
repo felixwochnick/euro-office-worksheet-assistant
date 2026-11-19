@@ -4,39 +4,74 @@ const fr: SiteContent = {
   meta: {
     title: 'Worksheet Assistant pour Euro-Office',
     description:
-      'Créez des fiches d’exercices avec l’IA – pour toutes les matières, dans Nextcloud, dans l’application de bureau ou avec Claude & co. via MCP. Open source.'
+      'Créez des fiches d’exercices avec l’IA – pour toutes les matières : exercices mis en page, jeux, graphiques, images, diagrammes d’informatique et portées. Dans Nextcloud, dans l’application de bureau ou avec Claude & co. via MCP. Open source.'
   },
-  nav: { features: 'Fonctionnalités', ways: 'Utilisations', mcp: 'MCP', demo: 'Démo en direct', install: 'Installation', faq: 'FAQ', language: 'Langue' },
+  nav: { features: 'Fonctionnalités', informatics: 'Informatique', ways: 'Utilisations', mcp: 'MCP', install: 'Installation', faq: 'FAQ', language: 'Langue' },
   hero: {
-    badge: 'Open source · MIT',
+    badge: 'Nouveau en {version} : diagrammes d’informatique',
     headline: 'Plugin d’IA pour Euro-Office – dans Nextcloud et sur ordinateur',
     title: 'Créez des fiches d’exercices avec l’IA – pour toutes les matières',
     description:
-      'Décrivez ce dont vous avez besoin : le Worksheet Assistant (assistant de fiches d’exercices) met en page exercices, textes à trous, mots croisés, tableaux, diagrammes, formules, lignes d’écriture, encadrés et portées dans un design homogène, directement dans votre document – avec le chat IA intégré ou avec votre propre assistant IA via MCP.',
+      'Décrivez ce dont vous avez besoin : le Worksheet Assistant (assistant de fiches d’exercices) met en page exercices, textes à trous, jeux, graphiques, formules, images, diagrammes UML et portées dans un design homogène, directement dans votre document – avec le chat IA intégré ou avec votre propre assistant IA via MCP.',
     install: 'Installer',
-    more: 'Comment ça marche',
+    more: 'Toutes les fonctionnalités',
     imageAlt:
-      'Euro-Office avec le Worksheet Assistant : une fiche d’exercices sur le cycle de l’eau créée par le chat IA, à gauche le chat avec la demande'
+      'Euro-Office avec le Worksheet Assistant : une fiche d’exercices sur le cycle de l’eau dans le design « Moderne », avec en-tête, titre, ligne pour le nom et exercices numérotés avec pictogrammes, étoiles et points ; à gauche, le panneau avec le chat IA'
   },
   features: {
     headline: 'Fonctionnalités',
-    title: 'De la page blanche à la fiche terminée',
-    description: 'Conçu pour les enseignants et les futurs enseignants – pour les fiches d’exercices, les évaluations et les supports de cours dans toutes les matières.',
+    title: 'Tout pour votre prochaine fiche d’exercices',
+    description:
+      'Conçu pour les enseignants et les futurs enseignants – pour les fiches d’exercices, les évaluations et les supports de cours dans toutes les matières. L’IA choisit les blocs, le plugin les place proprement dans le document.',
     items: [
       {
-        title: 'Des fiches mises en page par chat',
+        title: 'Des fiches complètes par chat',
         description:
-          '« Crée une fiche d’exercices sur le cycle de l’eau pour le CE2 » : titre, exercices numérotés avec pictogrammes et points, texte à trous avec banque de mots, mots croisés, diagramme et encadré – dans un design (moderne, primaire, classique), puis vérifiée automatiquement.'
+          '« Crée une fiche d’exercices sur le cycle de l’eau pour le CM2 » – avec titre, ligne pour le nom, exercices, documents et encadré « À retenir ». D’abord un aperçu, puis l’insertion.'
       },
       {
-        title: 'Modifier plutôt que recommencer',
+        title: 'Trois designs',
         description:
-          '« Reformule l’exercice 1 pour le CE2 », « Transforme l’exercice 2 en texte à trous », « Ajoute une page de corrigés » – l’IA ne modifie que ce que vous demandez. Toute suppression nécessite votre confirmation.'
+          'Classique (noir et blanc, économe en toner), Moderne ou Primaire (grande écriture, en couleurs). Polices, couleurs et espacements viennent du design.'
+      },
+      {
+        title: 'Exercices et jeux',
+        description:
+          'Texte à trous avec banque de mots, QCM, vrai/faux, association, mots croisés et mots mêlés, texte à lire avec numéros de ligne, et bien plus.'
+      },
+      {
+        title: 'Graphiques et formules',
+        description:
+          'Droite numérique, repère cartésien, diagrammes, carte mentale, lignes d’écriture et papier quadrillé. Les formules LaTeX deviennent de véritables équations modifiables.'
+      },
+      {
+        title: 'Images',
+        description: 'Pictogrammes ARASAAC, photos de Wikimedia Commons ou vos propres images – la mention de licence figure automatiquement en dessous.'
+      },
+      {
+        title: 'Diagrammes d’informatique',
+        description:
+          'Diagrammes UML de classes, de séquence, d’états, d’activité et de cas d’utilisation, automates, structogrammes, organigrammes de programmation et diagrammes ER.'
       },
       {
         title: 'Portées et paroles',
         description:
-          'Mélodies, portées vides et paroles sous forme d’images prêtes à imprimer. Les noms de notes allemands (h, fis, b) sont convertis de manière fiable ; chaque portée reste modifiable.'
+          'Mélodies, portées vides et paroles sous forme d’images prêtes à imprimer. Les noms de notes allemands (h, fis, b) sont convertis de manière fiable.'
+      },
+      {
+        title: 'Page et charte graphique',
+        description:
+          'A4, A5 ou Letter, portrait ou paysage, marges, colonnes, en-tête avec le nom de l’école et le logo, pied de page avec numéros de page.'
+      },
+      {
+        title: 'Vérifiée, avec corrigé',
+        description:
+          'Après la création, l’IA vérifie la numérotation, les consignes, la place pour les réponses, les points et la lisibilité pour le niveau de la classe. Sur demande, le corrigé est fourni dans la même mise en page.'
+      },
+      {
+        title: 'Modifier plutôt que recommencer',
+        description:
+          '« Reformule l’exercice 1 pour le CE2 », « Transforme l’exercice 2 en texte à trous » – l’IA ne modifie que ce que vous demandez. Toute suppression nécessite votre confirmation.'
       },
       {
         title: 'Votre assistant IA via MCP',
@@ -45,11 +80,160 @@ const fr: SiteContent = {
       {
         title: 'La confidentialité entre vos mains',
         description: 'Mistral comme fournisseur européen, un modèle local via Ollama ou pas d’IA du tout. La clé reste sur le serveur, la connexion se fait avec le compte Nextcloud.'
+      }
+    ],
+    more: 'En savoir plus'
+  },
+  designs: {
+    headline: 'Designs',
+    title: 'Un design pour toute la page',
+    description:
+      'L’IA ne choisit que le design – polices, tailles, couleurs et espacements de tout ce que l’assistant insère en découlent. Chaque fiche est ainsi d’un seul tenant, même si vous ajoutez des exercices plus tard.',
+    themes: [
+      { title: 'Classique', description: 'Noir et blanc, économe en toner – pour les photocopies et les évaluations.' },
+      { title: 'Moderne', description: 'Écriture claire avec une touche de bleu – pour le secondaire.' },
+      { title: 'Primaire', description: 'Grande écriture, interligne de 1,5, couleurs sympathiques.' }
+    ],
+    imageAlt: 'La même fiche d’exercices « Le hérisson en automne » dans le design {theme}',
+    items: [
+      { title: 'En-têtes d’exercice', description: 'Numéro, pictogrammes pour le mode de travail et l’activité, étoiles de difficulté, points et temps de travail.' },
+      { title: 'Encadrés', description: 'À retenir, Astuce, Attention, Exemple, Définition, Solution et Info – chacun avec un pictogramme.' },
+      { title: 'Dans votre langue', description: 'Des intitulés comme Nom, Classe, Banque de mots ou vrai/faux, en sept langues.' }
+    ]
+  },
+  tasks: {
+    headline: 'Exercices',
+    title: 'Des exercices au rendu soigné',
+    description:
+      'Plus de 40 blocs que l’IA combine librement. Les jeux sont calculés au lieu d’être devinés – mots croisés et mots mêlés sont toujours résolubles.',
+    imageAlt: 'Page d’exercices dans le design « Moderne » : des mots croisés calculés avec définitions horizontales et verticales et une grille de mots mêlés avec liste de mots',
+    items: [
+      { title: 'Textes à trous et quiz', description: 'Texte à trous avec banque de mots automatique, QCM, tableau vrai/faux, association par traits ou par lettres.' },
+      { title: 'Jeux', description: 'Mots croisés et mots mêlés en trois niveaux de difficulté – avec le corrigé sur demande.' },
+      {
+        title: 'Lire et écrire',
+        description:
+          'Textes à lire avec numéros de ligne, **coloration des syllabes** (syllabes alternativement en bleu et en rouge), lignes d’écriture 1 à 4 de l’école primaire allemande (Lineaturen) et papier quadrillé.'
       },
       {
-        title: 'Nextcloud, serveur ou ordinateur',
+        title: 'Autour de l’exercice',
+        description: 'Auto-évaluation avec des smileys, cartes d’aide à découper, tableau points-notes, codes QR et mise en page sur deux ou trois colonnes.'
+      }
+    ]
+  },
+  graphics: {
+    headline: 'Graphiques & formules',
+    title: 'Maths et sciences, dessinées proprement',
+    description:
+      'Les graphiques sont dessinés à partir de données, pas inventés comme une image : axes, échelles et légendes sont justes. Chaque graphique porte sa source dans le texte alternatif – l’IA peut le modifier plus tard.',
+    imageAlt: 'Fiche de maths : droite numérique avec des cases vides, diagramme en colonnes, repère cartésien avec un triangle et une formule pour l’aire',
+    items: [
+      { title: 'Droite numérique et repère', description: 'Avec des cases à remplir, des points, des segments et des polygones.' },
+      { title: 'Diagrammes', description: 'Colonnes, barres, courbes et secteurs – aussi vides, à dessiner soi-même.' },
+      { title: 'Formules', description: 'LaTeX devient une véritable équation dans le document, même au milieu d’une phrase.' },
+      { title: 'Cartes mentales et dessins', description: 'Cartes mentales (aussi avec des bulles vides) et dessins simples que l’IA conçoit elle-même.' }
+    ]
+  },
+  pictures: {
+    headline: 'Images',
+    title: 'Des images qui vont avec la fiche',
+    description:
+      'Surtout à l’école primaire et dans l’enseignement spécialisé, les images aident à comprendre. L’IA cherche des images adaptées et les place sur la fiche – à côté des mots, en introduction ou en colonnes à côté du texte. Elle imprime automatiquement la mention de licence en dessous.',
+    imageAlt:
+      'Fiche « Animaux de la forêt » dans le design « Primaire » : pictogrammes ARASAAC de hérisson, hibou, lièvre, écureuil, renard et corbeau avec mention de licence, en dessous les noms des animaux avec coloration des syllabes et une ligne d’écriture du primaire',
+    items: [
+      { title: 'Pictogrammes', description: 'ARASAAC – des dessins simples et homogènes d’objets, d’animaux, d’actions et de sentiments, conçus pour l’enseignement spécialisé.' },
+      { title: 'Photos et images historiques', description: 'Wikimedia Commons – animaux, plantes, lieux, art, Romains et Moyen Âge.' },
+      {
+        title: 'Vos propres images',
+        description: 'Un dossier dans votre Nextcloud ou sur votre ordinateur, p. ex. avec des images de bandes dessinées pour le latin. L’IA les trouve grâce aux noms de fichiers et de dossiers.'
+      }
+    ]
+  },
+  informatics: {
+    badge: 'Nouveau',
+    headline: 'Informatique',
+    title: 'UML, structogrammes et diagrammes ER',
+    description:
+      'L’IA ne décrit que le modèle, la mise en page est calculée : boîtes et flèches sont droites et lisibles, dans la notation scolaire comme dans le manuel. Dix types de diagrammes – chacun aussi en version à compléter, avec corrigé.',
+    diagrams: [
+      {
+        title: 'Diagramme de classes à compléter',
+        description: 'Un attribut sous forme de ligne à écrire, une méthode sous forme de ligne vide, l’héritage de Sparkonto (compte épargne) à dessiner soi-même.'
+      },
+      { title: 'Diagramme de séquence', description: 'Acteur et objets, appels, réponse, barres d’activation et un fragment alt.' },
+      { title: 'Automate fini', description: 'Flèche de départ, état accepteur en double cercle, transitions étiquetées avec des caractères.' },
+      { title: 'Structogramme', description: 'Nassi-Shneiderman selon DIN 66261 : alternative et boucle (PGCD d’Euclide).' },
+      { title: 'Organigramme de programmation', description: 'Selon DIN 66001 : début, entrée et sortie, embranchement avec ja/nein (oui/non), fin.' },
+      { title: 'Diagramme ER', description: 'Notation de Chen avec attributs clés et cardinalités 1:n et n:m.' }
+    ],
+    items: [
+      {
+        title: 'Dix types de diagrammes',
         description:
-          'Une seule commande pour Nextcloud AIO, un fichier Docker Compose pour votre propre Document Server, ou l’application Worksheet Assistant pour l’application de bureau Euro-Office (Windows, macOS, Linux).'
+          'Diagrammes de classes, d’objets, de séquence, d’états, d’activité et de cas d’utilisation, automates finis, structogrammes, organigrammes de programmation et diagrammes ER (Chen, (min,max), pied de corbeau).'
+      },
+      {
+        title: 'À compléter',
+        description: 'Trous dans chaque texte, flèches et relations manquantes, lignes et boîtes vides – et, en une phrase, le corrigé dans la même mise en page.'
+      },
+      {
+        title: 'Tient sur la page',
+        description: 'La mise en page est calculée et adaptée à la largeur du texte. Comme tous les graphiques, chaque diagramme reste modifiable par chat.'
+      }
+    ]
+  },
+  music: {
+    headline: 'Musique',
+    title: 'Fiches de musique – même sans IA',
+    description:
+      'L’onglet musique fonctionne sans serveur et sans clé API : modèles, éditeur ABC avec aperçu en direct, noms de notes allemands et paroles. Une portée sélectionnée peut être chargée, modifiée et remplacée.',
+    imageAlt: 'Onglet musique : le modèle « Alle meine Entchen » avec paroles, notation ABC et aperçu, inséré sous un exercice dans le design « Moderne »',
+    items: [
+      { title: 'Modèles', description: 'Portées vides en clé de sol ou en clé de fa, gammes, une mélodie d’exemple avec paroles.' },
+      { title: 'Convertir les noms de notes', description: 'c – f – g, fis′ g′ a′ h′, « bc » pour do bémol et des mesures comme 4/4 – les chiffres comme octave ou comme durée.' },
+      {
+        title: 'Prêt à imprimer et modifiable',
+        description: 'Images en 300 ppp ; la source ABC est enregistrée dans le texte alternatif. Par chat : « Modifie la portée 1 : au lieu de bc #c ».'
+      }
+    ]
+  },
+  mcp: {
+    headline: 'MCP',
+    title: 'Votre assistant IA écrit avec vous',
+    description:
+      'Grâce au Model Context Protocol, Claude, ChatGPT, Le Chat et d’autres assistants IA travaillent directement dans le document que vous avez ouvert dans Euro-Office. Le plugin applique les modifications – vous les voyez immédiatement et pouvez les annuler avec Ctrl+Z.',
+    imageAlt: 'Un assistant IA a inséré via MCP un troisième exercice avec la chanson « Es regnet » sous forme de portée ; le panneau affiche les appels MCP',
+    items: [
+      {
+        title: 'Les mêmes outils',
+        description: 'Tous les blocs, les images, les diagrammes, la mise en page, la vérification, la modification et les portées – tout est vérifié avant d’arriver dans le document.'
+      },
+      { title: 'Uniquement vos documents', description: 'Avec la connexion Nextcloud, un assistant n’accède qu’aux documents de son utilisateur.' },
+      {
+        title: 'Vous gardez le contrôle',
+        description: 'Le document n’est connecté que si vous activez « MCP-Zugriff erlauben » (autoriser l’accès MCP) dans le plugin. Vous révoquez l’accès dans Nextcloud.'
+      }
+    ],
+    clientsTitle: 'Testé',
+    clientsText:
+      'Avec le SDK TypeScript MCP (protocole 2026-07-28) et des requêtes au format 2025, via HTTP et stdio. Les assistants hébergés comme claude.ai, ChatGPT et Le Chat n’ont pas encore été testés avec une installation publique.'
+  },
+  companion: {
+    headline: 'Application de bureau',
+    title: 'L’application Worksheet Assistant pour votre ordinateur',
+    description:
+      'Les applications de bureau Euro-Office et Nextcloud Office n’ont ni gestionnaire de plugins ni serveur. L’application Worksheet Assistant se charge des deux : installez-la comme n’importe quelle application, lancez-la une fois – ensuite, elle travaille de façon invisible en arrière-plan. Ni terminal, ni navigateur.',
+    imageAlt: 'Fenêtre de l’application Worksheet Assistant, page « Übersicht » (vue d’ensemble) : les trois étapes sont terminées – plugin dans l’application de bureau, chat IA dans le plugin, Claude connecté',
+    items: [
+      { title: 'Plugin configuré automatiquement', description: 'Installe le plugin dans Euro-Office et Nextcloud Office, le connecte et le maintient à jour – aucun réglage dans l’éditeur.' },
+      {
+        title: 'Votre IA, vos images',
+        description: 'Mistral, OpenAI, Anthropic, Ollama ou toute API compatible OpenAI – la clé reste sur votre ordinateur. En plus, un dossier d’images à vous.'
+      },
+      {
+        title: 'Claude en un clic',
+        description: 'Connecte Claude Desktop ou Claude Code. L’application installe les nouvelles versions en un clic et démarre avec votre ordinateur si vous le souhaitez. Notarisée par Apple sous macOS.'
       }
     ]
   },
@@ -62,7 +246,7 @@ const fr: SiteContent = {
         title: 'Dans Nextcloud',
         badge: 'pour les écoles',
         description: 'Le plugin dans l’Euro-Office de Nextcloud, avec le petit serveur à côté. Chaque enseignant se connecte avec son compte Nextcloud.',
-        bullets: ['Installation en une seule commande (Nextcloud AIO)', 'Conservé après les mises à jour d’AIO', 'Clé d’IA uniquement sur le serveur'],
+        bullets: ['Installation en une seule commande (Nextcloud AIO)', 'Conservé après les mises à jour d’AIO', 'Vos propres images dans un dossier Nextcloud'],
         link: 'Installer dans Nextcloud'
       },
       {
@@ -85,107 +269,53 @@ const fr: SiteContent = {
     headline: 'Exemples',
     title: 'Comment parler au Worksheet Assistant',
     description: 'Des phrases simples suffisent. L’IA connaît la structure de votre document et répond dans votre langue.',
-    worksheetLabel: 'Fiches d’exercices',
-    musicLabel: 'Musique',
-    worksheet: [
-      'Crée une fiche d’exercices sur le cycle de l’eau pour le CM2 avec trois exercices, un tableau et un encadré « À retenir ».',
-      'Reformule la consigne de l’exercice 1 pour que des élèves de CE2 la comprennent.',
-      'Transforme l’exercice 2 en texte à trous avec 8 trous.',
-      'Ajoute une page de corrigés à la fin.',
-      'Supprime l’exercice 3.'
-    ],
-    music: [
-      'Sous l’exercice 2, insère une portée avec c – f – g et, en dessous, une portée vide pour recopier.',
-      'J’ai besoin d’une portée : 4/4 bc1, f1, g2, be2, c1, c1',
-      'Modifie la portée 1, s’il te plaît : au lieu de bc #c',
-      'Ajoute les paroles à la portée 1 : Frère Jacques, dormez-vous',
-      'Après l’exercice 3, insère trois portées vides en clé de fa.'
+    groups: [
+      {
+        label: 'Fiches d’exercices',
+        items: [
+          'Crée une fiche d’exercices sur le cycle de l’eau pour le CM2 avec trois exercices, un texte à trous et un encadré « À retenir ».',
+          'Fais-en des mots croisés avec dix termes et ajoute une page de corrigés à la fin.',
+          'Reformule la consigne de l’exercice 1 pour que des élèves de CE2 la comprennent.',
+          'Utilise le design Classique et mets le nom de notre école et les numéros de page en en-tête et en pied de page.',
+          'Vérifie la fiche et supprime l’exercice 3.'
+        ]
+      },
+      {
+        label: 'Images & diagrammes',
+        items: [
+          'Une fiche de lecture pour le CP sur les animaux de la forêt – avec un pictogramme à côté de chaque mot et la coloration des syllabes.',
+          'Place une photo d’un légionnaire romain à côté du texte.',
+          'Dessine un diagramme de classes UML pour Compte, Compte courant et Compte épargne, où les élèves complètent l’héritage.',
+          'Crée un structogramme pour l’algorithme d’Euclide et, en dessous, un organigramme vide à compléter.',
+          'Un diagramme ER pour les élèves, les cours et les enseignants, en notation de Chen.'
+        ]
+      },
+      {
+        label: 'Musique',
+        items: [
+          'Sous l’exercice 2, insère une portée avec c – f – g et, en dessous, une portée vide pour recopier.',
+          'J’ai besoin d’une portée : 4/4 bc1, f1, g2, be2, c1, c1',
+          'Modifie la portée 1, s’il te plaît : au lieu de bc #c',
+          'Ajoute les paroles à la portée 1 : Frère Jacques, dormez-vous',
+          'Après l’exercice 3, insère trois portées vides en clé de fa.'
+        ]
+      }
     ]
-  },
-  mcp: {
-    headline: 'MCP',
-    title: 'Votre assistant IA écrit avec vous',
-    description:
-      'Grâce au Model Context Protocol, Claude, ChatGPT, Le Chat et d’autres assistants IA travaillent directement dans le document que vous avez ouvert dans Euro-Office. Le plugin applique les modifications – vous les voyez immédiatement et pouvez les annuler avec Ctrl+Z.',
-    imageAlt: 'Un assistant IA a ajouté via MCP un exercice supplémentaire avec une portée et des paroles ; le chat du plugin affiche les appels MCP',
-    items: [
-      { title: 'Les mêmes outils', description: 'Blocs de fiche, modification, suppression, portées et paroles – tout est vérifié avant d’arriver dans le document.' },
-      { title: 'Uniquement vos documents', description: 'Avec la connexion Nextcloud, un assistant n’accède qu’aux documents de son utilisateur.' },
-      { title: 'Vous gardez le contrôle', description: 'Le document n’est connecté que si vous activez « Allow MCP access » dans le plugin. Vous révoquez l’accès dans Nextcloud.' }
-    ],
-    clientsTitle: 'Testé',
-    clientsText: 'Avec le SDK TypeScript MCP (protocole 2026-07-28) et des requêtes au format 2025, via HTTP et stdio. Claude, ChatGPT et Le Chat eux-mêmes n’ont pas encore été connectés.'
-  },
-  companion: {
-    headline: 'Application de bureau',
-    title: 'L’application Worksheet Assistant pour votre ordinateur',
-    description:
-      'Les applications de bureau Euro-Office et Nextcloud Office n’ont ni gestionnaire de plugins ni serveur. L’application Worksheet Assistant se charge des deux : installez-la comme n’importe quelle application, lancez-la une fois – ensuite, elle travaille de façon invisible en arrière-plan. Ni terminal, ni navigateur.',
-    imageAlt: 'Fenêtre de l’application Worksheet Assistant, page « Übersicht » (vue d’ensemble) : les trois étapes sont terminées – plugin dans l’application de bureau, chat IA dans le plugin, Claude connecté',
-    items: [
-      { title: 'Plugin configuré automatiquement', description: 'Installe le plugin dans Euro-Office et Nextcloud Office, le connecte et le maintient à jour – aucun réglage dans l’éditeur.' },
-      { title: 'Votre IA', description: 'Mistral, OpenAI, Anthropic, Ollama ou toute API compatible OpenAI – la clé reste sur votre ordinateur.' },
-      { title: 'Claude en un clic', description: 'Connecte Claude Desktop ou Claude Code en un clic. L’application signale elle-même les nouvelles versions et démarre avec votre ordinateur si vous le souhaitez.' }
-    ]
-  },
-  music: {
-    headline: 'Musique',
-    title: 'Fiches de musique – même sans IA',
-    description:
-      'L’onglet musique fonctionne sans serveur et sans clé API : modèles, éditeur ABC avec aperçu en direct, noms de notes allemands et paroles. Une portée sélectionnée peut être chargée, modifiée et remplacée.',
-    imageAlt: 'Onglet musique : modèle « Alle meine Entchen » avec paroles, notation ABC et aperçu',
-    items: [
-      { title: 'Modèles', description: 'Portées vides en clé de sol ou en clé de fa, gammes, une mélodie d’exemple avec paroles.' },
-      { title: 'Convertir les noms de notes', description: 'c – f – g, fis′ g′ a′ h′, « bc » pour do bémol et des mesures comme 4/4 – les chiffres comme octave ou comme durée.' },
-      { title: 'Prêt à imprimer et modifiable', description: 'Images en 300 ppp ; la source ABC est enregistrée dans le texte alternatif.' }
-    ]
-  },
-  demo: {
-    headline: 'Démo en direct',
-    title: 'Essayez le convertisseur de noms de notes',
-    description: 'Tapez des noms de notes allemands – la portée s’affiche aussitôt. C’est le même convertisseur que celui qu’utilise le plugin dans l’éditeur.',
-    loading: 'Chargement de la démo…',
-    notesLabel: 'Noms de notes (allemands)',
-    notesHelp: 'p. ex. c – f – g, fis′ g′ a′ h′, bc = do bémol, 4/4 = mesure',
-    clefLabel: 'Clé',
-    treble: 'Clé de sol',
-    bass: 'Clé de fa',
-    digitsLabel: 'Chiffres',
-    digitsAuto: 'Chiffres : automatique',
-    digitsOctave: 'Chiffres = octave (c1 = c′)',
-    digitsDuration: 'Chiffres = durée (c1 = ronde)',
-    lyricsLabel: 'Paroles (facultatif)',
-    lyricsHelp: 'Séparez les syllabes par un - : Frè-re Jac-ques',
-    showAbc: 'Afficher la notation ABC',
-    paperLoading: 'Chargement de la portée…',
-    examples: ['c – f – g', 'Hänschen klein', 'Durées', 'Clé de fa'],
-    noteCount: '{n} notes',
-    readAsDurations: 'chiffres lus comme des durées',
-    readAsOctaves: 'chiffres lus comme des octaves',
-    meterInfo: 'Mesure à {meter}, {bars} mesures',
-    issues: {
-      unknownName: '« {token} » n’est pas un nom de note connu.',
-      doubleAccidental: '« {token} » a deux altérations.',
-      farFromStaff: '« {token} » ({octave}) est bien en dehors de la portée.',
-      incompleteBar: 'Les notes ne remplissent pas des mesures à {meter} complètes ({bars} mesures).',
-      tooManySyllables: 'Les paroles ont plus de syllabes que la mélodie n’a de notes.',
-      tooFewSyllables: 'Les paroles ne couvrent pas toutes les notes – les autres restent sans texte.'
-    }
   },
   parts: {
     headline: 'Ce qui tourne, et où',
     title: 'Un plugin, un petit serveur – et l’IA de votre choix',
-    description: 'Le plugin n’a pas besoin de son propre serveur. Le chat IA et MCP ajoutent un petit service – sur le serveur ou dans l’application Worksheet Assistant sur votre ordinateur.',
+    description: 'Le plugin n’a pas besoin de son propre serveur. Pour le chat IA, les images et MCP, un petit service s’ajoute – sur le serveur ou dans l’application Worksheet Assistant sur votre ordinateur.',
     items: [
       {
         title: 'Plugin',
         badge: 'toujours',
-        description: 'De simples fichiers (≈ 1 Mo) dans le dossier des plugins d’Euro-Office. Fonctionne dans l’éditeur du navigateur ou dans l’application de bureau.',
-        bullets: ['Insère et modifie du contenu', 'Dessine les portées, onglet musique complet', 'Exécute les appels MCP dans le document']
+        description: 'De simples fichiers (≈ 1,4 Mo) dans le dossier des plugins d’Euro-Office. Fonctionne dans l’éditeur du navigateur ou dans l’application de bureau.',
+        bullets: ['Met en page les fiches, les graphiques et les diagrammes', 'Dessine les portées, onglet musique complet', 'Exécute les appels MCP dans le document']
       },
       {
         title: 'Serveur',
-        badge: 'pour le chat IA et MCP',
+        badge: 'pour le chat IA, les images et MCP',
         description: 'Un petit service (Docker, ≈ 30 Mo de RAM) à côté de Nextcloud – ou en arrière-plan de l’application Worksheet Assistant sur votre propre ordinateur.',
         bullets: ['La clé API reste sur le serveur', 'Connexion via Nextcloud, limite de requêtes', 'Vérifie le contenu avant qu’il n’arrive dans le document']
       },
@@ -210,12 +340,12 @@ const fr: SiteContent = {
       },
       {
         title: 'Démarrer le serveur',
-        description: 'Il conserve la clé d’IA et fournit le point d’accès MCP. Rendez-le accessible en HTTPS, p. ex. à l’adresse `https://worksheets.your-school.org`. Avec `AUTH_MODE=nextcloud`, chaque enseignant se connecte avec son compte Nextcloud.',
+        description: 'Il conserve la clé d’IA, cherche les images et fournit le point d’accès MCP. Rendez-le accessible en HTTPS, p. ex. à l’adresse `https://worksheets.your-school.org`. Avec `AUTH_MODE=nextcloud`, chaque enseignant se connecte avec son compte Nextcloud.',
         codeLabel: 'Shell'
       },
       {
         title: 'Se connecter dans l’éditeur',
-        description: 'Ouvrez un document → **Plugins** → **Worksheet Assistant** → **Settings** : saisissez l’adresse du serveur et cliquez sur **Sign in with Nextcloud**. C’est tout.'
+        description: 'Ouvrez un document → **Plugins** → **Assistant fiches de travail** → **Einstellungen** (paramètres) : saisissez l’adresse du serveur et cliquez sur **Mit Nextcloud anmelden** (se connecter avec Nextcloud). C’est tout. Vos propres images vont dans le dossier `Arbeitsblatt-Bilder` de votre Nextcloud.'
       }
     ],
     desktop: [
@@ -226,7 +356,7 @@ const fr: SiteContent = {
       },
       {
         title: 'Choisir votre IA',
-        description: 'Dans l’application, sur la page **KI-Chat** (chat IA), indiquez le fournisseur et la clé API – ou un modèle local via Ollama, ou seulement MCP. Ouvrez ensuite un document dans Euro-Office : **Plugins → Worksheet Assistant**. Vous pouvez fermer la fenêtre – l’application continue de tourner dans la zone de notification (macOS : barre des menus). Astuce : activez le démarrage automatique sous **Einstellungen** (paramètres).'
+        description: 'Dans l’application, sur la page **KI-Chat** (chat IA), indiquez le fournisseur et la clé API – ou un modèle local via Ollama, ou seulement MCP. Sur la page **Bilder** (images), choisissez votre propre dossier d’images. Ouvrez ensuite un document dans Euro-Office : **Plugins → Assistant fiches de travail**. Vous pouvez fermer la fenêtre – l’application continue de tourner dans la zone de notification (macOS : barre des menus).'
       }
     ],
     docker: [
@@ -236,12 +366,15 @@ const fr: SiteContent = {
         description: '`deploy/` démarre Euro-Office avec le plugin comme volume, ainsi que le serveur. Nextcloud utilise ensuite le Document Server comme serveur externe.',
         codeLabel: 'Shell'
       },
-      { title: 'Configurer l’éditeur', description: 'Dans les **Settings** du plugin, saisissez l’adresse du serveur et le jeton (ou connectez-vous avec Nextcloud), puis cliquez sur « Test connection ».' }
+      {
+        title: 'Configurer l’éditeur',
+        description: 'Dans les **Einstellungen** (paramètres) du plugin, saisissez l’adresse du serveur et le jeton (ou connectez-vous avec Nextcloud), puis cliquez sur « Verbindung testen » (tester la connexion).'
+      }
     ],
     mcp: [
       {
         title: 'Connecter le document',
-        description: 'Dans le document ouvert, activez **Plugins → Worksheet Assistant → Settings → Allow MCP access** (déjà activé avec l’application Worksheet Assistant). Le panneau affiche l’adresse MCP.'
+        description: 'Dans le document ouvert, activez **Plugins → Assistant fiches de travail → Einstellungen → MCP-Zugriff erlauben** (autoriser l’accès MCP ; déjà activé avec l’application Worksheet Assistant). Le panneau affiche l’adresse MCP.'
       },
       {
         title: 'Connecter votre assistant IA',
@@ -259,7 +392,7 @@ const fr: SiteContent = {
       {
         label: 'Le plugin a-t-il besoin de son propre serveur ?',
         content:
-          'Le plugin lui-même, non – ce ne sont que des fichiers servis par Euro-Office. Le chat IA et MCP ont besoin du petit serveur ; sur votre propre ordinateur, c’est l’application Worksheet Assistant qui joue ce rôle. L’onglet musique fonctionne sans aucun serveur.'
+          'Le plugin lui-même, non – ce ne sont que des fichiers servis par Euro-Office. Le chat IA, la recherche d’images et MCP ont besoin du petit serveur ; sur votre propre ordinateur, c’est l’application Worksheet Assistant qui joue ce rôle. L’onglet musique fonctionne sans aucun serveur.'
       },
       {
         label: 'Quelle IA est utilisée ?',
@@ -272,6 +405,16 @@ const fr: SiteContent = {
           'À chaque demande dans le chat : la conversation et la structure du document (textes, portées en ABC). Le serveur n’enregistre ni conversations ni documents. Avec MCP, votre assistant IA lit le document à l’aide des outils. Si rien ne doit quitter votre réseau, utilisez un modèle local.'
       },
       {
+        label: 'D’où viennent les images – et ai-je le droit de les utiliser ?',
+        content:
+          'De trois sources : les pictogrammes ARASAAC (CC BY-NC-SA, utilisables librement à l’école), Wikimedia Commons (licences libres) et votre propre dossier d’images. L’auteur et la licence des images libres figurent automatiquement sous l’image. Le serveur n’interroge que les adresses fixes d’ARASAAC et de Wikimedia ainsi que votre dossier – l’IA ne fournit jamais d’adresses elle-même. Avec `IMAGE_SOURCES` ou dans l’application, vous désactivez les images provenant d’Internet.'
+      },
+      {
+        label: 'Quels diagrammes d’informatique sont disponibles ?',
+        content:
+          'Diagrammes UML de classes, d’objets, de séquence, d’états, d’activité et de cas d’utilisation, automates finis (AFD/AFN), structogrammes selon DIN 66261, organigrammes de programmation selon DIN 66001 et diagrammes ER en notation de Chen, (min,max) ou pied de corbeau. Chaque diagramme existe aussi à compléter et avec corrigé.'
+      },
+      {
         label: 'Qu’est-ce que MCP ?',
         content:
           'Le Model Context Protocol est une norme ouverte qui permet aux assistants IA d’utiliser des outils. Le serveur propose les outils du plugin – ainsi Claude, par exemple, modifie votre document ouvert comme si vous aviez utilisé le chat du plugin.'
@@ -279,7 +422,7 @@ const fr: SiteContent = {
       {
         label: 'Comment les enseignants se connectent-ils ?',
         content:
-          'Avec `AUTH_MODE=nextcloud`, avec leur compte Nextcloud : dans le plugin en un clic (Nextcloud Login Flow), les assistants IA via OAuth par Nextcloud ou avec un mot de passe d’application. Chacun n’accède qu’à ses propres documents ; l’accès peut être révoqué dans Nextcloud, sous Appareils et sessions.'
+          'Avec `AUTH_MODE=nextcloud`, avec leur compte Nextcloud : dans le plugin en un clic (Nextcloud Login Flow), les assistants IA via OAuth par Nextcloud ou avec un mot de passe d’application. Chacun n’accède qu’à ses propres documents et images ; l’accès peut être révoqué dans Nextcloud, sous Appareils et sessions.'
       },
       {
         label: 'Est-ce que ça marche sans Nextcloud ?',
@@ -288,7 +431,7 @@ const fr: SiteContent = {
       {
         label: 'Puis-je modifier plus tard le contenu inséré ?',
         content:
-          'Oui. L’IA lit le contenu et remplace exactement les parties que vous indiquez. Les portées conservent leur source ABC dans le texte alternatif et peuvent être modifiées par chat ou dans l’onglet musique.'
+          'Oui. L’IA lit le contenu et remplace exactement les parties que vous indiquez. Les graphiques, diagrammes, images et portées conservent leur source dans le texte alternatif et peuvent être modifiés par chat ; les portées aussi dans l’onglet musique.'
       },
       {
         label: 'Que se passe-t-il lors d’une mise à jour de Nextcloud AIO ?',
@@ -308,7 +451,7 @@ const fr: SiteContent = {
       {
         label: 'Est-ce open source ?',
         content:
-          'Oui, sous licence MIT. Il inclut abcjs (MIT) et les fichiers de plugin ONLYOFFICE (AGPL-3.0) ; l’application Worksheet Assistant contient Node.js et des paquets npm – tous avec leurs textes de licence.'
+          'Oui, sous licence MIT. Il inclut abcjs, dagre et qrcode-generator (tous MIT) et les fichiers de plugin ONLYOFFICE (AGPL-3.0) ; l’application Worksheet Assistant contient Node.js et des paquets npm – tous avec leurs textes de licence.'
       }
     ]
   },
@@ -320,9 +463,10 @@ const fr: SiteContent = {
   },
   footer: {
     license: 'Worksheet Assistant · licence MIT',
-    uses: 'utilise abcjs (MIT) et le SDK de plugins ONLYOFFICE (AGPL-3.0)',
+    uses: 'utilise abcjs, dagre et qrcode-generator (MIT) et le SDK de plugins ONLYOFFICE (AGPL-3.0) · Pictogrammes : Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Copier',
-    copied: 'Copié'
+    copied: 'Copié',
+    zoom: 'Ouvrir l’image en taille réelle'
   }
 }
 
