@@ -65,6 +65,18 @@ test('companion settings: created with a token (mode 0600), mapped to the local 
   assert.equal(ollama.baseUrl, 'http://127.0.0.1:11434/v1');
   assert.throws(() => serverConfig({ ...settings, provider: 'mistral', apiKey: '' }), /API key/);
   assert.equal(serverConfig({ ...settings, provider: 'mistral', apiKey: 'k' }).model, 'mistral-large-latest');
+
+  // Worksheet pictures: internet sources by default, own pictures only with a folder.
+  assert.equal(settings.onlinePictures, true);
+  assert.deepEqual(none.imageSources, ['arasaac', 'commons']);
+  const own = serverConfig({ ...settings, imageFolder: dir });
+  assert.deepEqual(own.imageSources, ['arasaac', 'commons', 'own']);
+  assert.equal(own.imageFolder, dir);
+  assert.deepEqual(serverConfig({ ...settings, onlinePictures: false }).imageSources, []);
+  fs.writeFileSync(path.join(dir, 'config.json'), JSON.stringify({ ...settings, imageFolder: 'relativ', onlinePictures: 'ja' }));
+  const repaired = loadSettings(dir).settings;
+  assert.equal(repaired.imageFolder, '');
+  assert.equal(repaired.onlinePictures, true);
 });
 
 test('companion install: copies the plugin and writes local-config.js', () => {

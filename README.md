@@ -334,7 +334,9 @@ desktop editors and starts the local server in the background. The page *Übersi
 3. *Claude verbinden* (optional) – see *Claude* below.
 
 The other pages: *Desktop-App* (plugin status per desktop editor, button to install or update the plugin),
-*Claude & MCP*, *Einstellungen* (autostart, updates, settings and log folders, quit).
+*Bilder* (pictures from the internet on or off; *Ordner wählen* for your own picture folder, e.g. comic panels or
+own photos – see [Pictures](#pictures)), *Claude & MCP*, *Einstellungen* (autostart, updates, settings and log
+folders, quit).
 
 **4. Closing the window** does not quit the app. It keeps running with an icon in the system tray (Windows, Linux)
 or in the menu bar (macOS); its menu has *Arbeitsblatt-Assistent öffnen*, a status line, *Version x verfügbar …*
@@ -775,8 +777,9 @@ replace them later.
 in their Nextcloud and puts pictures in it (subfolders up to three levels and 150 folders, PNG, JPEG, GIF, WebP, SVG,
 and HEIC/TIFF when Nextcloud can make previews of them; good file names help the AI find them). The proxy reads it with the app password of the user's plugin sign-in (so the plugin must be
 signed in, also for MCP clients) and loads large photos as a Nextcloud preview (max. 1600 px). In `token`/`local`
-mode (one school server) `IMAGE_FOLDER` can be an absolute local folder that all users share; the desktop app's
-window does not offer it yet.
+mode (one school server) `IMAGE_FOLDER` can be an absolute local folder that all users share. In the **desktop app**
+the page *Bilder* sets it: *Ordner wählen* picks the folder (the app shows how many pictures it finds there), and a
+switch turns the pictures from the internet on or off.
 Copyrighted material such as comic panels is only ever taken from this folder – the assistant never downloads it
 from the internet.
 

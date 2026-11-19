@@ -30,7 +30,7 @@ const state: CompanionState = {
   config_dir: '/home/lehrer/.config/worksheet-assistant',
   apps: [{ id: 'desktop-editors', name: 'Euro-Office / Nextcloud Office', detected: true, plugin_dir: '/home/lehrer/.local/share/euro-office/desktopeditors/sdkjs-plugins/{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}', installed: ready, configured: ready, version: ready ? '0.6.0' : '' }],
   plugin_version: '0.6.0',
-  settings: { provider: ready ? 'mistral' : 'none', model: '', base_url: '', has_key: ready, extra_origins: [] },
+  settings: { provider: ready ? 'mistral' : 'none', model: '', base_url: '', has_key: ready, extra_origins: [], online_pictures: true, image_folder: ready ? '/home/lehrer/Bilder/Arbeitsblatt-Bilder' : '' },
   providers: [
     { id: 'none', label: 'Kein KI-Chat (nur MCP)', model: '', needs_key: false, base_url: '' },
     { id: 'mistral', label: 'Mistral', model: 'mistral-large-latest', needs_key: true, base_url: '' },
@@ -81,6 +81,13 @@ async function api(method: string, path: string, body: Record<string, unknown> |
     state.settings = { ...state.settings, provider: p.id, model: String(body?.model ?? ''), base_url: String(body?.base_url ?? ''), has_key: p.needs_key && (!!body?.api_key || state.settings.has_key) && !body?.clear_key }
     return { ok: true }
   }
+  if (path === 'pictures') {
+    const pictures = () => ({ online: state.settings.online_pictures, folder: state.settings.image_folder, folder_ok: !!state.settings.image_folder, count: state.settings.image_folder ? 42 : 0, error: '' })
+    if (method === 'GET') return pictures()
+    if (typeof body?.online === 'boolean') state.settings.online_pictures = body.online
+    if (typeof body?.folder === 'string') state.settings.image_folder = body.folder
+    return { ok: true, pictures: pictures() }
+  }
   if (path === 'autostart') {
     state.autostart = !!body?.enabled
     return { ok: true, autostart: state.autostart }
@@ -120,6 +127,9 @@ export async function mockCall(command: string, args?: Record<string, unknown>):
         await wait(150)
       }
       return null
+    case 'pick_folder':
+      await wait(400)
+      return '/home/lehrer/Bilder/Arbeitsblatt-Bilder'
     case 'open_external':
     case 'open_folder':
       window.open(String(args?.url ?? ''), '_blank')
