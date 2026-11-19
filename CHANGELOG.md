@@ -23,6 +23,10 @@
   dialog) for an own picture folder on the computer; the page shows how many pictures the assistant finds in it and
   warns when the folder is gone. Stored in the app's settings (`onlinePictures`, `imageFolder`); changes restart the
   local server. New settings API `GET/POST /companion/api/pictures`.
+- **Icons:** the website favicon, the desktop app icon (Windows, macOS, Linux), the icon in its window, the macOS menu
+  bar icon and the plugin button in Euro-Office still showed the two quavers of the former music notation plugin.
+  They now all show the mark of the website header (a sheet with a pen, Lucide `file-pen-line`). Sources:
+  `apps/desktop/icon-src/` (PNG/ICNS/ICO via `pnpm tauri icon`) and `apps/plugin/icon-src/icon.svg`.
 
 ## 0.6.0 – desktop app
 
