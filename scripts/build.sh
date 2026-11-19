@@ -2,7 +2,7 @@
 # Build the Euro-Office plugin: apps/plugin/src + the shared modules (packages/shared) + vendor/.
 #
 #   scripts/build.sh                  build dist/worksheet-assistant/ and dist/worksheet-assistant.plugin
-#   scripts/build.sh --update-vendor  re-download abcjs, qrcode-generator and the ONLYOFFICE v1 SDK files
+#   scripts/build.sh --update-vendor  re-download abcjs, qrcode-generator, dagre and the ONLYOFFICE v1 SDK files
 #                                     into vendor/ (versions below), then build
 #
 # Output:
@@ -23,6 +23,8 @@ VENDOR="$ROOT/vendor"
 
 ABCJS_VERSION="${ABCJS_VERSION:-6.7.2}"
 QRCODE_VERSION="${QRCODE_VERSION:-2.0.4}"
+# Keep in sync with "@dagrejs/dagre" in packages/shared/package.json (Node uses the npm package; a unit test compares them).
+DAGRE_VERSION="${DAGRE_VERSION:-3.1.2}"
 # Pinned commit of https://github.com/ONLYOFFICE/onlyoffice.github.io (sdkjs-plugins/v1)
 ONLYOFFICE_REF="${ONLYOFFICE_REF:-94927418d89373a647b99100a40cc57d08da44e2}"
 
@@ -31,7 +33,7 @@ update_vendor() {
   local tmp
   tmp="$(mktemp -d)"
   trap 'rm -rf "$tmp"' RETURN
-  mkdir -p "$VENDOR/onlyoffice" "$VENDOR/abcjs" "$VENDOR/qrcode-generator"
+  mkdir -p "$VENDOR/onlyoffice" "$VENDOR/abcjs" "$VENDOR/qrcode-generator" "$VENDOR/dagre"
   local base="https://raw.githubusercontent.com/ONLYOFFICE/onlyoffice.github.io/$ONLYOFFICE_REF"
   curl -fsSL -o "$VENDOR/onlyoffice/plugins.js" "$base/sdkjs-plugins/v1/plugins.js"
   curl -fsSL -o "$VENDOR/onlyoffice/plugins-ui.js" "$base/sdkjs-plugins/v1/plugins-ui.js"
@@ -47,8 +49,12 @@ update_vendor() {
   qrcode_ref="$(pnpm view "qrcode-generator@$QRCODE_VERSION" gitHead)"
   curl -fsSL -o "$VENDOR/qrcode-generator/LICENSE" \
     "https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/$qrcode_ref/LICENSE"
+  # dagre: the browser build (graphlib bundled in, global "dagre")
+  mkdir -p "$tmp/dagre"
+  curl -fsSL "$(pnpm view "@dagrejs/dagre@$DAGRE_VERSION" dist.tarball)" | tar xz -C "$tmp/dagre"
+  cp "$tmp/dagre/package/dist/dagre.min.js" "$tmp/dagre/package/LICENSE" "$VENDOR/dagre/"
   (cd "$VENDOR" && sha256sum onlyoffice/plugins.js onlyoffice/plugins-ui.js abcjs/abcjs-basic-min.js \
-    qrcode-generator/qrcode.js > SHA256SUMS)
+    qrcode-generator/qrcode.js dagre/dagre.min.js > SHA256SUMS)
   echo "    Updated vendor/SHA256SUMS – also update the table in vendor/SOURCES.md:"
   cat "$VENDOR/SHA256SUMS"
 }
@@ -77,7 +83,7 @@ find "$OUT" -mindepth 1 -delete
 rm -f "$ROOT/dist/$NAME.plugin" "$ROOT/dist/$NAME.tar.gz" "$ROOT/dist/$NAME.zip"
 mkdir -p "$OUT/vendor" "$OUT/licenses"
 cp -R "$SRC/." "$OUT/"
-# Shared modules (also used by the proxy): ABC helpers, worksheet layout, themes, generators, graphics, check.
+# Shared modules (also used by the proxy): ABC helpers, worksheet layout, themes, generators, graphics, diagrams, check.
 cp "$SHARED"/*.js "$OUT/js/"
 if [[ -n "${PLUGIN_VERSION:-}" ]]; then
   node -e '
@@ -89,9 +95,11 @@ fi
 cp "$VENDOR/onlyoffice/plugins.js" "$VENDOR/onlyoffice/plugins-ui.js" "$OUT/vendor/"
 cp "$VENDOR/abcjs/abcjs-basic-min.js" "$OUT/vendor/"
 cp "$VENDOR/qrcode-generator/qrcode.js" "$OUT/vendor/qrcode.js"
+cp "$VENDOR/dagre/dagre.min.js" "$OUT/vendor/dagre.min.js"
 cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE-worksheet-assistant.txt"
 cp "$VENDOR/abcjs/LICENSE.md" "$OUT/licenses/LICENSE-abcjs.txt"
 cp "$VENDOR/qrcode-generator/LICENSE" "$OUT/licenses/LICENSE-qrcode-generator.txt"
+cp "$VENDOR/dagre/LICENSE" "$OUT/licenses/LICENSE-dagre.txt"
 cp "$VENDOR/onlyoffice/LICENSE" "$OUT/licenses/LICENSE-onlyoffice-plugin-sdk-AGPL-3.0.txt"
 cp "$VENDOR/SOURCES.md" "$OUT/licenses/THIRD-PARTY.md"
 
