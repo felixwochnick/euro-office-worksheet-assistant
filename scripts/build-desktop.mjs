@@ -14,6 +14,11 @@
  * update bundles are created and signed and the public key goes into the app's configuration, which turns its
  * self-updates on (release workflow).
  *
+ * macOS signature: with APPLE_CERTIFICATE (base64 .p12 of a "Developer ID Application" certificate) and
+ * APPLE_CERTIFICATE_PASSWORD the app and its server program are signed with that certificate instead of ad hoc,
+ * and with APPLE_ID, APPLE_PASSWORD (app-specific password) and APPLE_TEAM_ID notarized and stapled by Tauri
+ * (release workflow). Without them the build stays ad-hoc signed (bundle.macOS.signingIdentity "-").
+ *
  * Result: apps/desktop/src-tauri/target/<target>/release/bundle/ (dmg + app, nsis, deb + appimage).
  */
 import { execFileSync } from 'node:child_process';
@@ -88,6 +93,22 @@ fs.writeFileSync(
 fs.cpSync(path.join(root, 'dist', 'worksheet-assistant', 'licenses'), path.join(resources, 'licenses'), { recursive: true });
 
 console.log('==> Desktop app');
+// Secrets that are not set arrive from GitHub Actions as empty strings – Tauri would take them as given.
+const APPLE_VARS = ['APPLE_CERTIFICATE', 'APPLE_CERTIFICATE_PASSWORD', 'APPLE_SIGNING_IDENTITY', 'APPLE_ID', 'APPLE_PASSWORD', 'APPLE_TEAM_ID'];
+for (const name of APPLE_VARS) if (!(process.env[name] || '').trim()) delete process.env[name];
+if (target.includes('apple') && process.env.APPLE_CERTIFICATE) {
+  if (!process.env.APPLE_CERTIFICATE_PASSWORD) throw new Error('APPLE_CERTIFICATE is set, APPLE_CERTIFICATE_PASSWORD is missing');
+  const missing = ['APPLE_ID', 'APPLE_PASSWORD', 'APPLE_TEAM_ID'].filter((name) => !process.env[name]);
+  // A Developer ID signature without notarization is still blocked by Gatekeeper – rather fail than ship that.
+  if (missing.length) throw new Error(`Developer ID signature without notarization: ${missing.join(', ')} missing`);
+  // Overrides the ad-hoc identity "-" of tauri.conf.json; the bundler checks that the imported certificate's
+  // name contains it ("Developer ID Application: <name> (<team id>)").
+  process.env.APPLE_SIGNING_IDENTITY ||= 'Developer ID Application';
+  console.log('    signed with the Developer ID certificate, notarized');
+} else if (target.includes('apple')) {
+  for (const name of APPLE_VARS) delete process.env[name];
+  console.log('    ad-hoc signed (APPLE_CERTIFICATE not set)');
+}
 const pubkey = (process.env.WORKSHEET_ASSISTANT_UPDATER_PUBKEY || '').trim();
 const signed = !!(process.env.TAURI_SIGNING_PRIVATE_KEY && pubkey);
 console.log(signed ? '    with signed update bundles' : '    without update bundles (TAURI_SIGNING_PRIVATE_KEY / WORKSHEET_ASSISTANT_UPDATER_PUBKEY not set)');
