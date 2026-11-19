@@ -24,6 +24,7 @@
  *  - qrCode(text, opts)            QR code (needs the vendored qrcode-generator)
  *  - sanitizeSvg(svgText, opts)    whitelist-clean SVG written by an AI
  *  - escapeXml(s), DEFAULT_FONT
+ *  - util                          helpers shared with worksheet-diagrams.js
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -2540,6 +2541,13 @@
     qrCode: qrCode,
     sanitizeSvg: sanitizeSvg,
     textWidth: textWidth,
-    wrapText: wrapText
+    wrapText: wrapText,
+    // Helpers for worksheet-diagrams.js (same conventions: millimetres, generous text estimates).
+    util: {
+      INK: INK, MUTED: MUTED, GRID: GRID, WHITE: WHITE, CAP: CAP, LH: LH, SVG_NS: SVG_NS, DEFAULT_FONT: DEFAULT_FONT,
+      f: f, px: px, round3: round3, el: el, escapeXml: escapeXml, tint: tint, hashId: hashId,
+      fail: fail, show: show, optsOf: optsOf, num: num, int: int, textOf: textOf, colorOf: colorOf, fontOf: fontOf,
+      textWidth: textWidth, wrapText: wrapText, maxWidth: maxWidth, blockHeight: blockHeight
+    }
   };
 });
