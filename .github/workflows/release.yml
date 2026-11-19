@@ -135,10 +135,21 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
           WORKSHEET_ASSISTANT_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          # macOS: Developer ID signature + notarization (see scripts/build-desktop.mjs); only the macOS jobs get them
+          APPLE_CERTIFICATE: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE || '' }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_CERTIFICATE_PASSWORD || '' }}
+          APPLE_ID: ${{ runner.os == 'macOS' && secrets.APPLE_ID || '' }}
+          APPLE_PASSWORD: ${{ runner.os == 'macOS' && secrets.APPLE_PASSWORD || '' }}
+          APPLE_TEAM_ID: ${{ runner.os == 'macOS' && secrets.APPLE_TEAM_ID || '' }}
         run: |
           pnpm install --frozen-lockfile --filter '!@worksheet-assistant/website'
           node scripts/build-desktop.mjs --target ${{ matrix.target }}
           node scripts/collect-desktop.mjs ${{ matrix.target }}
+      - name: Check the macOS signature
+        if: runner.os == 'macOS'
+        env:
+          DEVELOPER_ID: ${{ secrets.APPLE_CERTIFICATE != '' }}
+        run: bash scripts/check-macos-signature.sh "apps/desktop/src-tauri/target/${{ matrix.target }}/release/bundle"
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
