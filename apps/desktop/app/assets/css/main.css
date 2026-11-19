@@ -1,0 +1,40 @@
+@import "tailwindcss";
+@import "@nuxt/ui";
+
+@theme static {
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, Ubuntu, Cantarell, "Noto Sans", sans-serif;
+}
+
+/* A desktop app, not a web page: no text selection on chrome, default cursor. */
+html, body {
+  -webkit-user-select: none;
+  user-select: none;
+  cursor: default;
+}
+input, textarea, pre, code, .selectable {
+  -webkit-user-select: text;
+  user-select: text;
+}
+
+/*
+ * The checklist on the overview page is drawn on a ruled worksheet: every step sits on a writing line (the
+ * lineature the assistant prints on worksheets), with the red margin line of a school exercise book.
+ */
+.worksheet {
+  --rule: color-mix(in oklab, var(--ui-primary) 22%, transparent);
+  --margin: color-mix(in oklab, #f43f5e 55%, transparent);
+  position: relative;
+}
+.worksheet::before {
+  content: "";
+  position: absolute;
+  inset-block: 0;
+  inset-inline-start: 3.25rem;
+  border-inline-start: 1.5px solid var(--margin);
+}
+.worksheet > li {
+  border-bottom: 1px solid var(--rule);
+}
+.worksheet > li:last-child {
+  border-bottom-color: transparent;
+}

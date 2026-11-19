@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 // Tiny static file server for the local test harness (no dependencies).
-//   node scripts/serve.mjs [port]   -> http://localhost:8080/harness/
+//   node scripts/serve.mjs [port]   -> http://localhost:8080/apps/plugin/harness/
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -37,7 +37,7 @@ http
     });
   })
   .listen(port, () => {
-    console.log(`Harness: http://localhost:${port}/harness/`);
+    console.log(`Harness: http://localhost:${port}/apps/plugin/harness/`);
     console.log('Start the proxy with the mock provider for a full chat test, e.g.:');
-    console.log('  cd proxy && LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 CORS_ORIGINS=http://localhost:' + port + ' npm run dev');
+    console.log('  LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 CORS_ORIGINS=http://localhost:' + port + ' pnpm dev:server');
   });

@@ -5,7 +5,7 @@
 #   cd dev/eurooffice && docker compose up -d
 #   open http://localhost:8099/          (editor with files/worksheet.docx)
 #
-# For the AI chat also start the proxy (proxy/.env with CORS_ORIGINS=http://localhost:8090).
+# For the AI chat also start the proxy (apps/server/.env with CORS_ORIGINS=http://localhost:8090).
 services:
   eurooffice:
     image: ghcr.io/euro-office/documentserver:${EUROOFFICE_VERSION:-latest}

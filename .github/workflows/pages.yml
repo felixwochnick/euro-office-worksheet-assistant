@@ -1,4 +1,4 @@
-# Project website (website/, Nuxt + Nuxt UI) on GitHub Pages.
+# Project website (apps/website/, Nuxt + Nuxt UI) on GitHub Pages.
 # Builds on pull requests (check only) and deploys on pushes to main.
 # One-time setup: Settings → Pages → Build and deployment → Source: "GitHub Actions".
 name: Website
@@ -6,9 +6,19 @@ name: Website
 on:
   push:
     branches: [main]
-    paths: ["website/**", "shared/abc-tools.js", ".github/workflows/pages.yml"]
+    paths:
+      - "apps/website/**"
+      - "packages/shared/abc-tools.js"
+      - "apps/desktop/package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/pages.yml"
   pull_request:
-    paths: ["website/**", "shared/abc-tools.js", ".github/workflows/pages.yml"]
+    paths:
+      - "apps/website/**"
+      - "packages/shared/abc-tools.js"
+      - "apps/desktop/package.json"
+      - "pnpm-lock.yaml"
+      - ".github/workflows/pages.yml"
   workflow_dispatch:
 
 permissions:
@@ -21,30 +31,29 @@ concurrency:
 jobs:
   build:
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website
     steps:
       - uses: actions/checkout@v4
         with:
           persist-credentials: false
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
-          cache: npm
-          cache-dependency-path: website/package-lock.json
+          cache: pnpm
 
-      - run: npm ci
+      # pnpm workspace: only the website (and the shared package it imports)
+      - run: pnpm install --frozen-lockfile --filter '@worksheet-assistant/website...'
 
       - name: Build (static, github_pages preset)
-        run: npm run build
+        run: pnpm --filter @worksheet-assistant/website build
         env:
           NUXT_APP_BASE_URL: /${{ github.event.repository.name }}/
 
       - uses: actions/upload-pages-artifact@v3
         with:
-          path: website/.output/public
+          path: apps/website/.output/public
 
   deploy:
     if: github.event_name != 'pull_request' && github.ref == 'refs/heads/main'

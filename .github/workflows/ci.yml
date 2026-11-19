@@ -14,17 +14,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
 
+      # pnpm workspace: build tools (root), packages/shared and apps/server – not the desktop app or the website
       - name: Install dependencies
-        run: |
-          npm ci
-          npm --prefix proxy ci
+        run: pnpm install --frozen-lockfile --filter '!@worksheet-assistant/desktop' --filter '!@worksheet-assistant/website'
 
-      - name: Unit tests (shared ABC helpers + proxy)
-        run: npm test
+      - name: Unit tests (packages/shared + apps/server)
+        run: pnpm test
 
       - name: Build plugin
         run: bash scripts/build.sh
@@ -40,14 +42,14 @@ jobs:
           CHROMIUM_PATH: /usr/bin/google-chrome
           PROXY_URL: http://localhost:8788
         run: |
-          (cd proxy && LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 \
+          (cd apps/server && LLM_PROVIDER=mock PROXY_TOKEN=dev-token-change-me-0123 \
             CORS_ORIGINS=http://localhost:8080 PORT=8788 LOG_LEVEL=warn node build/src/server.js &)
           node scripts/serve.mjs 8080 &
-          for i in $(seq 1 30); do curl -fs http://localhost:8788/healthz && curl -fs -o /dev/null http://localhost:8080/harness/ && break; sleep 1; done
-          node harness/e2e.mjs
+          for i in $(seq 1 30); do curl -fs http://localhost:8788/healthz && curl -fs -o /dev/null http://localhost:8080/apps/plugin/harness/ && break; sleep 1; done
+          pnpm e2e
 
-      - name: Proxy Docker image builds
-        run: docker build -f proxy/Dockerfile -t worksheet-assistant-server:ci .
+      - name: Server Docker image builds
+        run: docker build -f apps/server/Dockerfile -t worksheet-assistant-server:ci .
 
       - uses: actions/upload-artifact@v4
         with:
@@ -62,13 +64,18 @@ jobs:
           name: plugin-folder
           path: dist/worksheet-assistant/
 
-  # Companion app for the desktop editors: single executable per platform (Node.js SEA).
-  companion:
+  # Desktop app (Tauri + Nuxt UI) with the companion as its server program, per platform (debug bundles).
+  desktop:
     needs: test
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest, macos-15-intel]
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
@@ -76,46 +83,82 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           # Node 24 LTS: its Linux build does not need libatomic (Node >= 25 does)
           node-version: 24
+          cache: pnpm
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils
 
       - uses: actions/download-artifact@v4
         with:
           name: plugin-folder
           path: dist/worksheet-assistant
 
-      - name: Build the executable
+      - name: Build
         run: |
-          npm ci
-          npm --prefix proxy ci
-          node scripts/build-companion.mjs
+          pnpm install --frozen-lockfile --filter '!@worksheet-assistant/website'
+          node scripts/build-desktop.mjs --target ${{ matrix.target }} -- --debug
 
-      - name: Smoke test
+      - name: Rust checks
+        if: matrix.target == 'x86_64-unknown-linux-gnu'
+        working-directory: apps/desktop/src-tauri
         run: |
-          exe=dist/companion/worksheet-assistant
+          cargo fmt --check
+          cargo clippy --all-targets -- -D warnings
+          cargo test
+
+      - name: Smoke test (server program in app mode, MCP)
+        run: |
+          exe=apps/desktop/src-tauri/binaries/worksheet-assistant-${{ matrix.target }}
           [ -f "$exe.exe" ] && exe="$exe.exe"
+          # macOS: the copy inside the app bundle, signed by the bundler with the hardened runtime (JIT entitlements)
+          app="apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/macos/Arbeitsblatt-Assistent.app"
+          if [ -d "$app" ]; then exe="$app/Contents/MacOS/worksheet-assistant"; codesign -dv --entitlements - "$exe" 2>&1 | tail -n 12; fi
           "$exe" version
           home="$(mktemp -d)"
           mkdir -p "$home/.local/share/euro-office/desktopeditors"
-          HOME="$home" USERPROFILE="$home" APPDATA="$home/AppData/Roaming" LOCALAPPDATA="$home/AppData/Local" \
-            "$exe" --no-browser --port 8799 > companion.log 2>&1 &
-          for i in $(seq 1 30); do curl -fs http://127.0.0.1:8799/v1/meta && break; sleep 1; done
+          secret=ci-secret-0123456789abcdef
+          # stdin stays open for 40 s (the program quits when it closes); stdout carries JSON events
+          (sleep 40) | HOME="$home" USERPROFILE="$home" APPDATA="$home/AppData/Roaming" LOCALAPPDATA="$home/AppData/Local" \
+            XDG_CONFIG_HOME="$home/.config" WORKSHEET_ASSISTANT_UI_SECRET="$secret" \
+            "$exe" --app --port 8799 > events.log 2> server.log &
+          for i in $(seq 1 30); do grep -q '"event":"ready"' events.log && break; sleep 1; done
+          cat events.log server.log
+          grep -q '"event":"ready"' events.log
+          curl -fs -H "x-companion-secret: $secret" http://127.0.0.1:8799/companion/api/state | head -c 300
           echo
           out="$(curl -fs -X POST http://127.0.0.1:8799/mcp -H 'content-type: application/json' \
             -H 'accept: application/json, text/event-stream' -H 'mcp-protocol-version: 2025-06-18' \
             -d '{"jsonrpc":"2.0","id":1,"method":"tools/call","params":{"name":"convert_german_notes","arguments":{"notes":"c fis g"}}}')"
           echo "${out:0:300}"
-          cat companion.log
           # the tool result contains the converted tune (^F = fis)
           case "$out" in *'^F'*) echo "MCP ok" ;; *) echo "MCP call failed"; exit 1 ;; esac
 
-      - name: Runs on a minimal Linux (no extra libraries)
+      - name: Server program runs on a minimal Linux (no extra libraries)
         if: runner.os == 'Linux'
-        run: docker run --rm -v "$PWD/dist/companion:/wa:ro" ubuntu:24.04 /wa/worksheet-assistant version
+        run: docker run --rm -v "$PWD/apps/desktop/src-tauri/binaries:/wa:ro" ubuntu:22.04 /wa/worksheet-assistant-${{ matrix.target }} version
 
       - uses: actions/upload-artifact@v4
         with:
-          name: companion-${{ runner.os }}-${{ runner.arch }}
-          path: dist/worksheet-assistant-*
+          name: desktop-${{ matrix.target }}
+          path: |
+            apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/dmg/*.dmg
+            apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/nsis/*.exe
+            apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/deb/*.deb
+            apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/appimage/*.AppImage

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Build the Euro-Office plugin.
+# Build the Euro-Office plugin: apps/plugin/src + the shared modules (packages/shared) + vendor/.
 #
 #   scripts/build.sh                  build dist/worksheet-assistant/ and dist/worksheet-assistant.plugin
 #   scripts/build.sh --update-vendor  re-download abcjs, qrcode-generator and the ONLYOFFICE v1 SDK files
@@ -17,6 +17,8 @@ set -euo pipefail
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 NAME="worksheet-assistant"
 OUT="$ROOT/dist/$NAME"
+SRC="$ROOT/apps/plugin/src"
+SHARED="$ROOT/packages/shared"
 VENDOR="$ROOT/vendor"
 
 ABCJS_VERSION="${ABCJS_VERSION:-6.7.2}"
@@ -34,15 +36,15 @@ update_vendor() {
   curl -fsSL -o "$VENDOR/onlyoffice/plugins.js" "$base/sdkjs-plugins/v1/plugins.js"
   curl -fsSL -o "$VENDOR/onlyoffice/plugins-ui.js" "$base/sdkjs-plugins/v1/plugins-ui.js"
   curl -fsSL -o "$VENDOR/onlyoffice/LICENSE" "$base/LICENSE"
-  (cd "$tmp" && npm pack "abcjs@$ABCJS_VERSION" --silent >/dev/null && tar xzf "abcjs-$ABCJS_VERSION.tgz")
+  curl -fsSL "$(pnpm view "abcjs@$ABCJS_VERSION" dist.tarball)" | tar xz -C "$tmp"
   cp "$tmp/package/dist/abcjs-basic-min.js" "$tmp/package/dist/abcjs-basic-min.js.LICENSE" "$tmp/package/LICENSE.md" "$VENDOR/abcjs/"
   # qrcode-generator: the npm package ships no LICENSE file – take it from the
   # GitHub repository at the commit the npm release was built from (gitHead).
   mkdir -p "$tmp/qrcode"
-  (cd "$tmp/qrcode" && npm pack "qrcode-generator@$QRCODE_VERSION" --silent >/dev/null && tar xzf "qrcode-generator-$QRCODE_VERSION.tgz")
+  curl -fsSL "$(pnpm view "qrcode-generator@$QRCODE_VERSION" dist.tarball)" | tar xz -C "$tmp/qrcode"
   cp "$tmp/qrcode/package/dist/qrcode.js" "$VENDOR/qrcode-generator/qrcode.js"
   local qrcode_ref
-  qrcode_ref="$(npm view "qrcode-generator@$QRCODE_VERSION" gitHead)"
+  qrcode_ref="$(pnpm view "qrcode-generator@$QRCODE_VERSION" gitHead)"
   curl -fsSL -o "$VENDOR/qrcode-generator/LICENSE" \
     "https://raw.githubusercontent.com/kazuhikoarase/qrcode-generator/$qrcode_ref/LICENSE"
   (cd "$VENDOR" && sha256sum onlyoffice/plugins.js onlyoffice/plugins-ui.js abcjs/abcjs-basic-min.js \
@@ -64,7 +66,7 @@ node -e '
   const v = c.variations[0];
   if (!/^asc\.\{[0-9A-F-]{36}\}$/.test(c.guid)) throw new Error("bad guid");
   if (v.type !== "panel" || v.isInsideMode !== true) throw new Error("panel/isInsideMode missing");
-' "$ROOT/plugin/config.json"
+' "$SRC/config.json"
 
 echo "==> Building $OUT"
 # Empty the folder instead of deleting it: it may be bind-mounted into a
@@ -74,9 +76,9 @@ mkdir -p "$OUT"
 find "$OUT" -mindepth 1 -delete
 rm -f "$ROOT/dist/$NAME.plugin" "$ROOT/dist/$NAME.tar.gz" "$ROOT/dist/$NAME.zip"
 mkdir -p "$OUT/vendor" "$OUT/licenses"
-cp -R "$ROOT/plugin/." "$OUT/"
+cp -R "$SRC/." "$OUT/"
 # Shared modules (also used by the proxy): ABC helpers, worksheet layout, themes, generators, graphics, check.
-cp "$ROOT"/shared/*.js "$OUT/js/"
+cp "$SHARED"/*.js "$OUT/js/"
 if [[ -n "${PLUGIN_VERSION:-}" ]]; then
   node -e '
     const fs = require("fs"); const f = process.argv[1];

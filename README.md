@@ -53,14 +53,14 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
 - **MCP endpoint** – *either* the built-in AI chat *or* your own AI assistant: Claude, ChatGPT, Le Chat or any
   other MCP client can read and edit the document that is open in Euro-Office (same tools as the chat). Sign-in
   with a Nextcloud app password or OAuth via Nextcloud; on a single computer without sign-in.
-- **Small server** (`proxy/`, Node/TypeScript, Fastify) that keeps the API key on the server, solves CORS, runs the
+- **Small server** (`apps/server/`, Node/TypeScript, Fastify) that keeps the API key on the server, solves CORS, runs the
   tool-calling agent loop and serves the MCP endpoint. Providers: **Mistral** (default), any **OpenAI-compatible**
   API (e.g. Ollama), **Anthropic**, a deterministic **mock** for tests and demos – or **none** (MCP only).
 
 The UI language is German (i18n-ready, English included).
 
 ```
-┌──────────── Euro-Office editor (browser) ─────────────┐        ┌──────── proxy/ ────────┐
+┌──────────── Euro-Office editor (browser) ─────────────┐        ┌───── apps/server/ ─────┐
 │  document  ◄── callCommand / executeMethod ──┐        │        │  POST /v1/chat         │
 │                                              │        │ HTTPS  │  system prompt + tools │
 │  plugin panel (iframe)                       │        │ token  │  ABC validation        │──► Mistral /
@@ -79,7 +79,7 @@ service, the proxy.
 | Component | What it is | Where it runs | Needed for | Resources |
 |-----------|-----------|---------------|------------|-----------|
 | **Plugin** (`worksheet-assistant/`) | Static files (HTML, JavaScript, icons, abcjs, qrcode-generator) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: inserting and editing worksheet content, rendering staves, lyrics, manual mode | ≈ 1.2 MB of files, no process |
-| **Proxy** (`proxy/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy | **Only the AI chat and MCP** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
+| **Proxy** (`apps/server/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy. With the desktop editors: inside the desktop app on the user's computer (installation D) | **Only the AI chat and MCP** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
 | **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat (MCP clients bring their own) | Billed by the provider / your hardware |
 
 - **Without the proxy** the music features work in the *Noten* tab (ABC editor, templates, German note names,
@@ -101,25 +101,42 @@ note converter and installation guide in German, English, French, Spanish, Itali
 
 ## Repository layout
 
+A monorepo with a pnpm workspace (`pnpm-workspace.yaml`): one `pnpm install` in the root installs everything (one
+`pnpm-lock.yaml`; pnpm's version is pinned in `packageManager` of `package.json`, e.g. via `corepack enable`); the
+packages are named `@worksheet-assistant/<name>`.
+
 | Path | Content |
 |------|---------|
-| `plugin/` | Plugin source: `config.json`, `index.html`, `css/`, `js/`, icons |
-| `shared/abc-tools.js` | ABC validation/normalisation and German note names → ABC (used by plugin **and** proxy) |
-| `shared/worksheet-layout.js` | Worksheet blocks → document elements (design decisions; used by the plugin and, for validation, by the proxy) |
-| `shared/worksheet-themes.js` | Designs (fonts, sizes, colours) and printed labels in seven languages |
-| `shared/worksheet-generators.js` | Crossword, word search, cloze, matching, grade key (deterministic) |
-| `shared/worksheet-svg.js` | Icons, task badges, lineatures, number lines, coordinate systems, charts, mind maps, QR codes, SVG sanitiser |
-| `shared/german-syllables.js`, `shared/worksheet-check.js` | Syllables for Silbenfärbung; the worksheet quality check |
+| `apps/plugin/` | The Euro-Office plugin: source in `src/` (`config.json`, `index.html`, `css/`, `js/`, icons); `harness/` – local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
+| `apps/server/` | The server (proxy, TypeScript, Fastify): AI chat, MCP endpoint, `Dockerfile`, `docker-compose.yml`, `compose.release.yml`, `.env.example` |
+| `apps/server/src/companion/` | The desktop app's server program `worksheet-assistant` (plugin installation, local server, autostart, MCP over stdio; `claude.ts`: Claude Desktop / Claude Code entries); `scripts/build-companion.mjs` builds it as a single executable |
+| `apps/desktop/` | Desktop app for the desktop editors (installation D): UI of the window in `app/` (Nuxt 4 + Nuxt UI 4), Tauri 2 shell in `src-tauri/` (`src/sidecar.rs` starts and supervises the server program, `src/tray.rs` tray / menu bar icon, `src/updates.rs` update check); icon sources in `icon-src/` |
+| `apps/website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
+| `packages/shared/` | Modules shared by the plugin (browser globals), the server and the website (CommonJS), with their unit tests in `test/`: |
+| ↳ `abc-tools.js` | ABC validation/normalisation and German note names → ABC |
+| ↳ `worksheet-layout.js` | Worksheet blocks → document elements (design decisions; used by the plugin and, for validation, by the server) |
+| ↳ `worksheet-themes.js` | Designs (fonts, sizes, colours) and printed labels in seven languages |
+| ↳ `worksheet-generators.js` | Crossword, word search, cloze, matching, grade key (deterministic) |
+| ↳ `worksheet-svg.js` | Icons, task badges, lineatures, number lines, coordinate systems, charts, mind maps, QR codes, SVG sanitiser |
+| ↳ `german-syllables.js`, `worksheet-check.js` | Syllables for Silbenfärbung; the worksheet quality check |
 | `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js`, `qrcode-generator` (see `vendor/SOURCES.md`) |
-| `proxy/` | LLM proxy (TypeScript), `Dockerfile`, `docker-compose.yml`, `.env.example` |
-| `deploy/` | Example compose: Euro-Office as its own container with the plugin as a volume, plus the proxy |
-| `harness/` | Local test harness (mocked `window.Asc.plugin` and builder API) and an end-to-end test |
-| `scripts/build.sh` | Builds `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
+| `scripts/build.sh` | Builds the plugin: `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
 | `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
-| `.github/workflows/` | CI (tests, build, e2e, Docker), release (packages + proxy image on GHCR), website (GitHub Pages) |
-| `proxy/src/companion/` | Companion app for the desktop editors (plugin installation, local server, settings page, autostart, MCP over stdio); `scripts/build-companion.mjs` builds it as a single executable |
-| `website/` | Project website (Nuxt 4 + Nuxt UI, static on GitHub Pages) with a live demo of the converter |
-| `tests/` | Unit tests (ABC validation, German note names, worksheet layout, generators, graphics, syllables, check) |
+| `scripts/build-desktop.mjs`, `scripts/collect-desktop.mjs`, `scripts/updater-json.mjs` | Build the desktop app; copy its installers under the release names to `dist/desktop/`; write `latest.json` for the app's updater |
+| `deploy/` | Example compose: Euro-Office as its own container with the plugin as a volume, plus the proxy |
+| `dev/` | Test setups with a real Euro-Office and Nextcloud (end-to-end tests, website screenshots) |
+| `.github/workflows/` | CI (tests, build, e2e, Docker, desktop app on all platforms), release (packages, desktop app installers, proxy image on GHCR), website (GitHub Pages) |
+
+Root scripts:
+
+| Command | What it does |
+|---------|--------------|
+| `pnpm install` | Installs all packages (CI installs only the ones a job needs, e.g. `pnpm install --frozen-lockfile --filter '!@worksheet-assistant/desktop' --filter '!@worksheet-assistant/website'`) |
+| `pnpm test` | Unit tests of `packages/shared` and `apps/server` |
+| `pnpm build` | Plugin (`scripts/build.sh`) and server (`tsc`) |
+| `pnpm build:companion` / `build:desktop` / `build:website` | The desktop app's server program / the desktop app / the website |
+| `pnpm e2e` | End-to-end test of the plugin in the harness (see [Local test harness](#local-test-harness-no-euro-office-needed)) |
+| `pnpm dev:server` / `dev:desktop` / `dev:website` | Server with `apps/server/.env` / the desktop app (`tauri dev`) / the website |
 
 ## Build
 
@@ -136,6 +153,31 @@ Result:
 - `dist/worksheet-assistant.plugin` – the same as ZIP with `config.json` at the root (for editors with a plugin manager)
 - `dist/worksheet-assistant.tar.gz` / `.zip` – archives with the `worksheet-assistant/` folder (for `install-aio.sh --archive`)
 
+### Desktop app
+
+Requirements: Rust (stable) and the official **Node.js 24 LTS** from nodejs.org, nvm or fnm (newer official Linux
+builds need `libatomic.so.1`, distribution packages link system libraries – the server program would not run
+everywhere). On Linux also `libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf`.
+
+```bash
+pnpm install                           # all packages (or: pnpm build:desktop, which installs if needed)
+node scripts/build-desktop.mjs         # -> apps/desktop/src-tauri/target/<target>/release/bundle/
+node scripts/collect-desktop.mjs <target>   # optional: installers under the release names in dist/desktop/
+```
+
+`build-desktop.mjs` builds the plugin (if `dist/worksheet-assistant/` is missing), the server program
+(`scripts/build-companion.mjs --no-archive`) and the Tauri bundles (`.dmg`, NSIS setup, `.deb`, AppImage);
+`scripts/updater-json.mjs` writes `latest.json` for the app's updater (release workflow). CI builds the app for
+Linux x64/arm64, Windows x64 and macOS arm64/x64, starts the server program in app mode, calls an MCP tool and
+checks that the server program starts on a minimal Ubuntu.
+
+Working on the window's UI:
+
+- without Rust: `pnpm --filter @worksheet-assistant/desktop dev` opens the UI in the browser with a simulated backend
+  (URL parameter `?scenario=fresh|ready|error|update|starting`);
+- with Rust: `node scripts/build-desktop.mjs --stub` (placeholders for the server program), then
+  `pnpm dev:desktop` (`tauri dev`).
+
 ## Installation
 
 There are three parts: the **plugin** (in the Euro-Office Document Server), the **proxy** (holds the AI key) and the
@@ -146,11 +188,12 @@ There are three parts: the **plugin** (in the Euro-Office Document Server), the 
 | **A – Nextcloud AIO + install script with `--watch`** | one command | ✅ (re-installed automatically after every AIO update) | AIO users |
 | B – own Euro-Office container, plugin as volume (`deploy/`) | own Document Server + reverse proxy | ✅ | if you run the Document Server yourself anyway |
 | C – `docker cp` by hand | one command | ❌ (gone after every AIO update) | quick tests |
-| **D – desktop app (Windows, macOS, Linux) + companion app** | download, start | ✅ | working locally with the Euro-Office / Nextcloud Office desktop editors |
+| **D – desktop app (Windows, macOS, Linux)** for the Euro-Office / Nextcloud Office desktop editors | download, install | ✅ (the app keeps the plugin up to date) | working locally with the Euro-Office / Nextcloud Office desktop editors |
 
 Prebuilt packages are attached to each [GitHub release](https://github.com/felixwochnick/euro-office-worksheet-assistant/releases)
-(`worksheet-assistant.tar.gz`, `.zip`, `.plugin`; up to 0.1.0 `music-notation.*`); the proxy image is `ghcr.io/felixwochnick/euro-office-worksheet-assistant`.
-Releases are created by pushing a tag (`git tag v0.1.0 && git push origin v0.1.0`, see `.github/workflows/release.yml`).
+(`worksheet-assistant.tar.gz`, `.zip`, `.plugin`; up to 0.1.0 `music-notation.*`; from 0.6.0 the desktop app's
+installers `Arbeitsblatt-Assistent_<version>_…`); the proxy image is `ghcr.io/felixwochnick/euro-office-worksheet-assistant`.
+Releases are created by pushing a tag (see [Releases](#releases)).
 Until the first release exists, build locally with `bash scripts/build.sh` and use `--source dist/worksheet-assistant`.
 
 ### A – Nextcloud AIO (recommended)
@@ -193,13 +236,13 @@ plain HTTP from there). On the AIO host itself, put it behind your reverse proxy
 
 ```bash
 mkdir worksheet-server && cd worksheet-server
-curl -fsSLO https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/proxy/compose.release.yml
-curl -fsSL https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/proxy/.env.example -o .env
+curl -fsSLO https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/apps/server/compose.release.yml
+curl -fsSL https://raw.githubusercontent.com/felixwochnick/euro-office-worksheet-assistant/main/apps/server/.env.example -o .env
 nano .env        # PROXY_TOKEN (openssl rand -hex 24), CORS_ORIGINS, LLM_API_KEY
 docker compose -f compose.release.yml up -d
 ```
 
-(From a checkout: `cd proxy && docker compose up -d --build`. If pulling the image fails with "denied", set the
+(From a checkout: `cd apps/server && docker compose up -d --build`. If pulling the image fails with "denied", set the
 package `euro-office-worksheet-assistant` to *public* once under GitHub → Packages → Package settings.)
 
 **3. Settings** – in the editor: *Plugins* → *Arbeitsblatt-Assistent* → *Einstellungen*: enter the proxy URL and the token.
@@ -249,51 +292,112 @@ docker cp dist/worksheet-assistant nextcloud-aio-eurooffice:/var/www/euro-office
 
 Reopen the document. The plugin is gone after the next AIO update – use A to avoid that.
 
-### D – desktop app with the companion app (Windows, macOS, Linux)
+### D – desktop app (Windows, macOS, Linux)
 
 The desktop editors (Euro-Office, Nextcloud Office) have no plugin manager, and there is no Document Server to put
-a proxy next to. The **companion app** (`worksheet-assistant`, one executable, no installation of Node.js
-needed) does both on the user's computer:
+a proxy next to. The **desktop app "Arbeitsblatt-Assistent"** does both on your computer: it installs the plugin
+into the desktop editors and runs the local server (AI chat and MCP) invisibly in the background. No terminal, no
+browser.
 
-1. Install and start the desktop app once (it creates its data folder).
-2. Download `worksheet-assistant-<os>-<arch>.zip` from the
-   [releases](https://github.com/felixwochnick/euro-office-worksheet-assistant/releases), unpack it and start
-   `worksheet-assistant` (macOS: right click → *Open* the first time; Windows SmartScreen: *More info → Run
-   anyway* – the program is not signed).
-3. It installs the plugin into the desktop apps it finds, starts a local server on `127.0.0.1:8787` and opens its
-   settings page in the browser: AI provider and API key for the chat (Mistral, OpenAI, Anthropic, Ollama, any
-   OpenAI-compatible API – or none), MCP setup for Claude & co., autostart.
-4. Open a new document in the desktop app (or restart it): **Plugins → Arbeitsblatt-Assistent**. The plugin is already connected
-   to the companion (it writes `local-config.js` with the address and a random token into the installed plugin);
-   *MCP-Zugriff erlauben* is on by default.
+You need the Euro-Office or Nextcloud Office desktop editor: install it and start it once.
+
+**1. Download** the installer for your system from the
+[latest release](https://github.com/felixwochnick/euro-office-worksheet-assistant/releases/latest):
+
+| System | File |
+|--------|------|
+| Windows (x64) | `Arbeitsblatt-Assistent_<version>_windows-x64-setup.exe` – installs for the current user, no admin rights needed |
+| macOS, Apple silicon | `Arbeitsblatt-Assistent_<version>_macos-arm64.dmg` |
+| macOS, Intel | `Arbeitsblatt-Assistent_<version>_macos-x64.dmg` |
+| Linux (AppImage) | `Arbeitsblatt-Assistent_<version>_linux-x64.AppImage` / `_linux-arm64.AppImage` |
+| Linux (Debian, Ubuntu) | `Arbeitsblatt-Assistent_<version>_amd64.deb` / `_arm64.deb` |
+
+**2. Install** it like any other app: run the Windows setup; on macOS open the `.dmg` and drag the app into
+*Applications* – start it from there, not from the disk image (the app asks for this: autostart, the Claude entry
+and updates need its final place); on Linux make the AppImage executable and start it, or install the `.deb`
+(`sudo apt install ./Arbeitsblatt-Assistent_<version>_amd64.deb`).
+
+The app has no developer signature yet, so the system may warn on the first start:
+
+- **macOS** – if macOS refuses to open the app: *System Settings → Privacy & Security → Open Anyway* (the app is
+  ad-hoc signed, not notarized).
+- **Windows** – SmartScreen: *More info → Run anyway*.
+
+**3. First start.** A window opens. The app installs (or updates) the plugin in the Euro-Office and Nextcloud Office
+desktop editors and starts the local server in the background. The page *Übersicht* (overview) shows what is set up:
+
+1. *Plugin in der Desktop-App* – done automatically. Open a new document in the desktop editor (or restart it):
+   **Plugins → Arbeitsblatt-Assistent**. The plugin is already connected to the app; *MCP-Zugriff erlauben* is on.
+2. *KI-Chat* (optional) – on the page *KI-Chat* choose the provider (Mistral, OpenAI, Anthropic, Ollama, any
+   OpenAI-compatible API – or none) and enter the API key, the model and, if needed, the URL. The key stays on your
+   computer.
+3. *Claude verbinden* (optional) – see *Claude* below.
+
+The other pages: *Desktop-App* (plugin status per desktop editor, button to install or update the plugin),
+*Claude & MCP*, *Einstellungen* (autostart, updates, settings and log folders, quit).
+
+**4. Closing the window** does not quit the app. It keeps running with an icon in the system tray (Windows, Linux)
+or in the menu bar (macOS); its menu has *Arbeitsblatt-Assistent öffnen*, a status line, *Version x verfügbar …*
+when an update exists, and *Beenden* (quit). You can also quit under *Einstellungen*. Starting the app again opens
+the window of the running app.
+
+**Autostart** is off by default. Switch it on under *Einstellungen* (recommended): the app then starts hidden in the
+tray when you log in, so the AI chat and Claude work without opening it first.
+
+**Linux tray:** GNOME shows tray icons only with the extension *AppIndicator and KStatusNotifierItem Support*. The app
+checks for it: without a tray, closing the window only minimizes it (quit under *Einstellungen*).
+
+**Claude.** On the page *Claude & MCP*:
+
+- **Claude Desktop** – one click adds (or removes) the entry in Claude Desktop's configuration. Other entries are
+  kept and a `.bak` backup is written. Quit Claude Desktop completely and start it again afterwards. If the app is
+  not running, Claude Desktop starts it in the background.
+- **Claude Code** – one click if its `claude` command is found, otherwise the page shows the command to copy.
+- **Other MCP clients** – the page shows the MCP URL `http://127.0.0.1:8787/mcp` and the command entry to copy.
+
+**Updates.** The app checks the GitHub releases shortly after the start and every 6 hours (and with *Nach Updates
+suchen* under *Einstellungen*). On macOS, Windows and with the AppImage it shows a notice in the window and in the
+tray menu; one click downloads and installs the update and restarts the app. It does not update silently, because
+the restart briefly interrupts a running AI chat. The `.deb` package cannot replace itself: the app shows the new
+version with a link to the download page. The new app version updates the plugin in the desktop editors
+automatically.
+
+**Updating from 0.4/0.5** (formerly: companion app – the standalone program `worksheet-assistant` that was
+started from a terminal): install the app and start it. It stops a still running old program automatically and
+rewrites the old autostart entry and the Claude Desktop entry to point to the app. Your settings (AI provider, API
+key, port, plugin token) are kept – the app uses the same settings folder. The old executable can be deleted.
+
+**Uninstalling** on Windows (*Settings → Apps*) also removes the plugin from the desktop editors, the autostart entry
+and the entry in Claude Desktop; elsewhere run `worksheet-assistant uninstall` (see the command line below) before
+deleting the app.
+
+Reference:
 
 | | |
 |---|---|
-| Plugin folders | Linux `~/.local/share/euro-office/desktopeditors/sdkjs-plugins/` and Windows `%LOCALAPPDATA%\Euro-Office\DesktopEditors\data\sdkjs-plugins\` (shared by Euro-Office and Nextcloud Office), macOS `~/Library/Application Support/asc.euro-office.Euro-Office/data/sdkjs-plugins/` resp. `…/asc.nextcloud-office.Nextcloud-Office/data/sdkjs-plugins/`. The plugin folder must be a real folder (no symlink) named after the plugin GUID `{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}`. New documents pick up a newly installed plugin without restarting the app |
-| Settings | Linux `~/.config/worksheet-assistant/`, Windows `%APPDATA%\Worksheet Assistant\`, macOS `~/Library/Application Support/Worksheet Assistant/` (`config.json`, mode 0600 – contains the API key) |
-| Server | `AUTH_MODE=local`: listens on `127.0.0.1` only; the plugin uses the token, MCP needs no sign-in (Host and Origin are checked) |
-| Autostart | Linux XDG autostart, macOS LaunchAgent, Windows `HKCU\…\Run` (started without a console window) |
-| MCP | Streamable HTTP `http://127.0.0.1:8787/mcp`, or `worksheet-assistant mcp-stdio` for clients that start a command (Claude Desktop: the settings page shows the exact `claude_desktop_config.json` entry) |
+| Plugin folders | Linux `~/.local/share/euro-office/desktopeditors/sdkjs-plugins/` and Windows `%LOCALAPPDATA%\Euro-Office\DesktopEditors\data\sdkjs-plugins\` (shared by Euro-Office and Nextcloud Office), macOS `~/Library/Application Support/asc.euro-office.Euro-Office/data/sdkjs-plugins/` resp. `…/asc.nextcloud-office.Nextcloud-Office/data/sdkjs-plugins/`. The plugin folder must be a real folder (no symlink) named after the plugin GUID `{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}`. The installed plugin contains `local-config.js` with the server address and a random token. New documents pick up a newly installed plugin without restarting the desktop editor |
+| Settings | Linux `~/.config/worksheet-assistant/`, Windows `%APPDATA%\Worksheet Assistant\`, macOS `~/Library/Application Support/Worksheet Assistant/` (`config.json`, mode 0600 – contains the API key); the same folders as the standalone program of 0.4/0.5 |
+| Server | The app runs its server program `worksheet-assistant` invisibly (`--app` mode) on `127.0.0.1:8787` (AI chat proxy and MCP). `AUTH_MODE=local`: listens on `127.0.0.1` only; the plugin uses the token, MCP needs no sign-in (Host and Origin are checked) |
+| Autostart | Off by default; switch under *Einstellungen*. Linux XDG autostart, macOS LaunchAgent, Windows `HKCU\…\Run`; starts the app hidden in the tray / menu bar |
+| MCP | Streamable HTTP `http://127.0.0.1:8787/mcp`, or `<app executable> mcp-stdio` for clients that start a command. Claude Desktop entry (`claude_desktop_config.json`): `{"mcpServers":{"worksheet-assistant":{"command":"<app executable>","args":["mcp-stdio"]}}}`, e.g. macOS `/Applications/Arbeitsblatt-Assistent.app/Contents/MacOS/worksheet-assistant-app` |
+| Command line | The server program `worksheet-assistant` inside the app: Linux (`.deb`) `/usr/bin/worksheet-assistant`, macOS `Arbeitsblatt-Assistent.app/Contents/MacOS/worksheet-assistant`, Windows next to `worksheet-assistant-app.exe` in the install folder. Same commands as before: `status`, `install-plugin [--force]`, `uninstall`, `autostart on\|off`, `mcp-stdio`, `help`. `--app` is only for the desktop app (JSON events on stdout, quits when stdin closes) |
+| Log | `server.log` in the app's log folder: Linux `~/.local/share/io.github.felixwochnick.worksheet-assistant/logs/`, macOS `~/Library/Logs/io.github.felixwochnick.worksheet-assistant/`, Windows `%LOCALAPPDATA%\io.github.felixwochnick.worksheet-assistant\logs\`. *Einstellungen* has buttons to open the settings and log folders |
 
-Commands: `worksheet-assistant [--background] [--port n]`, `install-plugin [--force]`, `uninstall`,
-`autostart on|off`, `mcp-stdio`, `status`, `help`. Build it yourself with `bash scripts/build.sh &&
-(cd proxy && npm ci) && npm ci && node scripts/build-companion.mjs` with the official **Node.js 24 LTS** from
-nodejs.org, nvm or fnm (newer official Linux builds need `libatomic.so.1`, distribution packages link system
-libraries – the executable would not run everywhere; CI builds Linux x64/arm64, Windows x64 and macOS arm64/x64 and
-checks that it starts on a minimal Ubuntu).
+Building the app yourself: see [Build → Desktop app](#desktop-app).
 
 ## Proxy configuration
 
 ```bash
-cd proxy
+cd apps/server
 cp .env.example .env      # edit: PROXY_TOKEN, CORS_ORIGINS, LLM_* (never commit .env)
 docker compose up -d --build
 curl http://localhost:8787/healthz           # {"ok":true}
 curl -H "Authorization: Bearer $TOKEN" http://localhost:8787/v1/info
 ```
 
-The image is built from the repository root (the proxy uses `shared/abc-tools.js`); `docker compose` handles that.
-Without Docker: `cd proxy && npm ci && npm run build && node --env-file=.env build/src/server.js`.
+The image is built from the repository root (pnpm workspace: the proxy uses `packages/shared`); `docker compose`
+handles that. Without Docker: `pnpm install` in the repository root, then `pnpm dev:server` (builds and starts it with
+`apps/server/.env`).
 
 | Variable | Default | Meaning |
 |----------|---------|---------|
@@ -350,7 +454,7 @@ POST /v1/chat   Authorization: Bearer <PROXY_TOKEN>
 → { "messages": [...new messages...], "pending_tool_calls": [...], "done": false, "iterations": 1, "max_iterations": 6 }
 ```
 
-Tools offered to the model (JSON Schema in `proxy/src/tools.ts`):
+Tools offered to the model (JSON Schema in `apps/server/src/tools.ts`):
 
 | Tool | Executed by | Purpose |
 |------|-------------|---------|
@@ -407,12 +511,12 @@ the panel's chat and can be undone in the editor (Ctrl+Z).
 |------|--------------------------|----------------------|-----|
 | `token` | `Authorization: Bearer <PROXY_TOKEN>` | the same token | one person / a small team (everyone reaches every open editor) |
 | `nextcloud` | a Nextcloud **app password** (`Authorization: Basic <login:app-password>`) or **OAuth** (sign-in window with your Nextcloud account) | *Mit Nextcloud anmelden* (Nextcloud Login Flow v2 – creates an app password that the proxy keeps) | schools / several users – each user only reaches **their own** open editors |
-| `local` | nothing (listens on `127.0.0.1` only, Host and Origin are checked) | `PROXY_TOKEN` | a single computer (companion app, installation D) |
+| `local` | nothing (listens on `127.0.0.1` only, Host and Origin are checked) | `PROXY_TOKEN` | a single computer (desktop app, installation D) |
 
 **Set up `AUTH_MODE=nextcloud`:**
 
 ```bash
-# proxy/.env
+# apps/server/.env
 AUTH_MODE=nextcloud
 NEXTCLOUD_URL=https://cloud.example.org
 PUBLIC_URL=https://worksheet.example.org      # how browsers and AI clients reach the proxy
@@ -453,6 +557,8 @@ Serve the proxy at the root of its own (sub)domain for OAuth: clients look for t
   servers:** add the URL as a custom connector; they sign in with OAuth (`AUTH_MODE=nextcloud` with an OAuth
   client). Hosted assistants call the proxy from the internet – it must be publicly reachable via HTTPS.
 - **`AUTH_MODE=token`:** clients that can send headers use `Authorization: Bearer <PROXY_TOKEN>`.
+- **Desktop app (installation D):** one click on the app's page *Claude & MCP* adds the entry to Claude Desktop or
+  Claude Code; other clients use `http://127.0.0.1:8787/mcp` without sign-in.
 
 ## Example prompts for teachers
 
@@ -553,36 +659,62 @@ separate notes only in lists of lower-case names (`c, f, g`); after upper-case n
 ## Development
 
 ```bash
-npm install                 # root: playwright-core for the e2e test (no browser download)
-(cd proxy && npm install)
-npm test                    # unit tests (shared ABC helpers) + proxy tests (agent loop, providers, server)
+pnpm install                # all packages; playwright-core for the e2e test (no browser download)
+pnpm test                   # unit tests (packages/shared) + server tests (agent loop, providers, server, companion)
 ```
+
+### Releases
+
+Push a tag: `git tag v0.6.0 && git push origin v0.6.0` (`.github/workflows/release.yml`). The release job checks that
+the `package.json` files (root, `packages/shared`, `apps/plugin`, `apps/server`, `apps/desktop`) and
+`apps/plugin/src/config.json` carry the tag's version (also bump `apps/server/src/version.ts`,
+`apps/plugin/src/js/bridge.js`, the about line in `apps/plugin/src/index.html` and `apps/desktop/src-tauri/Cargo.toml`),
+then:
+
+1. creates the GitHub release as a **draft** with the plugin packages and pushes the proxy image to GHCR,
+2. builds the desktop app's installers on Linux x64/arm64 (Ubuntu 22.04), Windows x64 and macOS arm64/x64 and
+   uploads them – with the signing key below also `latest.json` for the app's updater,
+3. publishes the release. Only then do installed apps see the update (their check reads the latest release).
+
+**Signing key for the app's self-updates** (once): create a key pair with
+
+```bash
+pnpm install && pnpm --filter @worksheet-assistant/desktop exec tauri signer generate -w ~/.tauri/worksheet-assistant.key
+```
+
+and store the private key as repository secret `TAURI_SIGNING_PRIVATE_KEY` (its password as
+`TAURI_SIGNING_PRIVATE_KEY_PASSWORD`) and the public key as repository variable `TAURI_UPDATER_PUBKEY` (*Settings →
+Secrets and variables → Actions*). Without them releases still work, but the app only links to the download page
+instead of installing updates.
+
+The installers have no developer signature: macOS builds are ad-hoc signed, not notarized, and Windows shows
+SmartScreen (see [D](#d--desktop-app-windows-macos-linux)). Code signing can be added later through GitHub secrets.
 
 ### Website
 
 ```bash
-cd website && npm install
-npm run dev                                              # http://localhost:3000
-NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ npm run build   # static site in .output/public
+pnpm install
+pnpm dev:website                                                    # http://localhost:3000
+NUXT_APP_BASE_URL=/euro-office-worksheet-assistant/ pnpm build:website   # static site in apps/website/.output/public
 ```
 
-The live demo imports `shared/abc-tools.js` directly, so it always uses the same converter as the plugin. The site is
+The live demo imports `@worksheet-assistant/shared/abc-tools.js`, so it always uses the same converter as the plugin. The site is
 deployed by `.github/workflows/pages.yml` on pushes to `main` (one-time setup: *Settings → Pages → Source: GitHub
-Actions*). Texts live in `website/app/content/<language>.ts` (typed by `types.ts`, so a missing text fails the build);
+Actions*). Texts live in `apps/website/app/content/<language>.ts` (typed by `types.ts`, so a missing text fails the build);
 German is served at `/`, the other languages at `/en/`, `/fr/`, `/es/`, `/it/`, `/nl/`, `/pl/` (`@nuxtjs/i18n`, with
-hreflang links). The screenshots in `website/public/img/` were taken in a real Euro-Office 9.3.8 with Mistral by
-`dev/eurooffice/website-screenshots.mjs`.
+hreflang links). The screenshots in `apps/website/public/img/` were taken in a real Euro-Office 9.3.8 with Mistral by
+`dev/eurooffice/website-screenshots.mjs`, except `companion.webp` (the desktop app's window, page *Übersicht*).
 
 ### Local test harness (no Euro-Office needed)
 
 ```bash
 bash scripts/build.sh
-node scripts/serve.mjs 8080          # http://localhost:8080/harness/
-cd proxy && cp .env.example .env     # set LLM_PROVIDER=mock, PROXY_TOKEN=dev-token-change-me-0123,
-docker compose up -d                 #     CORS_ORIGINS=http://localhost:8080
+node scripts/serve.mjs 8080               # http://localhost:8080/apps/plugin/harness/
+cd apps/server && cp .env.example .env    # set LLM_PROVIDER=mock, PROXY_TOKEN=dev-token-change-me-0123,
+docker compose up -d                      #     CORS_ORIGINS=http://localhost:8080
 ```
 
-`harness/index.html` loads the built plugin in an iframe, answers the `plugin_init` handshake of `plugins.js` and
+`apps/plugin/harness/index.html` loads the built plugin in an iframe, answers the `plugin_init` handshake of `plugins.js` and
 installs mocked `callCommand`/`executeMethod` plus a fake builder API (`Api.GetDocument`, `CreateImage`, …) backed by
 an in-memory document shown on the left. Commands are re-created from their source and run with a JSON copy of
 `Asc.scope`, like in the real editor. Checkboxes simulate a failing `Api.CreateImage` and an older API without
@@ -592,7 +724,7 @@ like the example above; with a real provider key the harness talks to the real m
 Note: with `LLM_PROVIDER=mock` the chat is **not an AI** – the mock only recognises a note list (the longest run of
 note names in the message), a task heading ("Aufgabe 2") and "leere Zeile". Use a real provider to test free-form requests.
 
-`npm run e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
+`pnpm e2e` drives the harness with Playwright (needs a Chromium binary, `CHROMIUM_PATH`, default
 `/usr/bin/chromium`).
 
 ### Testing with a real Nextcloud (sign-in, MCP, OAuth)
@@ -603,7 +735,7 @@ flow (registration, PKCE, Nextcloud login, consent, refresh, revocation in Nextc
 Euro-Office (next section):
 
 ```bash
-bash scripts/build.sh && (cd proxy && npm run build)
+bash scripts/build.sh && pnpm build:server
 (cd dev/eurooffice && docker compose up -d)
 (cd dev/nextcloud && docker compose up -d && ./setup.sh)
 node dev/nextcloud/e2e-nextcloud.mjs
@@ -643,8 +775,8 @@ replace them later.
 in their Nextcloud and puts pictures in it (subfolders up to three levels and 150 folders, PNG, JPEG, GIF, WebP, SVG,
 and HEIC/TIFF when Nextcloud can make previews of them; good file names help the AI find them). The proxy reads it with the app password of the user's plugin sign-in (so the plugin must be
 signed in, also for MCP clients) and loads large photos as a Nextcloud preview (max. 1600 px). In `token`/`local`
-mode (one school server) `IMAGE_FOLDER` can be an absolute local folder that all users share; the companion app's
-settings page does not offer it yet.
+mode (one school server) `IMAGE_FOLDER` can be an absolute local folder that all users share; the desktop app's
+window does not offer it yet.
 Copyrighted material such as comic panels is only ever taken from this folder – the assistant never downloads it
 from the internet.
 

@@ -1,7 +1,16 @@
 # Release: push a tag like v0.2.0
 #   git tag v0.2.0 && git push origin v0.2.0
-# Creates a GitHub release with the plugin packages and pushes the proxy image to
-# ghcr.io/<owner>/euro-office-worksheet-assistant:<version> and :latest.
+# Creates a GitHub release with the plugin packages and the desktop app's installers and pushes the server image
+# to ghcr.io/<owner>/euro-office-worksheet-assistant:<version> and :latest.
+#
+# The release stays a draft until every installer is attached, then it is published (the desktop app's update
+# check reads releases/latest).
+#
+# Updates of the desktop app (optional, once): create a key pair with
+#   pnpm install && pnpm --filter @worksheet-assistant/desktop exec tauri signer generate -w ~/.tauri/worksheet-assistant.key
+# and store the private key as secret TAURI_SIGNING_PRIVATE_KEY (and its password as
+# TAURI_SIGNING_PRIVATE_KEY_PASSWORD), the public key as variable TAURI_UPDATER_PUBKEY
+# (Settings → Secrets and variables → Actions). Without them the app only points to the download page.
 name: Release
 
 on:
@@ -18,15 +27,26 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+
       - uses: actions/setup-node@v4
         with:
           node-version: 22
+          cache: pnpm
+
+      - name: Version matches the tag
+        run: |
+          v="${GITHUB_REF_NAME#v}"
+          for f in package.json packages/shared/package.json apps/plugin/package.json apps/plugin/src/config.json \
+            apps/server/package.json apps/desktop/package.json; do
+            got="$(node -p "require('./$f').version")"
+            [ "$got" = "$v" ] || { echo "::error::$f has version $got, tag is $GITHUB_REF_NAME"; exit 1; }
+          done
 
       - name: Test
         run: |
-          npm ci
-          npm --prefix proxy ci
-          npm test
+          pnpm install --frozen-lockfile --filter '!@worksheet-assistant/desktop' --filter '!@worksheet-assistant/website'
+          pnpm test
 
       - name: Build plugin
         env:
@@ -43,7 +63,7 @@ jobs:
           if [ -s notes.md ]; then notes=(--notes-file notes.md); else notes=(--generate-notes); fi
           gh release create "$GITHUB_REF_NAME" \
             dist/worksheet-assistant.tar.gz dist/worksheet-assistant.zip dist/worksheet-assistant.plugin scripts/install-aio.sh \
-            --title "$GITHUB_REF_NAME" "${notes[@]}"
+            --draft --title "$GITHUB_REF_NAME" "${notes[@]}"
 
       - uses: actions/upload-artifact@v4
         with:
@@ -58,11 +78,11 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ github.token }}
 
-      - name: Proxy image (amd64 + arm64)
+      - name: Server image (amd64 + arm64)
         uses: docker/build-push-action@v6
         with:
           context: .
-          file: proxy/Dockerfile
+          file: apps/server/Dockerfile
           platforms: linux/amd64,linux/arm64
           push: true
           labels: |
@@ -73,33 +93,83 @@ jobs:
             ghcr.io/${{ github.repository_owner }}/euro-office-worksheet-assistant:${{ github.ref_name }}
             ghcr.io/${{ github.repository_owner }}/euro-office-worksheet-assistant:latest
 
-  # Companion app (desktop editors), attached to the release created above.
-  companion:
+  # Desktop app (Tauri) with the companion as its server program: installers per platform.
+  desktop:
     needs: release
     strategy:
       fail-fast: false
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, macos-latest, macos-15-intel]
+        include:
+          - { os: ubuntu-22.04, target: x86_64-unknown-linux-gnu }
+          - { os: ubuntu-22.04-arm, target: aarch64-unknown-linux-gnu }
+          - { os: windows-latest, target: x86_64-pc-windows-msvc }
+          - { os: macos-latest, target: aarch64-apple-darwin }
+          - { os: macos-15-intel, target: x86_64-apple-darwin }
     runs-on: ${{ matrix.os }}
     defaults:
       run:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
           # Node 24 LTS: its Linux build does not need libatomic (Node >= 25 does)
           node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Linux libraries
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev librsvg2-dev patchelf xdg-utils
       - uses: actions/download-artifact@v4
         with:
           name: plugin-folder
           path: dist/worksheet-assistant
       - name: Build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          WORKSHEET_ASSISTANT_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
         run: |
-          npm ci
-          npm --prefix proxy ci
-          node scripts/build-companion.mjs
+          pnpm install --frozen-lockfile --filter '!@worksheet-assistant/website'
+          node scripts/build-desktop.mjs --target ${{ matrix.target }}
+          node scripts/collect-desktop.mjs ${{ matrix.target }}
       - name: Upload to the release
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh release upload "$GITHUB_REF_NAME" dist/worksheet-assistant-* --clobber
+        run: gh release upload "$GITHUB_REF_NAME" $(ls dist/desktop/* | grep -v '/updater-') --clobber
+      - uses: actions/upload-artifact@v4
+        with:
+          name: updater-${{ matrix.target }}
+          path: dist/desktop/updater-*.json
+          if-no-files-found: ignore
+
+  # latest.json for the app's updater, then publish the release – only when every installer was built. Otherwise
+  # the release stays a draft: rerun the failed job, or publish it by hand.
+  publish:
+    needs: [release, desktop]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: updater-*
+          path: dist/updater
+          merge-multiple: true
+      - name: latest.json
+        if: vars.TAURI_UPDATER_PUBKEY != ''
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          node scripts/updater-json.mjs dist/updater "$GITHUB_REF_NAME" "$GITHUB_REPOSITORY" > latest.json
+          cat latest.json
+          gh release upload "$GITHUB_REF_NAME" latest.json --clobber
+      - name: Publish
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh release edit "$GITHUB_REF_NAME" --draft=false --latest

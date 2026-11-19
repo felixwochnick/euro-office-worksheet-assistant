@@ -1,0 +1,15 @@
+{
+  "name": "@worksheet-assistant/plugin",
+  "version": "0.7.0",
+  "private": true,
+  "description": "Euro-Office (ONLYOFFICE) panel plugin: AI chat, music notation and worksheet blocks. Files in src/; scripts/build.sh builds dist/worksheet-assistant/ with the shared modules and vendor files.",
+  "license": "MIT",
+  "scripts": {
+    "build": "bash ../../scripts/build.sh",
+    "harness": "bash ../../scripts/build.sh && node ../../scripts/serve.mjs",
+    "e2e": "node harness/e2e.mjs"
+  },
+  "dependencies": {
+    "@worksheet-assistant/shared": "workspace:*"
+  }
+}

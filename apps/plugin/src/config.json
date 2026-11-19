@@ -1,0 +1,46 @@
+{
+  "name": "Arbeitsblatt-Assistent",
+  "nameLocale": {
+    "de": "Arbeitsblatt-Assistent",
+    "en": "Worksheet Assistant",
+    "fr": "Assistant fiches de travail",
+    "es": "Asistente de fichas",
+    "it": "Assistente schede",
+    "nl": "Werkblad-assistent",
+    "pl": "Asystent kart pracy"
+  },
+  "guid": "asc.{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}",
+  "version": "0.7.0",
+  "baseUrl": "",
+  "variations": [
+    {
+      "description": "AI assistant for worksheets: create text, tasks, tables, writing lines and music staves – by chat or manually.",
+      "descriptionLocale": {
+        "de": "KI-Assistent für Arbeitsblätter: Texte, Aufgaben, Tabellen, Schreiblinien und Notenzeilen erstellen – per Chat oder manuell.",
+        "en": "AI assistant for worksheets: create text, tasks, tables, writing lines and music staves – by chat or manually."
+      },
+      "url": "index.html",
+      "icons": [
+        "resources/img/icon.png",
+        "resources/img/icon@2x.png"
+      ],
+      "isViewer": false,
+      "EditorsSupport": [
+        "word"
+      ],
+      "type": "panel",
+      "isVisual": true,
+      "isModal": false,
+      "isInsideMode": true,
+      "isSystem": false,
+      "initDataType": "none",
+      "initData": "",
+      "isUpdateOleOnResize": false,
+      "buttons": [],
+      "size": [
+        380,
+        640
+      ]
+    }
+  ]
+}
