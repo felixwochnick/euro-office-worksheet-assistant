@@ -3,12 +3,15 @@
  * Scenario via URL: ?scenario=fresh (nothing set up, default) | ready | error | update | starting | temporary
  * (macOS app still on the disk image) | no-tray (Linux desktop without tray icons)
  */
+import { version as VERSION } from '../../package.json'
 import type { AppInfo, ClaudeStatus, CompanionState, ServerStatus, UpdateStatus } from './types'
 
 type Handler = (payload: unknown) => void
 const listeners = new Map<string, Set<Handler>>()
 const scenario = typeof window === 'undefined' ? 'fresh' : new URLSearchParams(window.location.search).get('scenario') || 'fresh'
 const ready = scenario === 'ready' || scenario === 'update'
+// The version of this checkout, and the next patch version for the update scenario.
+const NEXT = VERSION.replace(/\d+$/, n => String(Number(n) + 1))
 
 const wait = (ms: number) => new Promise(r => setTimeout(r, ms))
 function emit(event: string, payload: unknown) {
@@ -17,19 +20,19 @@ function emit(event: string, payload: unknown) {
 
 const server: ServerStatus = scenario === 'error'
   ? { state: 'error', url: null, version: null, code: 'already_running', message: 'Ein anderer Arbeitsblatt-Assistent läuft bereits (ältere Version im Terminal oder Autostart). Bitte beenden und erneut versuchen.', chat_error: null }
-  : { state: scenario === 'starting' ? 'starting' : 'running', url: 'http://127.0.0.1:8787', version: '0.6.0', code: null, message: null, chat_error: null }
+  : { state: scenario === 'starting' ? 'starting' : 'running', url: 'http://127.0.0.1:8787', version: VERSION, code: null, message: null, chat_error: null }
 
 const update: UpdateStatus = scenario === 'update'
-  ? { state: 'available', current: '0.6.0', version: '0.6.1', notes: '- Kleinere Fehler behoben', manual: false, url: 'https://github.com/felixwochnick/euro-office-worksheet-assistant/releases/tag/v0.6.1', progress: null, message: null, checked_at: Date.now() / 1000 }
-  : { state: 'none', current: '0.6.0', version: null, notes: null, manual: false, url: null, progress: null, message: null, checked_at: Date.now() / 1000 }
+  ? { state: 'available', current: VERSION, version: NEXT, notes: '- Kleinere Fehler behoben', manual: false, url: 'https://github.com/felixwochnick/euro-office-worksheet-assistant/releases/tag/v' + NEXT, progress: null, message: null, checked_at: Date.now() / 1000 }
+  : { state: 'none', current: VERSION, version: null, notes: null, manual: false, url: null, progress: null, message: null, checked_at: Date.now() / 1000 }
 
 const state: CompanionState = {
-  version: '0.6.0',
+  version: VERSION,
   url: 'http://127.0.0.1:8787',
   mcp_url: 'http://127.0.0.1:8787/mcp',
   config_dir: '/home/lehrer/.config/worksheet-assistant',
-  apps: [{ id: 'desktop-editors', name: 'Euro-Office / Nextcloud Office', detected: true, plugin_dir: '/home/lehrer/.local/share/euro-office/desktopeditors/sdkjs-plugins/{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}', installed: ready, configured: ready, version: ready ? '0.6.0' : '' }],
-  plugin_version: '0.6.0',
+  apps: [{ id: 'desktop-editors', name: 'Euro-Office / Nextcloud Office', detected: true, plugin_dir: '/home/lehrer/.local/share/euro-office/desktopeditors/sdkjs-plugins/{DA7D8078-28E2-4FFC-A41B-02BD1B9CE490}', installed: ready, configured: ready, version: ready ? VERSION : '' }],
+  plugin_version: VERSION,
   settings: { provider: ready ? 'mistral' : 'none', model: '', base_url: '', has_key: ready, extra_origins: [], online_pictures: true, image_folder: ready ? '/home/lehrer/Bilder/Arbeitsblatt-Bilder' : '' },
   providers: [
     { id: 'none', label: 'Kein KI-Chat (nur MCP)', model: '', needs_key: false, base_url: '' },
@@ -54,7 +57,7 @@ const claude: ClaudeStatus = {
 }
 
 const info: AppInfo = {
-  version: '0.6.0',
+  version: VERSION,
   platform: scenario === 'temporary' ? 'macos' : 'linux',
   self_update: scenario !== 'temporary',
   log_dir: '/home/lehrer/.local/share/io.github.felixwochnick.worksheet-assistant/logs',
@@ -112,7 +115,7 @@ export async function mockCall(command: string, args?: Record<string, unknown>):
       Object.assign(server, { state: 'starting', code: null, message: null })
       emit('server-status', { ...server })
       await wait(800)
-      Object.assign(server, { state: 'running', url: 'http://127.0.0.1:8787', version: '0.6.0' })
+      Object.assign(server, { state: 'running', url: 'http://127.0.0.1:8787', version: VERSION })
       emit('server-status', { ...server })
       return null
     case 'check_updates':

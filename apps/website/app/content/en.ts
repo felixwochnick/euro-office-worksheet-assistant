@@ -4,39 +4,64 @@ const en: SiteContent = {
   meta: {
     title: 'Worksheet Assistant for Euro-Office',
     description:
-      'Create worksheets with AI – for every subject, in Nextcloud, in the desktop app or with Claude & co. via MCP. Open source.'
+      'Create worksheets with AI – for every subject: designed tasks, puzzles, graphics, pictures, computer science diagrams and music staves. In Nextcloud, in the desktop app or with Claude & co. via MCP. Open source.'
   },
-  nav: { features: 'Features', ways: 'Use cases', mcp: 'MCP', demo: 'Live demo', install: 'Installation', faq: 'FAQ', language: 'Language' },
+  nav: { features: 'Features', informatics: 'Computer science', ways: 'Use cases', mcp: 'MCP', install: 'Installation', faq: 'FAQ', language: 'Language' },
   hero: {
-    badge: 'Open source · MIT',
+    badge: 'New in {version}: computer science diagrams',
     headline: 'AI plugin for Euro-Office – in Nextcloud and on the desktop',
     title: 'Create worksheets with AI – for every subject',
     description:
-      'Describe what you need: the Worksheet Assistant lays out tasks, cloze texts, puzzles, tables, charts, formulas, writing lines, info boxes and music staves in one consistent design, right in your document – with the built-in AI chat or with your own AI assistant via MCP.',
+      'Describe what you need: the Worksheet Assistant lays out tasks, cloze texts, puzzles, graphics, formulas, pictures, UML diagrams and music staves in one consistent design, right in your document – with the built-in AI chat or with your own AI assistant via MCP.',
     install: 'Install',
-    more: 'How it works',
+    more: 'All features',
     imageAlt:
-      'Euro-Office with the Worksheet Assistant: a worksheet about the water cycle created by the AI chat, the chat with the request on the left'
+      'Euro-Office with the Worksheet Assistant: a worksheet about the water cycle in the “Modern” design with header, title, name line and numbered tasks with symbols, stars and points; on the left the panel with the AI chat'
   },
   features: {
     headline: 'Features',
-    title: 'From a blank page to a finished worksheet',
-    description: 'Built for teachers and student teachers – for worksheets, tests and handouts in every subject.',
+    title: 'Everything for your next worksheet',
+    description: 'Built for teachers and student teachers – for worksheets, tests and handouts in every subject. The AI picks the building blocks, the plugin places them cleanly in the document.',
     items: [
       {
-        title: 'Designed worksheets by chat',
-        description:
-          '“Create a worksheet about the water cycle for grade 3”: title, numbered tasks with symbols and points, cloze text with word bank, crossword, chart and info box – in one design (modern, primary school, classic) and checked automatically afterwards.'
+        title: 'Whole worksheets by chat',
+        description: '“Create a worksheet about the water cycle for grade 5” – with title, name line, tasks, material and info box. Preview first, then insert.'
+      },
+      {
+        title: 'Three designs',
+        description: 'Classic (black and white, saves toner), Modern or Primary school (large type, colorful). Fonts, colors and spacing come from the design.'
+      },
+      {
+        title: 'Tasks and puzzles',
+        description: 'Cloze text with word bank, multiple choice, true/false, matching, crossword and word search, reading text with line numbers and more.'
+      },
+      {
+        title: 'Graphics and formulas',
+        description: 'Number line, coordinate system, charts, mind map, writing lines and squared paper. Formulas from LaTeX become real, editable equations.'
+      },
+      {
+        title: 'Pictures',
+        description: 'ARASAAC pictograms, photos from Wikimedia Commons or your own pictures – the license credit is placed underneath automatically.'
+      },
+      {
+        title: 'Computer science diagrams',
+        description: 'UML class, sequence, state, activity and use case diagrams, automata, Nassi-Shneiderman diagrams, flowcharts and ER diagrams.'
+      },
+      {
+        title: 'Music and lyrics',
+        description: 'Melodies, empty staves and lyrics as print-ready images. German note names (h, fis, b) are converted reliably.'
+      },
+      {
+        title: 'Page and house style',
+        description: 'A4, A5 or Letter, portrait or landscape, margins, columns, header with school name and logo, footer with page numbers.'
+      },
+      {
+        title: 'Checked, with solution sheet',
+        description: 'After creating, the AI checks numbering, instructions, space for answers, points and readability for the grade level. On request you get the solution in the same layout.'
       },
       {
         title: 'Edit instead of starting over',
-        description:
-          '“Reword task 1 for grade 3”, “Turn task 2 into a cloze text”, “Add a solution page” – the AI changes only what you ask for. Deleting needs your confirmation.'
-      },
-      {
-        title: 'Music staves and lyrics',
-        description:
-          'Melodies, empty staves and lyrics as print-ready images. German note names (h, fis, b) are converted reliably; every staff stays editable.'
+        description: '“Reword task 1 for grade 3”, “Turn task 2 into a cloze text” – the AI changes only what you ask for. Deleting needs your confirmation.'
       },
       {
         title: 'Your AI assistant via MCP',
@@ -45,12 +70,121 @@ const en: SiteContent = {
       {
         title: 'Privacy in your hands',
         description: 'Mistral as an EU provider, a local model via Ollama or no AI at all. The key stays on the server, sign-in with the Nextcloud account.'
-      },
-      {
-        title: 'Nextcloud, server or desktop',
-        description:
-          'One command for Nextcloud AIO, a Docker Compose file for your own Document Server, or the Worksheet Assistant app for the Euro-Office desktop app (Windows, macOS, Linux).'
       }
+    ],
+    more: 'Learn more'
+  },
+  designs: {
+    headline: 'Designs',
+    title: 'One design for the whole sheet',
+    description:
+      'The AI only picks the design – fonts, sizes, colors and spacing of everything the assistant inserts come from it. That way every sheet looks like it was made in one go, even if you add tasks later.',
+    themes: [
+      { title: 'Classic', description: 'Black and white and toner-saving – for copies and tests.' },
+      { title: 'Modern', description: 'Clear type with a blue accent – for secondary school.' },
+      { title: 'Primary school', description: 'Large type, 1.5× line spacing, friendly colors.' }
+    ],
+    imageAlt: 'The same worksheet “Der Igel im Herbst” (the hedgehog in autumn) in the {theme} design',
+    items: [
+      { title: 'Task headers', description: 'Number, symbols for work format and activity, difficulty stars, points and working time.' },
+      { title: 'Info boxes', description: 'Remember, tip, warning, example, definition, solution and info – each with a symbol.' },
+      { title: 'In your language', description: 'Labels such as name, class, word bank or true/false in seven languages.' }
+    ]
+  },
+  tasks: {
+    headline: 'Tasks',
+    title: 'Tasks that look right',
+    description:
+      'Over 40 building blocks that the AI combines freely. Puzzles are calculated instead of guessed – crosswords and word searches are always solvable.',
+    imageAlt: 'Task page in the “Modern” design: a calculated crossword with clues across and down and a word search with a word list',
+    items: [
+      { title: 'Cloze texts and quizzes', description: 'Cloze text with automatic word bank, multiple choice, true/false table, matching with lines or letters.' },
+      { title: 'Puzzles', description: 'Crosswords and word searches in three difficulty levels – with a solution on request.' },
+      { title: 'Reading and writing', description: 'Reading texts with line numbers, **syllable coloring** (syllables alternately blue and red), German primary-school writing lines (Lineatur 1–4) and squared paper.' },
+      { title: 'Around the task', description: 'Self-assessment with smileys, tip cards to cut out, points-to-grades table, QR codes and a two- or three-column layout.' }
+    ]
+  },
+  graphics: {
+    headline: 'Graphics & formulas',
+    title: 'Math and science, cleanly drawn',
+    description:
+      'Graphics are drawn from data, not invented as a picture: axes, scales and labels are correct. Every graphic carries its source in the alt text – the AI can change it later.',
+    imageAlt: 'Math worksheet: number line with gaps, column chart, coordinate system with a triangle and a formula for the area',
+    items: [
+      { title: 'Number line and coordinate system', description: 'With gaps to fill in, points, line segments and polygons.' },
+      { title: 'Charts', description: 'Column, bar, line and pie charts – also empty, for students to draw themselves.' },
+      { title: 'Formulas', description: 'LaTeX becomes a real equation in the document, even in the middle of a sentence.' },
+      { title: 'Mind maps and drawings', description: 'Mind maps (also with empty bubbles) and simple drawings that the AI designs itself.' }
+    ]
+  },
+  pictures: {
+    headline: 'Pictures',
+    title: 'Pictures that fit the sheet',
+    description:
+      'Especially in primary school and special education, pictures help with understanding. The AI looks for suitable pictures and puts them on the sheet – next to words, as an opener or in columns beside the text. It prints the license credit underneath automatically.',
+    imageAlt: 'Worksheet “Tiere im Wald” (animals in the forest) in the “Primary school” design: ARASAAC pictograms of hedgehog, owl, hare, squirrel, fox and raven with license credit, below them the animal names in syllable coloring and a primary-school writing line',
+    items: [
+      { title: 'Pictograms', description: 'ARASAAC – simple, uniform drawings of things, animals, activities and feelings, made for special education.' },
+      { title: 'Photos and historical pictures', description: 'Wikimedia Commons – animals, plants, places, art, Romans and the Middle Ages.' },
+      { title: 'Your own pictures', description: 'A folder in your Nextcloud or on your computer, e.g. with comic pictures for Latin. The AI finds them by file and folder names.' }
+    ]
+  },
+  informatics: {
+    badge: 'New',
+    headline: 'Computer science',
+    title: 'UML, Nassi-Shneiderman and ER diagrams',
+    description:
+      'The AI only describes the model, the layout is calculated: boxes and arrows are straight and legible, in the school notation as in the textbook. Ten diagram types – each also as a fill-in diagram with a solution sheet.',
+    diagrams: [
+      { title: 'Class diagram to fill in', description: 'An attribute as a writing line, a method as an empty row, the inheritance from Sparkonto (savings account) for students to draw.' },
+      { title: 'Sequence diagram', description: 'Actor and objects, calls, response, activation bars and an alt fragment.' },
+      { title: 'Finite automaton', description: 'Start arrow, accepting state as a double circle, transitions labeled with symbols.' },
+      { title: 'Nassi-Shneiderman diagram', description: 'To DIN 66261: branch and loop (Euclid’s greatest common divisor).' },
+      { title: 'Flowchart', description: 'To DIN 66001: start, input and output, branch with yes/no, end.' },
+      { title: 'ER diagram', description: 'Chen notation with key attributes and cardinalities 1:n and n:m.' }
+    ],
+    items: [
+      { title: 'Ten diagram types', description: 'Class, object, sequence, state, activity and use case diagrams, finite automata, Nassi-Shneiderman diagrams, flowcharts and ER diagrams (Chen, (min,max), crow’s foot).' },
+      { title: 'To fill in', description: 'Gaps in any text, missing arrows and relationships, empty rows and boxes – and with one sentence the solution in the same layout.' },
+      { title: 'Fits on the sheet', description: 'The layout is calculated and fitted to the text width. Like all graphics, every diagram stays editable by chat.' }
+    ]
+  },
+  music: {
+    headline: 'Music',
+    title: 'Music worksheets – even without any AI',
+    description:
+      'The music tab works without a server and without an API key: templates, ABC editor with live preview, German note names and lyrics. A selected staff can be loaded, changed and replaced.',
+    imageAlt: 'Music tab: the template “Alle meine Entchen” with lyrics, ABC notation and preview, inserted below a task in the “Modern” design',
+    items: [
+      { title: 'Templates', description: 'Empty staves in treble or bass clef, scales, an example melody with lyrics.' },
+      { title: 'Convert note names', description: 'c – f – g, fis′ g′ a′ h′, “bc” for C flat and time signatures such as 4/4 – digits as octave or note value.' },
+      { title: 'Print-ready and editable', description: 'Images at 300 dpi; the ABC source is stored in the alt text. By chat: “Change staff 1: instead of bc #c”.' }
+    ]
+  },
+  mcp: {
+    headline: 'MCP',
+    title: 'Your AI assistant writes along',
+    description:
+      'With the Model Context Protocol, Claude, ChatGPT, Le Chat and other AI assistants work directly in the document you have open in Euro-Office. The plugin applies the changes – you see them immediately and can undo them with Ctrl+Z.',
+    imageAlt: 'An AI assistant added a third task with the song “Es regnet” as a staff via MCP; the panel shows the MCP calls',
+    items: [
+      { title: 'The same tools', description: 'All building blocks, pictures, diagrams, page layout, checking, editing and staves – checked before anything reaches the document.' },
+      { title: 'Only your documents', description: 'With the Nextcloud sign-in, an assistant only reaches the documents of its user.' },
+      { title: 'You stay in control', description: 'Only “Allow MCP access” in the plugin connects the document. You revoke the access in Nextcloud.' }
+    ],
+    clientsTitle: 'Tested',
+    clientsText: 'With the MCP TypeScript SDK (protocol 2026-07-28) and 2025-era requests, over HTTP and stdio. Hosted assistants such as claude.ai, ChatGPT and Le Chat have not been tested against a public installation yet.'
+  },
+  companion: {
+    headline: 'Desktop',
+    title: 'The Worksheet Assistant app for your computer',
+    description:
+      'The Euro-Office and Nextcloud Office desktop apps have no plugin manager and no server. The Worksheet Assistant app does both: install it like any other app, start it once – then it works invisibly in the background. No terminal, no browser.',
+    imageAlt: 'Window of the Worksheet Assistant app, page “Übersicht” (overview): all three steps done – plugin in the desktop app, AI chat in the plugin, Claude connected',
+    items: [
+      { title: 'Plugin set up automatically', description: 'Installs the plugin in Euro-Office and Nextcloud Office, connects it and keeps it up to date – no settings in the editor.' },
+      { title: 'Your AI, your pictures', description: 'Mistral, OpenAI, Anthropic, Ollama or any OpenAI-compatible API – the key stays on your computer. Plus a folder of your own pictures.' },
+      { title: 'Claude in one click', description: 'Connects Claude Desktop or Claude Code. The app installs new versions with one click and starts with your computer if you like. Notarized by Apple on macOS.' }
     ]
   },
   ways: {
@@ -62,7 +196,7 @@ const en: SiteContent = {
         title: 'In Nextcloud',
         badge: 'for schools',
         description: 'The plugin in Nextcloud’s Euro-Office, the small server next to it. Every teacher signs in with their Nextcloud account.',
-        bullets: ['Installation with one command (Nextcloud AIO)', 'Survives AIO updates', 'AI key only on the server'],
+        bullets: ['Installation with one command (Nextcloud AIO)', 'Survives AIO updates', 'Your own pictures in a Nextcloud folder'],
         link: 'Install in Nextcloud'
       },
       {
@@ -85,107 +219,53 @@ const en: SiteContent = {
     headline: 'Examples',
     title: 'How to talk to the Worksheet Assistant',
     description: 'Plain sentences are enough. The AI knows the outline of your document and answers in your language.',
-    worksheetLabel: 'Worksheets',
-    musicLabel: 'Music',
-    worksheet: [
-      'Create a worksheet about the water cycle for grade 5 with three tasks, a table and an info box.',
-      'Reword the instruction of task 1 so that third-graders understand it.',
-      'Turn task 2 into a cloze text with 8 gaps.',
-      'Add a solution page at the end.',
-      'Delete task 3.'
-    ],
-    music: [
-      'Below task 2, insert a staff with c – f – g and an empty staff underneath for copying.',
-      'I need a staff: 4/4 bc1, f1, g2, be2, c1, c1',
-      'Please change staff 1: instead of bc #c',
-      'Add the lyrics to staff 1: Twinkle twinkle little star',
-      'After task 3, insert three empty staves in bass clef.'
+    groups: [
+      {
+        label: 'Worksheets',
+        items: [
+          'Create a worksheet about the water cycle for grade 5 with three tasks, a cloze text and an info box.',
+          'Turn this into a crossword with ten terms and add a solution page at the end.',
+          'Reword the instruction of task 1 so that third-graders understand it.',
+          'Use the Classic design and put our school name and page numbers in the header and footer.',
+          'Check the sheet and delete task 3.'
+        ]
+      },
+      {
+        label: 'Pictures & diagrams',
+        items: [
+          'A reading sheet for grade 1 about animals in the forest – with a pictogram next to each word and syllable coloring.',
+          'Put a photo of a Roman legionary next to the text.',
+          'Draw a UML class diagram for account, checking account and savings account where the students complete the inheritance.',
+          'Create a Nassi-Shneiderman diagram for the Euclidean algorithm and below it an empty flowchart to fill in.',
+          'An ER diagram for students, courses and teachers in Chen notation.'
+        ]
+      },
+      {
+        label: 'Music',
+        items: [
+          'Below task 2, insert a staff with c – f – g and an empty staff underneath for copying.',
+          'I need a staff: 4/4 bc1, f1, g2, be2, c1, c1',
+          'Please change staff 1: instead of bc #c',
+          'Add the lyrics to staff 1: Twinkle twinkle little star',
+          'After task 3, insert three empty staves in bass clef.'
+        ]
+      }
     ]
-  },
-  mcp: {
-    headline: 'MCP',
-    title: 'Your AI assistant writes along',
-    description:
-      'With the Model Context Protocol, Claude, ChatGPT, Le Chat and other AI assistants work directly in the document you have open in Euro-Office. The plugin applies the changes – you see them immediately and can undo them with Ctrl+Z.',
-    imageAlt: 'An AI assistant added an extra task with a staff and lyrics via MCP; the plugin’s chat shows the MCP calls',
-    items: [
-      { title: 'The same tools', description: 'Worksheet blocks, editing, deleting, staves and lyrics – checked before anything reaches the document.' },
-      { title: 'Only your documents', description: 'With the Nextcloud sign-in, an assistant only reaches the documents of its user.' },
-      { title: 'You stay in control', description: 'Only “Allow MCP access” in the plugin connects the document. You revoke the access in Nextcloud.' }
-    ],
-    clientsTitle: 'Tested',
-    clientsText: 'With the MCP TypeScript SDK (protocol 2026-07-28) and 2025-era requests, over HTTP and stdio. Claude, ChatGPT and Le Chat themselves have not been connected yet.'
-  },
-  companion: {
-    headline: 'Desktop',
-    title: 'The Worksheet Assistant app for your computer',
-    description:
-      'The Euro-Office and Nextcloud Office desktop apps have no plugin manager and no server. The Worksheet Assistant app does both: install it like any other app, start it once – then it works invisibly in the background. No terminal, no browser.',
-    imageAlt: 'Window of the Worksheet Assistant app, page “Übersicht” (overview): all three steps done – plugin in the desktop app, AI chat in the plugin, Claude connected',
-    items: [
-      { title: 'Plugin set up automatically', description: 'Installs the plugin in Euro-Office and Nextcloud Office, connects it and keeps it up to date – no settings in the editor.' },
-      { title: 'Your AI', description: 'Mistral, OpenAI, Anthropic, Ollama or any OpenAI-compatible API – the key stays on your computer.' },
-      { title: 'Claude in one click', description: 'Connects Claude Desktop or Claude Code with one click. The app reports new versions itself and starts with your computer if you like.' }
-    ]
-  },
-  music: {
-    headline: 'Music',
-    title: 'Music worksheets – even without any AI',
-    description:
-      'The music tab works without a server and without an API key: templates, ABC editor with live preview, German note names and lyrics. A selected staff can be loaded, changed and replaced.',
-    imageAlt: 'Music tab: template “Alle meine Entchen” with lyrics, ABC notation and preview',
-    items: [
-      { title: 'Templates', description: 'Empty staves in treble or bass clef, scales, an example melody with lyrics.' },
-      { title: 'Convert note names', description: 'c – f – g, fis′ g′ a′ h′, “bc” for C flat and time signatures such as 4/4 – digits as octave or note value.' },
-      { title: 'Print-ready and editable', description: 'Images at 300 dpi; the ABC source is stored in the alt text.' }
-    ]
-  },
-  demo: {
-    headline: 'Live demo',
-    title: 'Try the note name converter',
-    description: 'Type German note names – the staff appears instantly. It is the same converter the plugin uses in the editor.',
-    loading: 'Loading the demo …',
-    notesLabel: 'Note names (German)',
-    notesHelp: 'e.g. c – f – g, fis′ g′ a′ h′, bc = C flat, 4/4 = time signature',
-    clefLabel: 'Clef',
-    treble: 'Treble clef',
-    bass: 'Bass clef',
-    digitsLabel: 'Digits',
-    digitsAuto: 'Digits: automatic',
-    digitsOctave: 'Digits = octave (c1 = c′)',
-    digitsDuration: 'Digits = note value (c1 = whole note)',
-    lyricsLabel: 'Lyrics (optional)',
-    lyricsHelp: 'Separate syllables with -: Twin-kle twin-kle',
-    showAbc: 'Show ABC notation',
-    paperLoading: 'Loading the staff …',
-    examples: ['c – f – g', 'Hänschen klein', 'Note values', 'Bass clef'],
-    noteCount: '{n} notes',
-    readAsDurations: 'digits read as note values',
-    readAsOctaves: 'digits read as octaves',
-    meterInfo: '{meter} time, {bars} bars',
-    issues: {
-      unknownName: '“{token}” is not a known note name.',
-      doubleAccidental: '“{token}” has two accidentals.',
-      farFromStaff: '“{token}” is in the {octave} – far outside the staff.',
-      incompleteBar: 'The notes do not fill whole {meter} bars ({bars} bars).',
-      tooManySyllables: 'The lyrics have more syllables than the melody has notes.',
-      tooFewSyllables: 'The lyrics do not cover all notes – the rest stay without text.'
-    }
   },
   parts: {
     headline: 'What runs where',
     title: 'One plugin, one small server – and the AI of your choice',
-    description: 'The plugin needs no server of its own. The AI chat and MCP add a small service – on the server or in the Worksheet Assistant app on your computer.',
+    description: 'The plugin needs no server of its own. For AI chat, pictures and MCP a small service is added – on the server or in the Worksheet Assistant app on your computer.',
     items: [
       {
         title: 'Plugin',
         badge: 'always',
-        description: 'Just files (≈ 1 MB) in Euro-Office’s plugin folder. Runs in the editor in the browser or in the desktop app.',
-        bullets: ['Inserts and edits content', 'Draws staves, complete music tab', 'Executes MCP calls in the document']
+        description: 'Just files (≈ 1.4 MB) in Euro-Office’s plugin folder. Runs in the editor in the browser or in the desktop app.',
+        bullets: ['Lays out worksheets, graphics and diagrams', 'Draws staves, complete music tab', 'Executes MCP calls in the document']
       },
       {
         title: 'Server',
-        badge: 'for AI chat and MCP',
+        badge: 'for AI chat, pictures and MCP',
         description: 'A small service (Docker, ≈ 30 MB RAM) next to Nextcloud – or in the background of the Worksheet Assistant app on your own computer.',
         bullets: ['API key stays on the server', 'Sign-in via Nextcloud, rate limit', 'Checks content before it reaches the document']
       },
@@ -210,12 +290,12 @@ const en: SiteContent = {
       },
       {
         title: 'Start the server',
-        description: 'It holds the AI key and serves the MCP endpoint. Make it reachable via HTTPS, e.g. as `https://worksheets.your-school.org`. With `AUTH_MODE=nextcloud` every teacher signs in with their Nextcloud account.',
+        description: 'It holds the AI key, searches for pictures and serves the MCP endpoint. Make it reachable via HTTPS, e.g. as `https://worksheets.your-school.org`. With `AUTH_MODE=nextcloud` every teacher signs in with their Nextcloud account.',
         codeLabel: 'Shell'
       },
       {
         title: 'Sign in in the editor',
-        description: 'Open a document → **Plugins** → **Worksheet Assistant** → **Settings**: enter the server address and **Sign in with Nextcloud**. Done.'
+        description: 'Open a document → **Plugins** → **Worksheet Assistant** → **Settings**: enter the server address and **Sign in with Nextcloud**. Done. You put your own pictures in the `Arbeitsblatt-Bilder` folder of your Nextcloud.'
       }
     ],
     desktop: [
@@ -226,7 +306,7 @@ const en: SiteContent = {
       },
       {
         title: 'Choose your AI',
-        description: 'In the app, on the page **KI-Chat** (AI chat), enter the provider and API key – or a local model via Ollama, or MCP only. Then open a document in Euro-Office: **Plugins → Worksheet Assistant**. You can close the window – the app keeps running in the system tray (macOS: menu bar). Tip: switch on autostart under **Einstellungen** (settings).'
+        description: 'In the app, on the page **KI-Chat** (AI chat), enter the provider and API key – or a local model via Ollama, or MCP only. On the page **Bilder** (pictures) you choose a folder of your own pictures. Then open a document in Euro-Office: **Plugins → Worksheet Assistant**. You can close the window – the app keeps running in the system tray (macOS: menu bar).'
       }
     ],
     docker: [
@@ -259,7 +339,7 @@ const en: SiteContent = {
       {
         label: 'Does the plugin need its own server?',
         content:
-          'The plugin itself does not – it is just files served by Euro-Office. The AI chat and MCP need the small server; on your own computer the Worksheet Assistant app takes this role. The music tab works without any server.'
+          'The plugin itself does not – it is just files served by Euro-Office. AI chat, picture search and MCP need the small server; on your own computer the Worksheet Assistant app takes this role. The music tab works without any server.'
       },
       {
         label: 'Which AI is used?',
@@ -272,6 +352,16 @@ const en: SiteContent = {
           'With every chat request the conversation and the outline of the document (texts, staves as ABC). The server stores no conversations or documents. With MCP your AI assistant reads the document through the tools. If nothing should leave your network, use a local model.'
       },
       {
+        label: 'Where do the pictures come from – and may I use them?',
+        content:
+          'From three sources: ARASAAC pictograms (CC BY-NC-SA, free for school use), Wikimedia Commons (free licenses) and your own picture folder. Author and license of free pictures are printed under the picture automatically. The server only queries the fixed addresses of ARASAAC and Wikimedia and your folder – the AI never supplies addresses itself. With `IMAGE_SOURCES` or in the app you can switch off pictures from the internet.'
+      },
+      {
+        label: 'Which computer science diagrams are there?',
+        content:
+          'UML class, object, sequence, state, activity and use case diagrams, finite automata (DFA/NFA), Nassi-Shneiderman diagrams to DIN 66261, flowcharts to DIN 66001 and ER diagrams in Chen, (min,max) or crow’s foot notation. Every diagram is also available to fill in and with a solution.'
+      },
+      {
         label: 'What is MCP?',
         content:
           'The Model Context Protocol is an open standard that lets AI assistants use tools. The server offers the plugin’s tools – so Claude, for example, edits your open document as if you had used the chat in the plugin.'
@@ -279,7 +369,7 @@ const en: SiteContent = {
       {
         label: 'How do teachers sign in?',
         content:
-          'With `AUTH_MODE=nextcloud` with their Nextcloud account: in the plugin with one click (Nextcloud Login Flow), AI assistants via OAuth through Nextcloud or with an app password. Everyone only reaches their own documents; the access can be revoked in Nextcloud under Devices & sessions.'
+          'With `AUTH_MODE=nextcloud` with their Nextcloud account: in the plugin with one click (Nextcloud Login Flow), AI assistants via OAuth through Nextcloud or with an app password. Everyone only reaches their own documents and pictures; the access can be revoked in Nextcloud under Devices & sessions.'
       },
       {
         label: 'Does it work without Nextcloud?',
@@ -288,7 +378,7 @@ const en: SiteContent = {
       {
         label: 'Can I change inserted content later?',
         content:
-          'Yes. The AI reads the content and replaces exactly the parts you name. Staves carry their ABC source in the alt text and can be changed by chat or in the music tab.'
+          'Yes. The AI reads the content and replaces exactly the parts you name. Graphics, diagrams, pictures and staves carry their source in the alt text and can be changed by chat; staves also in the music tab.'
       },
       {
         label: 'What happens when Nextcloud AIO updates?',
@@ -308,7 +398,7 @@ const en: SiteContent = {
       {
         label: 'Is it open source?',
         content:
-          'Yes, under the MIT license. It ships abcjs (MIT) and the ONLYOFFICE plugin files (AGPL-3.0); the Worksheet Assistant app contains Node.js and npm packages – all with their license texts.'
+          'Yes, under the MIT license. It ships abcjs, dagre and qrcode-generator (all MIT) and the ONLYOFFICE plugin files (AGPL-3.0); the Worksheet Assistant app contains Node.js and npm packages – all with their license texts.'
       }
     ]
   },
@@ -320,9 +410,10 @@ const en: SiteContent = {
   },
   footer: {
     license: 'Worksheet Assistant · MIT license',
-    uses: 'uses abcjs (MIT) and the ONLYOFFICE plugin SDK (AGPL-3.0)',
+    uses: 'uses abcjs, dagre and qrcode-generator (MIT) and the ONLYOFFICE plugin SDK (AGPL-3.0) · Pictograms: Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Copy',
-    copied: 'Copied'
+    copied: 'Copied',
+    zoom: 'Open image in full size'
   }
 }
 

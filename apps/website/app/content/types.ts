@@ -1,7 +1,8 @@
 /**
  * Text content of the website, one object per language (app/content/<code>.ts).
  * Texts may contain `code` and **bold** (rendered by <RichText>), and {placeholders} where noted.
- * Commands, URLs and product names are not translated.
+ * Commands, URLs and product names are not translated. German school terms that name a format
+ * (Struktogramm, Programmablaufplan, Silbenfärbung, Lineatur …) may be kept and explained.
  */
 export interface Item {
   title: string
@@ -15,10 +16,20 @@ export interface Step {
   codeLabel?: string
 }
 
+/** A section with a screenshot and a list of points beside it. */
+export interface Showcase {
+  headline: string
+  title: string
+  description: string
+  imageAlt: string
+  items: Item[]
+}
+
 export interface SiteContent {
   meta: { title: string, description: string }
-  nav: { features: string, ways: string, mcp: string, demo: string, install: string, faq: string, language: string }
+  nav: { features: string, informatics: string, ways: string, mcp: string, install: string, faq: string, language: string }
   hero: {
+    /** badge above the title, links to the newest feature; {version} = "0.8" */
     badge: string
     headline: string
     title: string
@@ -27,8 +38,34 @@ export interface SiteContent {
     more: string
     imageAlt: string
   }
-  /** 6 items, in this order: worksheets, editing, music, mcp, privacy, everywhere */
-  features: { headline: string, title: string, description: string, items: Item[] }
+  /**
+   * Overview, 12 items in this order: chat, designs, tasks, graphics, pictures, informatics, music, page,
+   * check & solutions, editing, mcp, privacy
+   */
+  features: { headline: string, title: string, description: string, items: Item[], more: string }
+  /** themes: 3 items in this order: classic, modern, primary; items: 3 points below the pictures */
+  designs: { headline: string, title: string, description: string, themes: Item[], imageAlt: string, items: Item[] }
+  /** 4 items each */
+  tasks: Showcase
+  graphics: Showcase
+  /** 3 items: pictograms, photos, own pictures */
+  pictures: Showcase
+  informatics: {
+    badge: string
+    headline: string
+    title: string
+    description: string
+    /** 6 pictures in this order: class (to fill in), sequence, automaton, structogram, flowchart, ER */
+    diagrams: Item[]
+    /** 3 points: all diagram types, to fill in, layout */
+    items: Item[]
+  }
+  /** 3 items */
+  music: Showcase
+  /** 3 items */
+  mcp: Showcase & { clientsTitle: string, clientsText: string }
+  /** 3 items */
+  companion: Showcase
   /** 3 ways, in this order: nextcloud, desktop, mcp */
   ways: {
     headline: string
@@ -40,77 +77,8 @@ export interface SiteContent {
     headline: string
     title: string
     description: string
-    worksheetLabel: string
-    musicLabel: string
-    /** 5 example requests a teacher types (in the language of the page) */
-    worksheet: string[]
-    /** 5 example requests about music; German note names (c, fis, h …) may stay */
-    music: string[]
-  }
-  mcp: {
-    headline: string
-    title: string
-    description: string
-    imageAlt: string
-    /** 3 items */
-    items: Item[]
-    clientsTitle: string
-    clientsText: string
-  }
-  companion: {
-    headline: string
-    title: string
-    description: string
-    imageAlt: string
-    /** 3 items */
-    items: Item[]
-  }
-  music: {
-    headline: string
-    title: string
-    description: string
-    imageAlt: string
-    /** 3 items */
-    items: Item[]
-  }
-  demo: {
-    headline: string
-    title: string
-    description: string
-    loading: string
-    notesLabel: string
-    notesHelp: string
-    clefLabel: string
-    treble: string
-    bass: string
-    digitsLabel: string
-    digitsAuto: string
-    digitsOctave: string
-    digitsDuration: string
-    lyricsLabel: string
-    lyricsHelp: string
-    showAbc: string
-    paperLoading: string
-    /** labels of the 4 example buttons: c–f–g, Hänschen klein, note values, bass clef */
-    examples: [string, string, string, string]
-    /** "{n} notes" */
-    noteCount: string
-    readAsDurations: string
-    readAsOctaves: string
-    /** "{meter} time, {bars} bars" */
-    meterInfo: string
-    issues: {
-      /** {token} */
-      unknownName: string
-      /** {token} */
-      doubleAccidental: string
-      /** {token}, {octave} */
-      farFromStaff: string
-      /** {meter}, {bars} */
-      incompleteBar: string
-      tooManySyllables: string
-      tooFewSyllables: string
-    }
+    /** 3 groups in this order: worksheets, pictures & diagrams, music – 4–5 example requests each, in the language of the page */
+    groups: Array<{ label: string, items: string[] }>
   }
   parts: {
     headline: string
@@ -127,15 +95,12 @@ export interface SiteContent {
     tabs: { nextcloud: string, desktop: string, docker: string, mcp: string }
     /** 3 steps each */
     nextcloud: Step[]
-    /** 3 steps */
     desktop: Step[]
-    /** 3 steps */
     docker: Step[]
-    /** 3 steps */
     mcp: Step[]
     readme: string
   }
   faq: { headline: string, title: string, items: Array<{ label: string, content: string }> }
   cta: { title: string, description: string, repo: string, releases: string }
-  footer: { license: string, uses: string, copy: string, copied: string }
+  footer: { license: string, uses: string, copy: string, copied: string, zoom: string }
 }

@@ -1,6 +1,5 @@
 // Project website for GitHub Pages (static, prerendered) in 7 languages.
 // The base URL is set by the Pages workflow: NUXT_APP_BASE_URL=/<repository>/
-import { fileURLToPath } from 'node:url'
 
 const SITE = 'https://felixwochnick.github.io/euro-office-worksheet-assistant'
 
@@ -45,11 +44,5 @@ export default defineNuxtConfig({
   icon: {
     serverBundle: { collections: ['lucide', 'simple-icons'] },
     clientBundle: { scan: true }
-  },
-
-  vite: {
-    // The live demo imports the converter shared with the plugin (@worksheet-assistant/shared →
-    // packages/shared/abc-tools.js): allow the repository root in dev.
-    server: { fs: { allow: [fileURLToPath(new URL('../..', import.meta.url))] } }
   }
 })

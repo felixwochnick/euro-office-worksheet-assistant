@@ -32,6 +32,16 @@
 - **Layout library:** [dagre](https://github.com/dagrejs/dagre) 3.1.2 (MIT) – vendored for the plugin
   (`vendor/dagre/dagre.min.js`, checksum in `vendor/SHA256SUMS`), the npm package for the proxy and the desktop app.
 - **Proxy:** structogram steps and sequence diagram fragments may be nested deeper than other block fields.
+- **Website reworked:** every feature now has its section with pictures from the real editor – the three designs side
+  by side, task types and puzzles, graphics and formulas, pictures (ARASAAC), the computer science diagrams (gallery of
+  six), music, MCP and the desktop app (new icon, current version) – plus example requests for pictures and diagrams
+  and new FAQ entries; in all seven languages. The live demo of the note converter is gone (the website no longer
+  depends on `abcjs` and `packages/shared`). The plugin's panel labels on the French, Spanish, Italian, Dutch and Polish
+  pages are now the German ones the panel shows there, and menu paths use the plugin's localised menu name.
+- **Screenshots:** `dev/eurooffice/website-screenshots.mjs` inserts fixed worksheet blocks over MCP instead of asking a
+  model, so the pictures are reproducible without an API key; it crops page excerpts (`ONLY=…` retakes some). The test
+  storage takes `?title=` and `?spellcheck=0`; the desktop app's simulated backend shows the version of its
+  `package.json`.
 
 ## 0.7.1 – self-updates and a notarized macOS app
 

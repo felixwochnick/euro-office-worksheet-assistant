@@ -8,14 +8,12 @@ on:
     branches: [main]
     paths:
       - "apps/website/**"
-      - "packages/shared/abc-tools.js"
       - "apps/desktop/package.json"
       - "pnpm-lock.yaml"
       - ".github/workflows/pages.yml"
   pull_request:
     paths:
       - "apps/website/**"
-      - "packages/shared/abc-tools.js"
       - "apps/desktop/package.json"
       - "pnpm-lock.yaml"
       - ".github/workflows/pages.yml"
@@ -43,7 +41,7 @@ jobs:
           node-version: 22
           cache: pnpm
 
-      # pnpm workspace: only the website (and the shared package it imports)
+      # pnpm workspace: only the website
       - run: pnpm install --frozen-lockfile --filter '@worksheet-assistant/website...'
 
       - name: Build (static, github_pages preset)

@@ -5,8 +5,3 @@
   --font-sans: 'Public Sans', sans-serif;
 }
 
-/* Rendered music always on "paper", also in dark mode */
-.abc-paper svg {
-  max-width: 100%;
-  height: auto;
-}
