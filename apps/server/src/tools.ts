@@ -223,7 +223,7 @@ const blockSchema = {
         required: ['from', 'to'],
       },
     },
-    direction: { type: 'string', enum: ['vertical', 'horizontal'], description: 'class/object/state diagram layout (default: class diagrams with inheritance vertical, else horizontal)' },
+    direction: { type: 'string', enum: ['vertical', 'horizontal'], description: 'class/object/state/activity diagram and flowchart layout (default: activity diagrams and flowcharts and class diagrams with inheritance vertical, else horizontal)' },
     objects: {
       type: 'array', maxItems: 16, description: 'object_diagram: the objects',
       items: { type: 'object', properties: { name: { type: 'string' }, class: { type: 'string' }, values: linesOrCount }, required: ['class'] },

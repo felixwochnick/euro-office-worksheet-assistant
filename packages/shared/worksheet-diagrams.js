@@ -126,7 +126,7 @@
     s = String(s === undefined || s === null ? '' : s).replace(/\s+/g, ' ').trim();
     var L = { size: o.size || FS, bold: !!o.bold, italic: !!o.italic, underline: !!o.underline, muted: !!o.muted, segs: [] };
     var full = /^\[\[([\s\S]*)\]\]$/.exec(s);
-    if (o.full && full && full[1].indexOf('[[') < 0 && full[1].indexOf(']]') < 0) {
+    if (o.full && full && full[1].indexOf('[[') < 0 && full[1].indexOf(']]') < 0 && !/^\[\[\[[\s\S]*\]\]\]$/.test(s)) {
       L.full = true;
       L.answer = full[1].trim();
       return L;
@@ -499,6 +499,11 @@
     throw fail(fn, '"direction" must be "vertical" or "horizontal" (got ' + show(v) + ').');
   }
 
+  /** map[key] only for the map's own entries (not "constructor", "__proto__" …). */
+  function own(map, key) {
+    return Object.prototype.hasOwnProperty.call(map, key) ? map[key] : undefined;
+  }
+
   function blankOf(o) {
     return o.blank === true || o.hidden === true;
   }
@@ -635,7 +640,7 @@
       objOf(c, fn, 'classes[' + i + ']', '{ name, kind?, attributes: [...], methods: [...] }');
       var nm = str(c.name, fn, 'classes[' + i + '].name', 80, true);
       var kindIn = c.kind === undefined || c.kind === null ? (c.abstract === true ? 'abstract' : 'class') : String(c.kind).toLowerCase().trim();
-      var kind = CLASS_KINDS[kindIn];
+      var kind = own(CLASS_KINDS, kindIn);
       if (!kind) throw fail(fn, 'classes[' + i + '].kind must be class, abstract, interface or enum (got ' + show(c.kind) + ').');
       var k = keyOf(nm);
       if (byKey[k]) throw fail(fn, 'two classes are named "' + plainOf(nm) + '".');
@@ -669,7 +674,7 @@
       var nm = 'relations[' + i + ']';
       objOf(r, fn, nm, '{ from, to, kind: "inheritance" }');
       var kindIn = String(r.kind === undefined || r.kind === null ? 'association' : r.kind).toLowerCase().trim();
-      var kind = REL_KINDS[kindIn];
+      var kind = own(REL_KINDS, kindIn);
       if (!kind) {
         throw fail(fn, nm + '.kind must be inheritance, implementation, association, aggregation, composition or dependency (got ' + show(r.kind) + ').');
       }
@@ -1179,7 +1184,7 @@
           return { frag: kind, sections: sections, depth: depth };
         }
         if (++count > 60) throw fail(fn, 'too many messages (max 60).');
-        var mk = MSG_KINDS[String(it.kind === undefined || it.kind === null ? 'call' : it.kind).toLowerCase()];
+        var mk = own(MSG_KINDS, String(it.kind === undefined || it.kind === null ? 'call' : it.kind).toLowerCase());
         if (!mk) throw fail(fn, nm + '.kind must be call, async, return or create (got ' + show(it.kind) + ').');
         var text = it.text !== undefined ? it.text : it.label !== undefined ? it.label : it.message;
         var m = {
@@ -1203,7 +1208,8 @@
     function guardLine(v, fn2, name) {
       if (v === undefined || v === null || v === '') return null;
       var s = str(v, fn2, name, 80);
-      if (!/^\[[\s\S]*\]$/.test(s) || /^\[\[/.test(s)) s = '[' + s + ']';
+      var plain = plainOf(s);
+      if (!/^\[[\s\S]*\]$/.test(plain)) s = '[' + s + ']';
       return mkLine(s, { size: SMALL });
     }
     var items = parseItems(o.messages === undefined ? [] : o.messages, 'messages', 0);
@@ -1956,7 +1962,16 @@
     s = String(s === undefined || s === null ? '' : s).replace(/\s+/g, ' ').trim();
     if (!s) return o.allowEmpty ? [emptyLine(o)] : [];
     if (s.indexOf('[[') >= 0) return [mkLine(s, attrsWith(o, { full: true }))];
-    return U.wrapText(s, maxW, o.size || FS, !!o.bold, o.maxLines || 4).map(function (t) { return mkLine(t, o); });
+    var size = o.size || FS;
+    // a single long word widens the shape instead of being split
+    s.split(' ').forEach(function (w) { maxW = Math.max(maxW, Math.min(90, U.textWidth(w, size, !!o.bold) + 0.5)); });
+    var lines = U.wrapText(s, maxW, size, !!o.bold);
+    var max = o.maxLines || 4;
+    if (lines.length > max) {
+      throw fail(o.fn || 'diagram', '"' + (o.name || 'text') + '" is too long for its shape (' + lines.length + ' lines, max ' + max +
+        '): "' + s.slice(0, 50) + (s.length > 50 ? '…' : '') + '" – shorten it.');
+    }
+    return lines.map(function (t) { return mkLine(t, o); });
   }
 
   function blockWidth(lines) {
@@ -2015,7 +2030,7 @@
       if (typeof n === 'string' || typeof n === 'number') n = { text: String(n) };
       objOf(n, fn, nm, '{ id?, kind, text }');
       var kindIn = n.kind === undefined || n.kind === null ? 'action' : String(n.kind).toLowerCase().trim();
-      var kind = kinds[kindIn];
+      var kind = own(kinds, kindIn);
       if (!kind) throw fail(fn, nm + '.kind must be one of ' + kindNames.join(', ') + ' (got ' + show(n.kind) + ').');
       var hasText = n.text !== undefined && n.text !== null;
       var text = hasText ? str(n.text, fn, nm + '.text', 160) : '';
@@ -2023,7 +2038,7 @@
       // texts and sizes (millimetres; TB layout, the bars of fork/join are turned for LR below)
       if (kind === 'start' || kind === 'end') {
         if (pap) {
-          N.lines = textBlock(hasText ? text : (kind === 'start' ? labels.start || 'Start' : labels.end || 'Ende'), 40, { allowEmpty: true });
+          N.lines = textBlock(hasText ? text : (kind === 'start' ? labels.start || 'Start' : labels.end || 'Ende'), 40, { allowEmpty: true, fn: fn, name: nm + '.text', maxLines: 2 });
           N.width = Math.max(22, blockWidth(N.lines) + 10);
           N.height = Math.max(8, blockHeight(N.lines, ROW) + 3);
         } else {
@@ -2039,19 +2054,22 @@
         N.lines = [];
         N.width = N.height = pap ? 1.6 : 8;
       } else if (kind === 'decision') {
-        N.lines = textBlock(text, 34, { allowEmpty: hasText });
+        N.lines = textBlock(text, 34, { allowEmpty: hasText, fn: fn, name: nm + '.text', maxLines: 4 });
         if (N.lines.length) {
-          N.width = Math.max(16, blockWidth(N.lines) * 1.45 + 8);
-          N.height = Math.max(10, blockHeight(N.lines, ROW) * 1.6 + 5);
+          // the text box (bw × bh) fits into the diamond when bw/w + bh/h ≤ 1
+          var bw = blockWidth(N.lines) + 2;
+          var bh = blockHeight(N.lines, ROW) + 1.5;
+          N.height = Math.max(10, bh * 2 + 3);
+          N.width = Math.max(16, bw / (1 - bh / N.height) + 3);
         } else {
           N.width = N.height = 8;
         }
       } else if (kind === 'connector') {
-        N.lines = textBlock(text, 14, {});
+        N.lines = textBlock(text, 14, { fn: fn, name: nm + '.text', maxLines: 1 });
         N.width = N.height = Math.max(7, blockWidth(N.lines) + 3);
       } else {
         if (!hasText && kind !== 'object') throw fail(fn, nm + ' needs "text" (use "" for an empty box to fill in).');
-        N.lines = textBlock(text, 46, { allowEmpty: true });
+        N.lines = textBlock(text, 46, { allowEmpty: true, fn: fn, name: nm + '.text', maxLines: 6 });
         N.width = Math.max(24, blockWidth(N.lines) + 2 * PAD + 2 + (kind === 'io' ? 6 : kind === 'call' ? 4 : 0));
         N.height = Math.max(8, blockHeight(N.lines, ROW) + 3);
       }
@@ -2059,6 +2077,7 @@
       var keys = [];
       if (n.id !== undefined && n.id !== null && String(n.id).trim()) keys.push(keyOf(String(n.id)));
       else if (plainOf(text)) keys.push(keyOf(text));
+      else if (pap && (kind === 'start' || kind === 'end')) keys.push(keyOf(plainOf(N.lines.map(function (L) { return L.segs.map(function (sg) { return sg.t; }).join(''); }).join(' '))));
       keys.forEach(function (k) { byKey[k] = byKey[k] ? 'ambiguous' : N; });
       byKind[kind] = byKind[kind] ? 'ambiguous' : N;
       return N;
@@ -2066,12 +2085,18 @@
     function ref(v, name) {
       var k = keyOf(v);
       if (!k) throw fail(fn, '"' + name + '" is missing.');
-      var N = byKey[k];
-      if (!N && kinds[k] && byKind[kinds[k]] && byKind[kinds[k]] !== 'ambiguous') N = byKind[kinds[k]];
+      var N = own(byKey, k) !== undefined ? byKey[k] : undefined;
+      var kind = own(kinds, k);
+      if (!N && kind && byKind[kind]) {
+        N = byKind[kind];
+        if (N === 'ambiguous') throw fail(fn, '"' + name + '": there are several ' + kind + ' nodes – give them an "id" and use it in the edges.');
+      }
       if (N === 'ambiguous') throw fail(fn, '"' + name + '": several nodes are called "' + plainOf(v) + '" – give them an "id" and use it in the edges.');
       if (!N) {
-        throw fail(fn, '"' + name + '" is "' + plainOf(v) + '", which is not a node. Refer to a node by its id or text: ' +
-          Object.keys(byKey).filter(function (x) { return byKey[x] !== 'ambiguous'; }).join(', ') + '.');
+        var known = Object.keys(byKey).filter(function (x) { return byKey[x] !== 'ambiguous'; })
+          .concat(Object.keys(byKind).filter(function (x) { return byKind[x] !== 'ambiguous'; }));
+        throw fail(fn, '"' + name + '" is "' + plainOf(v) + '", which is not a node. Refer to a node by its id, its text or (if there is only one) its kind: ' +
+          known.filter(function (x, i) { return known.indexOf(x) === i; }).join(', ') + '.');
       }
       return N;
     }
@@ -2084,7 +2109,11 @@
         var nm = 'edges[' + i + ']';
         objOf(e, fn, nm, '{ from, to, label? }');
         var label = e.label !== undefined && e.label !== null ? str(e.label, fn, nm + '.label', 60) : '';
-        return { from: ref(e.from, nm + '.from'), to: ref(e.to, nm + '.to'), label: label ? mkLine(label, { size: SMALL * 1.07 }) : null, blank: blankOf(e) };
+        var E = { from: ref(e.from, nm + '.from'), to: ref(e.to, nm + '.to'), label: label ? mkLine(label, { size: SMALL * 1.07 }) : null, blank: blankOf(e) };
+        if (E.from === E.to && ['action', 'object', 'io', 'call'].indexOf(E.from.kind) < 0) {
+          throw fail(fn, nm + ' leads from the ' + E.from.kind + ' node "' + E.from.label + '" to itself – a loop goes back to an earlier node.');
+        }
+        return E;
       });
     }
     var rankdir = directionOf(o.direction, 'TB', fn);
@@ -2117,7 +2146,7 @@
       if (N.kind === 'end' && !pap) return { kind: 'circle', x: p.x, y: p.y, r: 3 };
       if (N.kind === 'flow_end') return { kind: 'circle', x: p.x, y: p.y, r: 2.6 };
       if (N.kind === 'connector') return { kind: 'circle', x: p.x, y: p.y, r: N.width / 2 };
-      if (N.kind === 'merge' && pap) return { kind: 'circle', x: p.x, y: p.y, r: 0.1 };
+      if (N.kind === 'merge' && pap) return { kind: 'circle', x: p.x, y: p.y, r: 0.8 };
       if (N.kind === 'decision' || N.kind === 'merge') return { kind: 'diamond', x: p.x, y: p.y, w: N.width, h: N.height };
       return { kind: 'rect', x: p.x, y: p.y, w: N.width, h: N.height };
     }
@@ -2142,7 +2171,8 @@
         var color = e.blank ? ctx.accent : ctx.ink;
         pts.forEach(function (q) { B.pt(q.x, q.y); });
         lines += el('path', attrsWith(strokeOf(color), { d: polyline(pts) }));
-        marks += pap ? filledArrow(endDir(pts), color) : openArrow(endDir(pts), color);
+        // in a PAP, flows join at a junction without arrow heads
+        if (!(pap && e.to.kind === 'merge')) marks += pap ? filledArrow(endDir(pts), color) : openArrow(endDir(pts), color);
         if (e.label && lp) {
           var lb = lp.y + e.label.size * U.CAP / 2;
           B.text(lp.x, lb, lineWidth(e.label), e.label.size, 'middle');
@@ -2236,7 +2266,7 @@
       var nm = str(a.name, fn, 'actors[' + i + '].name', 60, true);
       var side = a.side === undefined || a.side === null ? 'left' : String(a.side).toLowerCase();
       if (side !== 'left' && side !== 'right') throw fail(fn, 'actors[' + i + '].side must be "left" or "right".');
-      var A = { id: 'a' + i, actor: true, side: side, label: plainOf(nm), lines: textBlock(nm, 28, { maxLines: 2 }) };
+      var A = { id: 'a' + i, actor: true, side: side, label: plainOf(nm), lines: textBlock(nm, 30, { maxLines: 3, fn: fn, name: 'actors[' + i + '].name' }) };
       A.width = Math.max(10, blockWidth(A.lines) + 2);
       A.height = 12.5 + blockHeight(A.lines, ROW);
       var k = keyOf(nm);
@@ -2249,7 +2279,7 @@
       if (typeof u === 'string' || typeof u === 'number') u = { name: String(u) };
       objOf(u, fn, 'use_cases[' + i + ']', '{ name }');
       var nm = str(u.name, fn, 'use_cases[' + i + '].name', 80, true);
-      var U2 = { id: 'u' + i, label: plainOf(nm), lines: textBlock(nm, 38, { maxLines: 3 }) };
+      var U2 = { id: 'u' + i, label: plainOf(nm), lines: textBlock(nm, 38, { maxLines: 4, fn: fn, name: 'use_cases[' + i + '].name' }) };
       U2.width = Math.max(26, blockWidth(U2.lines) * 1.22 + 8);
       U2.height = Math.max(9, blockHeight(U2.lines, ROW) * 1.3 + 3.5);
       var k = keyOf(nm);
@@ -2260,7 +2290,7 @@
     var links = (o.links === undefined || o.links === null ? [] : listOf(o.links, fn, 'links', 0, 40)).map(function (l, i) {
       var nm = 'links[' + i + ']';
       objOf(l, fn, nm, '{ from, to, kind? }');
-      var kind = UC_KINDS[String(l.kind === undefined || l.kind === null ? 'association' : l.kind).toLowerCase().trim()];
+      var kind = own(UC_KINDS, String(l.kind === undefined || l.kind === null ? 'association' : l.kind).toLowerCase().trim());
       if (!kind) throw fail(fn, nm + '.kind must be association, include, extend or generalization (got ' + show(l.kind) + ').');
       var from = lookup(byKey, l.from, fn, nm + '.from', 'actors and use cases');
       var to = lookup(byKey, l.to, fn, nm + '.to', 'actors and use cases');
@@ -2271,13 +2301,46 @@
         kind === 'include' ? '«include»' : kind === 'extend' ? '«extend»' : '';
       return { kind: kind, from: from, to: to, blank: blankOf(l), label: text ? mkLine(text, { size: SMALL }) : null };
     });
-    // use cases: a column (or columns, when include/extend/generalization connect them) laid out by dagre
+    // Layout: the use cases in columns (include/extend/generalization lead to the right), the actors as one more
+    // column on the left and on the right, so that dagre routes their lines around the use cases.
     var ucLinks = links.filter(function (l) { return !l.from.actor && !l.to.actor; });
-    var lay = layoutGraph(cases.map(function (u) { return { id: u.id, width: u.width, height: u.height }; }), ucLinks.map(function (l) {
-      // extend: the extending use case to the right of the base; generalization: the parent to the right
+    var actorLinks = links.filter(function (l) { return l.from.actor !== l.to.actor; });
+    function ucEdge(l) {
+      // extend: the extending use case to the right of its base
       var flip = l.kind === 'extend';
       return { v: flip ? l.to.id : l.from.id, w: flip ? l.from.id : l.to.id, lw: l.label ? lineWidth(l.label) + 2 : 0, lh: l.label ? SMALL * 1.6 : 0 };
-    }), { rankdir: 'LR', nodesep: 6, ranksep: 16, edgesep: 4 });
+    }
+    var dopts = { rankdir: 'LR', nodesep: 6, ranksep: 16, edgesep: 4 };
+    var ucNodes = cases.map(function (u) { return { id: u.id, width: u.width, height: u.height }; });
+    // pass 1: the columns of the use cases
+    var first = layoutGraph(ucNodes, ucLinks.map(ucEdge), dopts);
+    var xs = [];
+    var col = Object.create(null);
+    cases.forEach(function (u) {
+      var x = Math.round(first.nodes[u.id].x * 10);
+      if (xs.indexOf(x) < 0) xs.push(x);
+    });
+    xs.sort(function (p, q) { return p - q; });
+    cases.forEach(function (u) { col[u.id] = xs.indexOf(Math.round(first.nodes[u.id].x * 10)); });
+    var maxCol = xs.length - 1;
+    var lastCol = cases.filter(function (u) { return col[u.id] === maxCol; })[0];
+    // pass 2: with the actors (left ones before column 0, right ones after the last column)
+    var edges2 = ucLinks.map(ucEdge).concat(actorLinks.map(function (l) {
+      var a = l.from.actor ? l.from : l.to;
+      var u = l.from.actor ? l.to : l.from;
+      return a.side === 'left' ? { v: a.id, w: u.id, minlen: col[u.id] + 1 } : { v: u.id, w: a.id, minlen: maxCol - col[u.id] + 1 };
+    }));
+    var hidden = [];
+    var leftActors = actors.filter(function (a) { return a.side === 'left'; });
+    function linked(n) { return actorLinks.some(function (l) { return l.from === n || l.to === n; }); }
+    // use cases and actors without a line still keep their place (invisible edges)
+    cases.forEach(function (u) { if (!linked(u) && leftActors.length) hidden.push({ v: leftActors[0].id, w: u.id, minlen: col[u.id] + 1, weight: 0.1 }); });
+    actors.forEach(function (a) {
+      if (linked(a)) return;
+      if (a.side === 'left') hidden.push({ v: a.id, w: cases[0].id, minlen: col[cases[0].id] + 1, weight: 0.1 });
+      else hidden.push({ v: lastCol.id, w: a.id, minlen: 1, weight: 0.1 });
+    });
+    var lay = layoutGraph(ucNodes.concat(actors.map(function (a) { return { id: a.id, width: a.width, height: a.height }; })), edges2.concat(hidden), dopts);
     var pos = Object.create(null);
     var ux0 = Infinity;
     var uy0 = Infinity;
@@ -2291,33 +2354,24 @@
       uy0 = Math.min(uy0, p.y - u.height / 2);
       uy1 = Math.max(uy1, p.y + u.height / 2);
     });
-    var system = o.system !== undefined && o.system !== null && String(o.system).trim() ? textBlock(str(o.system, fn, 'system', 80), 80, { bold: true, maxLines: 1 }) : [];
+    var system = o.system !== undefined && o.system !== null && String(o.system).trim() ?
+      textBlock(str(o.system, fn, 'system', 80), 400, { bold: true, maxLines: 1, fn: fn, name: 'system' }) : [];
     var box = { x0: ux0 - 6, y0: uy0 - (system.length ? ROW + 5 : 5), x1: ux1 + 6, y1: uy1 + 5 };
-    if (system.length) box.x1 = Math.max(box.x1, box.x0 + blockWidth(system) + 8);
-    // actors beside the system, each near the use cases it is connected to
-    ['left', 'right'].forEach(function (side) {
-      var list = actors.filter(function (a) { return a.side === side; });
-      list.forEach(function (a) {
-        var ys = [];
-        links.forEach(function (l) {
-          var other = l.from === a ? l.to : l.to === a ? l.from : null;
-          if (other && !other.actor) ys.push(pos[other.id].y);
-        });
-        a.want = ys.length ? ys.reduce(function (s, v) { return s + v; }, 0) / ys.length : (box.y0 + box.y1) / 2;
-      });
-      list.sort(function (p, q) { return p.want - q.want; });
-      var bottom = -Infinity;
-      list.forEach(function (a) {
-        var top = Math.max(a.want - 6, bottom + 4);
-        var cx = side === 'left' ? box.x0 - 12 - a.width / 2 : box.x1 + 12 + a.width / 2;
-        pos[a.id] = { x: cx, y: top };
-        bottom = top + a.height;
-      });
+    if (system.length && box.x1 - box.x0 < blockWidth(system) + 8) {
+      var grow = (blockWidth(system) + 8 - (box.x1 - box.x0)) / 2;
+      box.x0 -= grow;
+      box.x1 += grow;
+    }
+    // actors: top of the figure; keep them clear of the system boundary
+    actors.forEach(function (a) {
+      var p = lay.nodes[a.id];
+      var x = p.x;
+      if (a.side === 'left') x = Math.min(x, box.x0 - 6 - a.width / 2);
+      else x = Math.max(x, box.x1 + 6 + a.width / 2);
+      pos[a.id] = { x: x, y: p.y - a.height / 2 };
     });
-    function actorAnchor(a, toward) {
-      var p = pos[a.id];
-      var dir = toward.x >= p.x ? 1 : -1;
-      return { x: p.x + dir * 3, y: p.y + 5 };
+    function figureShape(a) {
+      return { kind: 'rect', x: pos[a.id].x, y: pos[a.id].y + 6, w: 7, h: 12 };
     }
     var B = new Bounds();
     var lines = '';
@@ -2328,25 +2382,30 @@
       var color = l.blank ? ctx.accent : ctx.ink;
       var pts;
       var lp = null;
+      var i;
       if (!l.from.actor && !l.to.actor) {
-        var i = ucLinks.indexOf(l);
+        i = ucLinks.indexOf(l);
         pts = lay.edges[i].points;
         if (l.kind === 'extend') pts = pts.slice().reverse();
         pts = fixEnds(pts, ellipseShape(l.from), ellipseShape(l.to));
         lp = lay.edges[i].label;
+      } else if (l.from.actor !== l.to.actor) {
+        // actor – use case: routed by dagre (v = the left one)
+        i = ucLinks.length + actorLinks.indexOf(l);
+        pts = lay.edges[i].points;
+        var a = l.from.actor ? l.from : l.to;
+        var u = l.from.actor ? l.to : l.from;
+        pts = a.side === 'left' ? fixEnds(pts, figureShape(a), ellipseShape(u)) : fixEnds(pts, ellipseShape(u), figureShape(a));
+        if ((a.side === 'left') !== (l.from === a)) pts = pts.slice().reverse();
+        if (l.label) lp = lay.edges[i].label || { x: (pts[0].x + pts[pts.length - 1].x) / 2, y: (pts[0].y + pts[pts.length - 1].y) / 2 };
       } else {
-        // actor – use case (or actor – actor): a straight line
-        var a = l.from.actor ? actorAnchor(l.from, pos[l.to.id]) : null;
-        var b = l.to.actor ? actorAnchor(l.to, pos[l.from.id]) : null;
-        if (!a) a = clipShape(ellipseShape(l.from), b.x - pos[l.from.id].x, b.y - pos[l.from.id].y);
-        if (!b) b = clipShape(ellipseShape(l.to), a.x - pos[l.to.id].x, a.y - pos[l.to.id].y);
-        if (l.from.actor && l.to.actor) {
-          // actor generalization: from the figure to the figure, outside the drawings
-          a = { x: pos[l.from.id].x, y: pos[l.from.id].y + (pos[l.to.id].y > pos[l.from.id].y ? l.from.height : 0) };
-          b = { x: pos[l.to.id].x, y: pos[l.to.id].y + (pos[l.to.id].y > pos[l.from.id].y ? 0 : l.to.height) };
-        }
-        pts = [a, b];
-        if (l.label) lp = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+        // actor – actor (generalization): from figure to figure
+        var fa = pos[l.from.id];
+        var ta = pos[l.to.id];
+        var below = ta.y > fa.y;
+        pts = [{ x: fa.x, y: fa.y + (below ? l.from.height : 0) }, { x: ta.x, y: ta.y + (below ? 0 : l.to.height) }];
+        if (Math.abs(fa.y - ta.y) < 1) pts = [{ x: fa.x + (ta.x > fa.x ? 1 : -1) * l.from.width / 2, y: fa.y + 6 }, { x: ta.x - (ta.x > fa.x ? 1 : -1) * l.to.width / 2, y: ta.y + 6 }];
+        if (l.label) lp = { x: (pts[0].x + pts[1].x) / 2, y: (pts[0].y + pts[1].y) / 2 };
       }
       if (pts.length >= 2) {
         pts.forEach(function (q) { B.pt(q.x, q.y); });

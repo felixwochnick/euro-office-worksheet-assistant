@@ -191,11 +191,13 @@ test('diagrams to fill in count as workspace, finished diagrams do not', () => {
     TASK(5, 'Beschreibe den Ablauf in eigenen Worten.'), P('', { graphic: { type: 'sequence_diagram', participants: ['a', 'b'], messages: [{ from: 'a', to: 'b', text: 'm()' }] } }),
     TASK(6, 'Ergänze den Programmablaufplan.'), P('', { graphic: { type: 'flowchart', nodes: [{ kind: 'start' }, { kind: 'io', text: '' }, { kind: 'end' }] } }),
     TASK(7, 'Ergänze das Aktivitätsdiagramm.'), P('', { graphic: { type: 'activity_diagram', nodes: [{ kind: 'start' }, '', { kind: 'end' }] } }),
-    TASK(8, 'Zeichne die Beziehungen ein.'), P('', { graphic: { type: 'use_case_diagram', actors: ['A'], use_cases: ['U'], links: [{ from: 'A', to: 'U', blank: true }] } })
+    TASK(8, 'Zeichne die Beziehungen ein.'), P('', { graphic: { type: 'use_case_diagram', actors: ['A'], use_cases: ['U'], links: [{ from: 'A', to: 'U', blank: true }] } }),
+    // start, end and fork nodes of an activity diagram show no text: an empty one is no space to answer
+    TASK(9, 'Beschreibe den Ablauf.'), P('', { graphic: { type: 'activity_diagram', nodes: [{ kind: 'start', text: '' }, 'Tun', { kind: 'fork', text: '' }, { kind: 'end', text: '' }] } })
   ]);
   const r = wc.check(doc);
-  assert.deepEqual(r.tasks.map((t) => t.has_workspace), [true, true, true, true, false, true, true, true]);
-  assert.deepEqual(codes(r), ['no_workspace']);
+  assert.deepEqual(r.tasks.map((t) => t.has_workspace), [true, true, true, true, false, true, true, true, false]);
+  assert.deepEqual(codes(r), ['no_workspace', 'no_workspace']);
 });
 
 test('no_workspace: kind-specific advice for ticking, matching and drawing', () => {

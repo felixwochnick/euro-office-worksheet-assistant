@@ -402,3 +402,73 @@ test('use case diagram: system boundary, actors on both sides, include/extend/ge
   assert.doesNotMatch(plain.svg, /fill="none" stroke="#1f2937" stroke-width="0\.3"\/><text[^>]*font-weight="700"/);
 });
 
+test('use case diagram: actor lines go around other use cases', () => {
+  const g = render('useCaseDiagram', {
+    system: 'Geldautomat', actors: ['Kunde', { name: 'Bank', side: 'right' }], use_cases: ['Geld abheben', 'PIN prüfen'],
+    links: [{ from: 'Kunde', to: 'Geld abheben' }, { from: 'Geld abheben', to: 'PIN prüfen', kind: 'include' }, { from: 'Bank', to: 'Geld abheben' }],
+  });
+  const ellipses = [...g.svg.matchAll(/<ellipse cx="([\d.-]+)" cy="([\d.-]+)" rx="([\d.]+)" ry="([\d.]+)"/g)].map((m) => m.slice(1).map(Number));
+  const len = (d) => {
+    const p = [...d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => [+m[1], +m[2]]);
+    return p.slice(1).reduce((sum, q, i) => sum + Math.hypot(q[0] - p[i][0], q[1] - p[i][1]), 0);
+  };
+  // solid lines longer than an arrow head
+  const solid = [...g.svg.matchAll(/<path fill="none" stroke="#1f2937" stroke-width="0\.3" stroke-linejoin="round" d="([^"]+)"\/>/g)].map((m) => m[1]).filter((d) => len(d) > 6);
+  assert.equal(solid.length, 2, 'two actor lines');
+  for (const d of solid) {
+    const pts = [...d.matchAll(/[ML](-?[\d.]+) (-?[\d.]+)/g)].map((m) => [+m[1], +m[2]]);
+    // no point of the line lies inside an ellipse (sampled), except within 0.5 mm of its ends
+    for (let i = 1; i < pts.length; i++) {
+      for (let t = 0; t <= 1; t += 0.02) {
+        const x = pts[i - 1][0] + (pts[i][0] - pts[i - 1][0]) * t;
+        const y = pts[i - 1][1] + (pts[i][1] - pts[i - 1][1]) * t;
+        for (const [cx, cy, rx, ry] of ellipses) {
+          const inside = ((x - cx) / (rx - 0.5)) ** 2 + ((y - cy) / (ry - 0.5)) ** 2 < 1;
+          assert.ok(!inside, `line ${d} runs through the use case at ${cx},${cy}`);
+        }
+      }
+    }
+  }
+});
+
+test('flowchart and activity diagram: texts fit their shapes, clear errors', () => {
+  const ws = require('../worksheet-svg.js');
+  const q = 'Ist die eingegebene Zahl größer als das bisher gefundene Maximum?';
+  const g = render('flowchart', { nodes: [{ kind: 'start' }, { id: 'q', kind: 'decision', text: q }, { id: 'a', text: 'max ← zahl' }, { id: 'm', kind: 'merge' }, { kind: 'end' }],
+    edges: [{ from: 'start', to: 'q' }, { from: 'q', to: 'a', label: 'ja' }, { from: 'q', to: 'm', label: 'nein' }, { from: 'a', to: 'm' }, { from: 'm', to: 'Ende' }] });
+  // the diamond: M cx top L right cy L cx bottom L left cy Z
+  const dm = /d="M([\d.]+) ([\d.]+)L([\d.]+) ([\d.]+)L[\d.]+ ([\d.]+)L[\d.]+ [\d.]+Z" fill="#ffffff"/.exec(g.svg);
+  const w = (+dm[3] - +dm[1]) * 2;
+  const h = +dm[5] - +dm[2];
+  const lines = [...g.svg.matchAll(/<text font-size="3\.4" fill="#1f2937" x="[\d.]+" y="[\d.]+" text-anchor="middle">([^<]+)</g)].map((m) => m[1])
+    .filter((t) => q.includes(t.replace(/&[^;]+;/g, '')));
+  assert.ok(lines.length >= 3, 'the question is wrapped');
+  const bw = Math.max(...lines.map((t) => ws.textWidth(t, 3.4)));
+  const bh = lines.length * 3.4 * 1.5;
+  assert.ok(bw / w + bh / h <= 1, `text box ${bw.toFixed(1)}×${bh.toFixed(1)} fits the diamond ${w.toFixed(1)}×${h.toFixed(1)}`);
+  // flows join at a PAP junction without arrow heads: 4 edges with arrows (start→q, q→a … m→Ende), not 6
+  assert.equal((g.svg.match(/Z" fill="#1f2937" stroke="#1f2937" stroke-width="0\.2"/g) || []).length, 3);
+  assert.throws(() => wd.flowchart({ nodes: [{ id: 'q', kind: 'decision', text: 'x?' }], edges: [{ from: 'q', to: 'q' }] }), /leads from the decision node "x\?" to itself – a loop goes back to an earlier node/);
+  assert.throws(() => wd.activityDiagram({ nodes: [{ kind: 'start' }, 'A', { kind: 'end' }, { kind: 'end' }], edges: [{ from: 'start', to: 'A' }, { from: 'A', to: 'end' }] }),
+    /there are several end nodes – give them an "id"/);
+  assert.throws(() => wd.activityDiagram({ nodes: ['A'], edges: [{ from: 'A', to: 'B' }] }), /Refer to a node by its id, its text or \(if there is only one\) its kind: a, action/);
+  assert.throws(() => wd.activityDiagram({ nodes: [{ kind: 'constructor', text: 'x' }] }), /nodes\[0\]\.kind must be one of/);
+  assert.throws(() => wd.useCaseDiagram({ actors: ['A'], use_cases: ['U'], links: [{ from: 'A', to: 'U', kind: '__proto__' }] }), /kind must be association, include, extend or generalization/);
+  // no silent "…": texts that do not fit are refused, single long words widen the shape
+  assert.throws(() => wd.useCaseDiagram({ actors: ['Lehrkraft für Informatik und Mathematik an der Oberstufe'], use_cases: ['U'] }),
+    /"actors\[0\]\.name" is too long for its shape \(\d lines, max 3\)/);
+  const word = render('useCaseDiagram', { actors: ['Bankangestellter'], use_cases: ['Kontoeröffnungsantragsbearbeitung'], links: [{ from: 'Bankangestellter', to: 'Kontoeröffnungsantragsbearbeitung' }] });
+  assert.match(word.svg, />Bankangestellter</);
+  assert.match(word.svg, />Kontoeröffnungsantragsbearbeitung</);
+  assert.doesNotMatch(word.svg, /…/);
+});
+
+test('"[[[…]]]" is a bracket, a gap and a bracket everywhere', () => {
+  const seq = pair('sequenceDiagram', { participants: ['a', 'b'], messages: [{ fragment: 'opt', label: '[[[x > 0]]]', messages: [{ from: 'a', to: 'b', text: 'm()' }] }] }, ['x &gt; 0']);
+  assert.match(seq.solution.svg, />\[<tspan[^>]*>x &gt; 0<\/tspan>\]</, 'not bracketed twice');
+  const node = pair('activityDiagram', { nodes: [{ id: 'a', text: 'Tun [[[schnell]]]' }, { id: 'b', text: '[[[x]]]' }], edges: [{ from: 'a', to: 'b' }] }, ['schnell', 'x</tspan>']);
+  assert.match(node.student.svg, />\[</, 'the brackets stay for the students');
+  const cls = pair('classDiagram', { classes: [{ name: 'Liste', attributes: ['- werte: int[[[10]]]', '[[- anzahl: int]]'] }] }, ['10</tspan>', 'anzahl: int']);
+  assert.match(cls.solution.svg, />- werte: int\[<tspan[^>]*>10<\/tspan>\]</);
+});
+
