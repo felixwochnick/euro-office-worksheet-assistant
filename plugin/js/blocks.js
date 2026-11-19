@@ -744,6 +744,21 @@
     });
   }
 
+  /** [width, height] from the viewBox of an SVG data URL, or null. */
+  function svgViewBox(dataUrl) {
+    try {
+      var i = dataUrl.indexOf(',');
+      var head = dataUrl.slice(0, i);
+      var body = /;base64/.test(head) ? atob(dataUrl.slice(i + 1)) : decodeURIComponent(dataUrl.slice(i + 1));
+      var m = /viewBox\s*=\s*["']\s*[-\d.eE]+[\s,]+[-\d.eE]+[\s,]+([\d.eE]+)[\s,]+([\d.eE]+)/.exec(body);
+      var w = m ? Number(m[1]) : 0;
+      var h = m ? Number(m[2]) : 0;
+      return w > 0 && h > 0 && isFinite(w) && isFinite(h) ? [w, h] : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
   /** Decode a data URL; formats the editor cannot show (WebP, SVG, BMP) become PNG. Resolves { dataUrl, width, height }. */
   function normalizePicture(dataUrl, mime) {
     return new Promise(function (resolve, reject) {
@@ -752,9 +767,15 @@
         var w = img.naturalWidth || 0;
         var h = img.naturalHeight || 0;
         if (/^image\/(png|jpeg|gif)$/.test(mime) && w && h) return resolve({ dataUrl: dataUrl, width: w, height: h });
-        // SVG without a size: draw it 1000 px wide
-        if (!w || !h) { w = 1000; h = 1000; }
-        var scale = Math.min(1, 2000 / Math.max(w, h));
+        var svg = /^image\/svg/.test(mime);
+        if (!w || !h) {
+          // SVG without a size: aspect ratio from the viewBox
+          var vb = svg ? svgViewBox(dataUrl) : null;
+          w = vb ? vb[0] : 1000;
+          h = vb ? vb[1] : 1000;
+        }
+        // vector graphics are drawn sharp (long side 2000 px), bitmaps only scaled down
+        var scale = svg ? 2000 / Math.max(w, h) : Math.min(1, 2000 / Math.max(w, h));
         var canvas = document.createElement('canvas');
         canvas.width = Math.max(1, Math.round(w * scale));
         canvas.height = Math.max(1, Math.round(h * scale));

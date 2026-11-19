@@ -47,6 +47,9 @@ const textSchema = (desc: string) => ({ type: 'string', maxLength: 4000, descrip
 const strArray = (maxItems: number, maxLength = 500) => ({ type: 'array', items: { type: 'string', maxLength }, maxItems });
 const numArray = (maxItems: number) => ({ type: 'array', items: { type: 'number' }, maxItems });
 
+const PICTURE_DOC =
+  'picture {image_id, width_cm? (default 5), align? left|center|right, caption?} = a picture (pictogram, photo, clipart or the user\'s own picture) – image_id ONLY from search_images; ';
+
 const BLOCK_TYPE_DOC =
   'title {text, subtitle?, subject?, grade?} = worksheet title (top of the sheet); ' +
   'name_line {fields?} = Name/Klasse/Datum fields; ' +
@@ -67,7 +70,7 @@ const BLOCK_TYPE_DOC =
   'coordinate_system {x_min, x_max, y_min, y_max, step?, unit_mm?, grid?, points[{x,y,label}]?, segments[{from:[x,y], to:[x,y]}]?, polygons[{points:[[x,y]…], label}]?}; ' +
   'chart {chart_type column|bar|line|pie, title?, labels[], series[{name, values[]}], x_label?, y_label?, blank? (empty axes to draw in)}; ' +
   'mindmap {center, branches[{text, children[]}], blank? (empty bubbles)}; qr_code {url, caption?, size_cm?}; ' +
-  'picture {image_id, width_cm? (default 5), align? left|center|right, caption?} = a picture (pictogram, photo, clipart or the user\'s own picture) – image_id ONLY from search_images; ' +
+  PICTURE_DOC +
   'svg {svg, width_cm?, caption?} = your own simple drawing (SVG markup); cut_line {label?}; ' +
   'self_assessment {statements[], title?} = "Das kann ich" table with smileys; hint_cards {cards[{title?, text}], columns? 1-3} = cut-out tip cards; ' +
   'grade_key {total_points, thresholds?[5] (percent for grades 1-5), step? 0.5|1} = points-to-grade table; ' +
@@ -702,8 +705,19 @@ export interface ToolContext {
 
 /** The tools offered to the model (search_images only when pictures are available). */
 export function toolDefinitions(ctx: { images?: ImageService | null }): ToolDefinition[] {
-  return ctx.images ? TOOL_DEFINITIONS : TOOL_DEFINITIONS.filter((d) => d.name !== 'search_images');
+  return ctx.images ? TOOL_DEFINITIONS : TOOLS_WITHOUT_PICTURES;
 }
+
+/** Without pictures the model is not told about picture blocks either. */
+const TOOLS_WITHOUT_PICTURES: ToolDefinition[] = TOOL_DEFINITIONS.filter((d) => d.name !== 'search_images').map((d) => {
+  if (d.name !== 'insert_blocks' && d.name !== 'replace_elements') return d;
+  const params = JSON.parse(JSON.stringify(d.parameters)) as { properties: { blocks: { items: { properties: Record<string, { description?: string; enum?: string[] }> } } } };
+  const props = params.properties.blocks.items.properties;
+  props.type.description = String(props.type.description).replace(PICTURE_DOC, '');
+  props.type.enum = props.type.enum!.filter((t) => t !== 'picture');
+  delete props.image_id;
+  return { ...d, parameters: params };
+});
 
 function pictureBlocks(blocks: Record<string, unknown>[], out: Record<string, unknown>[] = []): Record<string, unknown>[] {
   for (const b of blocks) {
@@ -728,12 +742,13 @@ export async function checkToolCall(call: ToolCall, ctx: ToolContext): Promise<T
     await Promise.all(
       pics.map(async (b) => {
         const m = await ctx.images!.describe(String(b.image_id), ctx.userId);
+        b.image_id = m.image_id; // canonical id (what the plugin fetches)
         b.picture_meta = { title: m.title, credit: m.credit, ...(m.width && m.height ? { width: m.width, height: m.height } : {}) };
       }),
     );
   } catch (err) {
-    if (err instanceof ImageError) return { ok: false, args: call.arguments, error: `${verb} ${err.message}` };
-    throw err;
+    const msg = err instanceof ImageError ? err.message : `A picture could not be checked (${(err as Error).message}) – try again or leave it out.`;
+    return { ok: false, args: call.arguments, error: `${verb} ${msg}` };
   }
   return check;
 }

@@ -848,7 +848,7 @@
     var ph = num(data && data.height, 0) || num(meta.height, 0) || 3;
     var wMm = clamp(num(b.width_cm, 5), 1.5, c.widthMm / 10) * 10;
     var hMm = wMm * ph / pw;
-    var maxH = 200;
+    var maxH = 160; // fits the text area of A4/A5 in portrait and landscape
     if (hMm > maxH) { wMm = wMm * maxH / hMm; hMm = maxH; }
     var title = str((data && data.title) || meta.title || '').trim();
     var credit = str(data && data.credit != null ? data.credit : meta.credit || '').trim();

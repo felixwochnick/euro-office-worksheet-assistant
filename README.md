@@ -640,10 +640,11 @@ replace them later.
 | `own` | the teacher's own pictures in the picture folder, matched by file and folder names (`Asterix/obelix-hinkelstein.png`) | none – the teacher decides what may be used in class |
 
 **Own pictures:** with `AUTH_MODE=nextcloud` every user creates the folder **`Arbeitsblatt-Bilder`** (`IMAGE_FOLDER`)
-in their Nextcloud and puts pictures in it (subfolders up to three levels, PNG, JPEG, GIF, WebP, SVG; good file names
-help the AI find them). The proxy reads it with the app password of the user's plugin sign-in (so the plugin must be
+in their Nextcloud and puts pictures in it (subfolders up to three levels and 150 folders, PNG, JPEG, GIF, WebP, SVG,
+and HEIC/TIFF when Nextcloud can make previews of them; good file names help the AI find them). The proxy reads it with the app password of the user's plugin sign-in (so the plugin must be
 signed in, also for MCP clients) and loads large photos as a Nextcloud preview (max. 1600 px). In `token`/`local`
-mode (one school server, the companion app) `IMAGE_FOLDER` can be an absolute local folder that all users share.
+mode (one school server) `IMAGE_FOLDER` can be an absolute local folder that all users share; the companion app's
+settings page does not offer it yet.
 Copyrighted material such as comic panels is only ever taken from this folder – the assistant never downloads it
 from the internet.
 

@@ -365,3 +365,90 @@ test('server: POST /v1/images/fetch returns the picture as data URL (authenticat
     await off.close();
   }
 });
+
+// ---------------------------------------------------------------------------
+// Review fixes
+// ---------------------------------------------------------------------------
+
+test('images: non-canonical ids are checked and fetched under their canonical id', async () => {
+  const log: string[] = [];
+  const base = fakeHttp(log);
+  const http: HttpGet = async (url, o) => {
+    const u = new URL(url);
+    if (u.hostname === 'api.arasaac.org' && u.pathname === '/v1/pictograms/de/02623') return json(ARASAAC_FOX);
+    if (u.hostname === 'commons.wikimedia.org' && u.searchParams.get('titles') === 'File:Red_fox.jpg') return json({ query: { pages: [COMMONS_FOX.query.pages[1]] } });
+    return base(url, o);
+  };
+  const images = new ImageService({ sources: ['arasaac', 'commons'], folder: '', httpGet: http });
+  const r = await checkToolCall({
+    id: 'c', name: 'insert_blocks',
+    arguments: { position: 'end', blocks: [{ type: 'picture', image_id: 'arasaac:02623' }, { type: 'picture', image_id: 'commons:Red_fox.jpg' }] },
+  }, { userId: 'u', images });
+  assert.equal(r.ok, true, r.error);
+  assert.deepEqual((r.args.blocks as any[]).map((b) => b.image_id), ['arasaac:2623', 'commons:Red fox.jpg']);
+  assert.equal((await images.fetch('arasaac:02623', 'u')).mime, 'image/png');
+  assert.ok(log.includes('https://static.arasaac.org/pictograms/2623/2623_500.png'));
+  assert.equal((await images.fetch('commons:Red_fox.jpg', 'u')).mime, 'image/jpeg');
+});
+
+test('images: unexpected errors while checking pictures become a tool error, not a crash', async () => {
+  const images = new ImageService({ sources: ['arasaac'], folder: '', httpGet: async () => { throw new TypeError('socket hang up'); } });
+  const r = await checkToolCall({ id: 'e', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'picture', image_id: 'arasaac:5' }] } }, { userId: 'u', images });
+  assert.equal(r.ok, false);
+  assert.match(r.error!, /Nothing was inserted\. A picture could not be checked \(socket hang up\)/);
+});
+
+test('images: Nextcloud under a sub-path, one listing for parallel checks, HEIC only through the preview', async () => {
+  const calls: string[] = [];
+  const sub = '/nextcloud/remote.php/dav/files/anna/Arbeitsblatt-Bilder';
+  const f = (async (input: string | URL | Request, init?: RequestInit) => {
+    const u = new URL(String(input));
+    calls.push(`${init?.method ?? 'GET'} ${u.pathname}`);
+    if (init?.method === 'PROPFIND') {
+      await new Promise((r) => setTimeout(r, 20));
+      return new Response(multistatus([
+        { href: sub + '/', dir: true },
+        { href: sub + '/igel.heic', type: 'image/heic', id: '5', size: 10 },
+        { href: sub + '/fuchs.png', type: 'image/png', id: '6', size: 10 },
+      ]), { status: 207 });
+    }
+    return new Response('', { status: 404 });
+  }) as typeof fetch;
+  const svc = new ImageService({
+    sources: ['own'], folder: 'Arbeitsblatt-Bilder',
+    nextcloud: { internalUrl: 'http://nc', credentials: () => ({ login: 'anna', password: 'x' }), fetchImpl: f },
+    httpGet: fakeHttp(),
+  });
+  const metas = await Promise.all([svc.describe('own:igel.heic', 'anna'), svc.describe('own:fuchs.png', 'anna')]);
+  assert.deepEqual(metas.map((m) => m.title), ['igel', 'fuchs']);
+  assert.equal(calls.filter((c) => c.startsWith('PROPFIND')).length, 1, 'parallel checks share one listing');
+  await assert.rejects(svc.fetch('own:igel.heic', 'anna'), /could not be converted by Nextcloud/);
+});
+
+test('images: local folder does not follow a symlink out of the folder; relative folder refused', async () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'pics-'));
+  const outside = fs.mkdtempSync(path.join(os.tmpdir(), 'secret-'));
+  fs.writeFileSync(path.join(dir, 'bild.png'), PNG);
+  fs.writeFileSync(path.join(outside, 'secret.png'), Buffer.from('secret'));
+  try {
+    const svc = new ImageService({ sources: ['own'], folder: dir, localFolder: true, httpGet: fakeHttp() });
+    assert.equal((await svc.search('*', { userId: 'default' })).results.length, 1);
+    fs.rmSync(path.join(dir, 'bild.png'));
+    fs.symlinkSync(path.join(outside, 'secret.png'), path.join(dir, 'bild.png'));
+    await assert.rejects(svc.fetch('own:bild.png', 'default'), /no picture/);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+    fs.rmSync(outside, { recursive: true, force: true });
+  }
+  assert.throws(() => loadConfig({ LLM_PROVIDER: 'mock', PROXY_TOKEN: TOKEN, IMAGE_FOLDER: 'bilder' }), /absolute/);
+});
+
+test('tools: without pictures the block documentation does not mention picture blocks', () => {
+  const off = toolDefinitions({ images: null });
+  const ins = off.find((d) => d.name === 'insert_blocks')!;
+  const json = JSON.stringify(ins.parameters);
+  assert.doesNotMatch(json, /search_images|image_id/);
+  assert.ok(!(ins.parameters as any).properties.blocks.items.properties.type.enum.includes('picture'));
+  const on = toolDefinitions({ images: ncService() }).find((d) => d.name === 'insert_blocks')!;
+  assert.match(JSON.stringify(on.parameters), /image_id ONLY from search_images/);
+});

@@ -82,6 +82,10 @@ const EXT_MIME: Record<string, string> = {
 const OWN_LIST_TTL_MS = 2 * 60_000;
 const OWN_MAX_FILES = 3000;
 const OWN_MAX_DEPTH = 4;
+/** Folders read per listing (each is one PROPFIND) – a huge photo archive must not stall the chat. */
+const OWN_MAX_FOLDERS = 150;
+/** Formats Nextcloud can turn into a PNG/JPEG preview (listed only when the preview can be asked for). */
+const PREVIEW_ONLY_MIME = /^image\/(heic|heif|tiff)$/;
 const META_CACHE_MAX = 3000;
 
 const ARASAAC_CREDIT = 'Piktogramm: Sergio Palao, ARASAAC (arasaac.org), CC BY-NC-SA 4.0';
@@ -136,6 +140,7 @@ export class ImageService {
   private readonly httpGet: HttpGet;
   private readonly metaCache = new Map<string, ImageMeta>();
   private readonly ownCache = new Map<string, { at: number; entries: OwnEntry[] }>();
+  private readonly ownPending = new Map<string, Promise<OwnEntry[]>>();
   /** Commons thumbnail URL per id (search results and describe calls fill it). */
   private readonly commonsThumb = new Map<string, string>();
 
@@ -244,10 +249,21 @@ export class ImageService {
   private async ownEntries(userId: string): Promise<OwnEntry[]> {
     const hit = this.ownCache.get(userId);
     if (hit && Date.now() - hit.at < OWN_LIST_TTL_MS) return hit.entries;
-    const entries = this.opts.localFolder ? await this.listLocal() : await this.listNextcloud(userId);
-    this.ownCache.set(userId, { at: Date.now(), entries });
-    if (this.ownCache.size > 500) this.ownCache.delete(this.ownCache.keys().next().value as string);
-    return entries;
+    // Several picture blocks checked at once share one listing.
+    const pending = this.ownPending.get(userId);
+    if (pending) return pending;
+    const p = (async () => {
+      try {
+        const entries = this.opts.localFolder ? await this.listLocal() : await this.listNextcloud(userId);
+        this.ownCache.set(userId, { at: Date.now(), entries });
+        if (this.ownCache.size > 500) this.ownCache.delete(this.ownCache.keys().next().value as string);
+        return entries;
+      } finally {
+        this.ownPending.delete(userId);
+      }
+    })();
+    this.ownPending.set(userId, p);
+    return p;
   }
 
   private async searchOwn(q: string, limit: number, userId: string): Promise<ImageMeta[]> {
@@ -294,17 +310,32 @@ export class ImageService {
     }
   }
 
+  /** Read a Nextcloud answer body; a timeout or reset while reading becomes an ImageError. */
+  private async ncRead(res: Response, as: 'text'): Promise<string>;
+  private async ncRead(res: Response, as: 'bytes'): Promise<Buffer>;
+  private async ncRead(res: Response, as: 'text' | 'bytes'): Promise<string | Buffer> {
+    try {
+      return as === 'text' ? await res.text() : Buffer.from(await res.arrayBuffer());
+    } catch (err) {
+      throw new ImageError(`Nextcloud did not answer completely: ${(err as Error).message}`, 502);
+    }
+  }
+
   private async listNextcloud(userId: string): Promise<OwnEntry[]> {
     const authorization = this.ncAuth(userId);
     const base = this.davBase(userId);
-    const basePath = new URL(base + '/').pathname;
+    // Hrefs are matched by their "/remote.php/dav/files/<user>/<folder>/" part, so a Nextcloud under a sub-path
+    // (overwritewebroot) or a different internal URL still matches.
+    const marker = `/remote.php/dav/files/${userId}/${this.opts.folder.replace(/^\/+|\/+$/g, '')}/`;
     const out: OwnEntry[] = [];
+    let folders = 0;
     const queue: Array<{ rel: string; depth: number }> = [{ rel: '', depth: 0 }];
     const body =
       '<?xml version="1.0"?><d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns"><d:prop>' +
       '<d:resourcetype/><d:getcontenttype/><d:getcontentlength/><oc:fileid/></d:prop></d:propfind>';
-    while (queue.length && out.length < OWN_MAX_FILES) {
+    while (queue.length && out.length < OWN_MAX_FILES && folders < OWN_MAX_FOLDERS) {
       const { rel, depth } = queue.shift()!;
+      folders++;
       const url = base + '/' + rel.split('/').filter(Boolean).map(encodeURIComponent).join('/') + (rel ? '/' : '');
       const res = await this.ncFetch(url, { method: 'PROPFIND', headers: { authorization, depth: '1', 'content-type': 'application/xml' }, body });
       if (res.status === 404 && !rel) {
@@ -315,7 +346,7 @@ export class ImageService {
         if (!rel) throw new ImageError(`Nextcloud answered HTTP ${res.status} for the picture folder.`, 502);
         continue;
       }
-      const xml = await res.text();
+      const xml = await this.ncRead(res, 'text');
       for (const r of parseMultistatus(xml)) {
         let p: string;
         try {
@@ -323,15 +354,16 @@ export class ImageService {
         } catch {
           continue;
         }
-        const decodedBase = decodeURIComponent(basePath);
-        if (!p.startsWith(decodedBase)) continue;
-        const childRel = p.slice(decodedBase.length).replace(/\/+$/, '');
+        const at = p.indexOf(marker);
+        if (at < 0) continue;
+        const childRel = p.slice(at + marker.length).replace(/\/+$/, '');
+        if (childRel && ownPath('own:' + childRel) !== childRel) continue;
         if (!childRel || childRel === rel) continue;
         if (r.collection) {
           if (depth + 1 < OWN_MAX_DEPTH) queue.push({ rel: childRel, depth: depth + 1 });
         } else {
           const mime = (r.contentType || EXT_MIME[path.extname(childRel).toLowerCase()] || '').split(';')[0].trim();
-          if (IMAGE_MIME.test(mime)) out.push({ rel: childRel, mime, size: r.size, fileId: r.fileId });
+          if (IMAGE_MIME.test(mime) || (r.fileId && PREVIEW_ONLY_MIME.test(mime))) out.push({ rel: childRel, mime, size: r.size, fileId: r.fileId });
         }
         if (out.length >= OWN_MAX_FILES) break;
       }
@@ -407,7 +439,9 @@ export class ImageService {
   async fetch(id: string, userId: string): Promise<ImageData> {
     const meta = await this.describe(id, userId);
     if (meta.source === 'own') return this.fetchOwn(meta, userId);
-    const url = meta.source === 'arasaac' ? arasaacPng(id) : this.commonsThumb.get(id) ?? (await this.refreshCommonsThumb(id));
+    // meta.image_id is the canonical id ("arasaac:02623" -> "arasaac:2623", "commons:Red_fox.jpg" -> "commons:Red fox.jpg").
+    const cid = meta.image_id;
+    const url = meta.source === 'arasaac' ? arasaacPng(cid) : this.commonsThumb.get(cid) ?? (await this.refreshCommonsThumb(cid));
     if (!url) throw new ImageError(`The picture "${id}" has no downloadable version.`, 404);
     const r = await this.httpGet(url, { maxBytes: MAX_IMAGE_BYTES, accept: 'image/*' });
     if (!r || r.status !== 200) throw new ImageError(`The picture "${meta.title}" could not be downloaded${r ? ` (HTTP ${r.status})` : ''}.`, 502);
@@ -430,10 +464,14 @@ export class ImageService {
       const root = path.resolve(this.opts.folder);
       const file = path.resolve(root, rel);
       if (!file.startsWith(root + path.sep)) throw new ImageError('Invalid picture path.');
-      const st = await fs.stat(file).catch(() => null);
+      // Links are not followed: the real path must stay inside the folder (a file swapped for a symlink after listing).
+      const real = await fs.realpath(file).catch(() => null);
+      const realRoot = await fs.realpath(root).catch(() => root);
+      if (!real || !real.startsWith(realRoot + path.sep)) throw new ImageError(`There is no picture "${rel}" in the picture folder.`, 404);
+      const st = await fs.stat(real).catch(() => null);
       if (!st || !st.isFile()) throw new ImageError(`There is no picture "${rel}" in the picture folder.`, 404);
       if (st.size > MAX_IMAGE_BYTES) throw new ImageError(`The picture "${rel}" is larger than 8 MB – make it smaller first.`, 413);
-      return { meta, mime: entry.mime, bytes: await fs.readFile(file) };
+      return { meta, mime: entry.mime, bytes: await fs.readFile(real) };
     }
     const authorization = this.ncAuth(userId);
     const nc = this.opts.nextcloud!.internalUrl.replace(/\/+$/, '');
@@ -444,17 +482,20 @@ export class ImageService {
       });
       const mime = (res.headers.get('content-type') || '').split(';')[0].trim().toLowerCase();
       if (res.status === 200 && IMAGE_MIME.test(mime)) {
-        const bytes = Buffer.from(await res.arrayBuffer());
+        const bytes = await this.ncRead(res, 'bytes');
         if (bytes.length <= MAX_IMAGE_BYTES) return { meta, mime, bytes };
       } else {
         await res.body?.cancel().catch(() => undefined);
       }
     }
+    if (PREVIEW_ONLY_MIME.test(entry.mime)) {
+      throw new ImageError(`The picture "${rel}" (${entry.mime}) could not be converted by Nextcloud – save it as JPEG or PNG.`, 415);
+    }
     if (entry.size > MAX_IMAGE_BYTES) throw new ImageError(`The picture "${rel}" is larger than 8 MB – make it smaller first.`, 413);
     const url = this.davBase(userId) + '/' + rel.split('/').map(encodeURIComponent).join('/');
     const res = await this.ncFetch(url, { headers: { authorization } });
     if (res.status !== 200) throw new ImageError(`The picture "${rel}" could not be loaded from Nextcloud (HTTP ${res.status}).`, 502);
-    const bytes = Buffer.from(await res.arrayBuffer());
+    const bytes = await this.ncRead(res, 'bytes');
     if (bytes.length > MAX_IMAGE_BYTES) throw new ImageError(`The picture "${rel}" is larger than 8 MB – make it smaller first.`, 413);
     return { meta, mime: entry.mime, bytes };
   }

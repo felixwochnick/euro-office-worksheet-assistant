@@ -242,8 +242,8 @@ test('picture: without data (layout check in the proxy) a placeholder of the rig
   assert.equal(first.heightMm, 37.5, 'unknown aspect ratio: 4:3');
   assert.equal(r.elements[0].after, 160, 'no credit line for own pictures');
   const tall = r.elements[1].runs[0].image;
-  assert.equal(tall.heightMm, 200, 'very tall pictures are limited to 20 cm');
-  assert.equal(tall.widthMm, 20);
+  assert.equal(tall.heightMm, 160, 'very tall pictures are limited to 16 cm');
+  assert.equal(tall.widthMm, 16);
 });
 
 test('picture: needs an image id from search_images; works inside columns', () => {
