@@ -127,7 +127,9 @@ async fn pick_folder(app: AppHandle, title: String, start: Option<String>) -> Op
     if let Some(dir) = start.filter(|d| std::path::Path::new(d).is_dir()) {
         dialog = dialog.set_directory(dir);
     }
-    let picked = tauri::async_runtime::spawn_blocking(move || dialog.blocking_pick_folder()).await.ok()??;
+    let picked = tauri::async_runtime::spawn_blocking(move || dialog.blocking_pick_folder())
+        .await
+        .ok()??;
     picked.into_path().ok().map(|p| p.display().to_string())
 }
 
