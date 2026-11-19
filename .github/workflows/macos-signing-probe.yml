@@ -1,0 +1,51 @@
+# TEMPORARY – removed again before the merge of release-0.7.1.
+# One signed and notarized macOS build (Apple silicon) with the new Apple secrets, the same steps as the desktop
+# job of release.yml, but without a release. The disk image is kept as an artifact for a test on a real Mac.
+name: macOS signing probe
+
+on:
+  push:
+    branches: [release-0.7.1]
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: apps/desktop/src-tauri -> target
+      - name: Build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+          WORKSHEET_ASSISTANT_UPDATER_PUBKEY: ${{ vars.TAURI_UPDATER_PUBKEY }}
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+        run: |
+          pnpm install --frozen-lockfile --filter '!@worksheet-assistant/website'
+          node scripts/build-desktop.mjs --target aarch64-apple-darwin
+          node scripts/collect-desktop.mjs aarch64-apple-darwin
+      - name: Check the macOS signature
+        env:
+          DEVELOPER_ID: ${{ secrets.APPLE_CERTIFICATE != '' }}
+        run: bash scripts/check-macos-signature.sh apps/desktop/src-tauri/target/aarch64-apple-darwin/release/bundle
+      - name: Update bundle and signature
+        run: ls -la dist/desktop
+      - uses: actions/upload-artifact@v4
+        with:
+          name: probe-macos-arm64
+          path: dist/desktop/*.dmg
+          retention-days: 3
