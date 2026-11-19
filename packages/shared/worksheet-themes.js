@@ -179,49 +179,56 @@
       wordBank: 'Wortspeicher', true: 'richtig', false: 'falsch', across: 'Waagerecht', down: 'Senkrecht',
       words: 'Diese Wörter sind versteckt:', grade: 'Note', range: 'Punkte', total: 'Gesamt', cut: 'hier abschneiden',
       selfCan: 'Das kann ich', selfGood: 'gut', selfOk: 'teilweise', selfBad: 'noch nicht', hint: 'Tipp', solution: 'Lösung',
-      minutes: 'Min.', page: 'Seite', of: 'von', statement: 'Aussage'
+      minutes: 'Min.', page: 'Seite', of: 'von', statement: 'Aussage',
+      structYes: 'wahr', structNo: 'falsch', structOtherwise: 'sonst', flowStart: 'Start', flowEnd: 'Ende'
     },
     en: {
       name: 'Name', class: 'Class', date: 'Date', points: 'pts', pointsLong: 'points', task: 'Task',
       wordBank: 'Word bank', true: 'true', false: 'false', across: 'Across', down: 'Down',
       words: 'Find these words:', grade: 'Grade', range: 'Points', total: 'Total', cut: 'cut here',
       selfCan: 'I can …', selfGood: 'well', selfOk: 'partly', selfBad: 'not yet', hint: 'Hint', solution: 'Solution',
-      minutes: 'min', page: 'Page', of: 'of', statement: 'Statement'
+      minutes: 'min', page: 'Page', of: 'of', statement: 'Statement',
+      structYes: 'true', structNo: 'false', structOtherwise: 'else', flowStart: 'Start', flowEnd: 'End'
     },
     fr: {
       name: 'Nom', class: 'Classe', date: 'Date', points: 'pts', pointsLong: 'points', task: 'Exercice',
       wordBank: 'Banque de mots', true: 'vrai', false: 'faux', across: 'Horizontalement', down: 'Verticalement',
       words: 'Trouve ces mots :', grade: 'Note', range: 'Points', total: 'Total', cut: 'découper ici',
       selfCan: 'Je sais …', selfGood: 'bien', selfOk: 'en partie', selfBad: 'pas encore', hint: 'Astuce', solution: 'Solution',
-      minutes: 'min', page: 'Page', of: 'sur', statement: 'Affirmation'
+      minutes: 'min', page: 'Page', of: 'sur', statement: 'Affirmation',
+      structYes: 'vrai', structNo: 'faux', structOtherwise: 'sinon', flowStart: 'Début', flowEnd: 'Fin'
     },
     es: {
       name: 'Nombre', class: 'Clase', date: 'Fecha', points: 'p.', pointsLong: 'puntos', task: 'Ejercicio',
       wordBank: 'Banco de palabras', true: 'verdadero', false: 'falso', across: 'Horizontales', down: 'Verticales',
       words: 'Busca estas palabras:', grade: 'Nota', range: 'Puntos', total: 'Total', cut: 'cortar aquí',
       selfCan: 'Sé …', selfGood: 'bien', selfOk: 'en parte', selfBad: 'todavía no', hint: 'Pista', solution: 'Solución',
-      minutes: 'min', page: 'Página', of: 'de', statement: 'Afirmación'
+      minutes: 'min', page: 'Página', of: 'de', statement: 'Afirmación',
+      structYes: 'verdadero', structNo: 'falso', structOtherwise: 'si no', flowStart: 'Inicio', flowEnd: 'Fin'
     },
     it: {
       name: 'Nome', class: 'Classe', date: 'Data', points: 'p.', pointsLong: 'punti', task: 'Esercizio',
       wordBank: 'Banca delle parole', true: 'vero', false: 'falso', across: 'Orizzontali', down: 'Verticali',
       words: 'Trova queste parole:', grade: 'Voto', range: 'Punti', total: 'Totale', cut: 'tagliare qui',
       selfCan: 'So …', selfGood: 'bene', selfOk: 'in parte', selfBad: 'non ancora', hint: 'Suggerimento', solution: 'Soluzione',
-      minutes: 'min', page: 'Pagina', of: 'di', statement: 'Affermazione'
+      minutes: 'min', page: 'Pagina', of: 'di', statement: 'Affermazione',
+      structYes: 'vero', structNo: 'falso', structOtherwise: 'altrimenti', flowStart: 'Inizio', flowEnd: 'Fine'
     },
     nl: {
       name: 'Naam', class: 'Klas', date: 'Datum', points: 'p.', pointsLong: 'punten', task: 'Opdracht',
       wordBank: 'Woordenbank', true: 'juist', false: 'onjuist', across: 'Horizontaal', down: 'Verticaal',
       words: 'Zoek deze woorden:', grade: 'Cijfer', range: 'Punten', total: 'Totaal', cut: 'hier knippen',
       selfCan: 'Ik kan …', selfGood: 'goed', selfOk: 'een beetje', selfBad: 'nog niet', hint: 'Tip', solution: 'Oplossing',
-      minutes: 'min', page: 'Pagina', of: 'van', statement: 'Stelling'
+      minutes: 'min', page: 'Pagina', of: 'van', statement: 'Stelling',
+      structYes: 'waar', structNo: 'onwaar', structOtherwise: 'anders', flowStart: 'Start', flowEnd: 'Einde'
     },
     pl: {
       name: 'Imię i nazwisko', class: 'Klasa', date: 'Data', points: 'pkt', pointsLong: 'punktów', task: 'Zadanie',
       wordBank: 'Bank słów', true: 'prawda', false: 'fałsz', across: 'Poziomo', down: 'Pionowo',
       words: 'Znajdź te słowa:', grade: 'Ocena', range: 'Punkty', total: 'Razem', cut: 'tu odciąć',
       selfCan: 'Umiem …', selfGood: 'dobrze', selfOk: 'częściowo', selfBad: 'jeszcze nie', hint: 'Wskazówka', solution: 'Rozwiązanie',
-      minutes: 'min', page: 'Strona', of: 'z', statement: 'Zdanie'
+      minutes: 'min', page: 'Strona', of: 'z', statement: 'Zdanie',
+      structYes: 'prawda', structNo: 'fałsz', structOtherwise: 'w przeciwnym razie', flowStart: 'Start', flowEnd: 'Koniec'
     }
   };
 

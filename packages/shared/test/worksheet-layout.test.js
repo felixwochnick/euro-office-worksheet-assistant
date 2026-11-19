@@ -46,6 +46,15 @@ const ALL_BLOCKS = [
   { type: 'hint_cards', cards: [{ title: 'Tipp 1', text: 'Schau in den Text.' }, { text: 'Frag deinen Partner.' }, { text: 'Drei' }] },
   { type: 'grade_key', total_points: 30 },
   { type: 'columns', columns: [[{ type: 'paragraph', text: 'Links' }, { type: 'table', rows: [['a', 'b']] }], [{ type: 'chart', chart_type: 'pie', labels: ['A', 'B'], series: [{ values: [1, 3] }] }]] },
+  { type: 'class_diagram', classes: [{ name: 'Tier', kind: 'abstract', attributes: ['# name: String'], methods: ['+ abstract gibLaut(): String'] }, { name: 'Hund', methods: ['[[+ gibLaut(): String]]'] }], relations: [{ from: 'Hund', to: 'Tier', kind: 'inheritance' }], caption: 'Vererbung' },
+  { type: 'object_diagram', objects: [{ name: 'bello', class: 'Hund', values: ['name = "Bello"'] }, { name: 'mia', class: 'Person', values: 1 }], links: [{ from: 'mia', to: 'bello', label: 'haustier', blank: true }] },
+  { type: 'sequence_diagram', participants: [{ name: 'Nutzer', kind: 'actor' }, ':App'], messages: [{ from: 'Nutzer', to: ':App', text: 'start()' }, { fragment: 'opt', label: 'angemeldet', messages: [{ from: ':App', to: 'Nutzer', text: '[[zeigeStart()]]', kind: 'return' }] }] },
+  { type: 'state_diagram', notation: 'automaton', states: ['q0', 'q1'], initial: 'q0', accepting: ['q1'], transitions: [{ from: 'q0', to: 'q1', label: '1' }, { from: 'q1', to: 'q1', label: '0, 1' }, { from: 'q0', to: 'q0', label: '0', blank: true }] },
+  { type: 'structogram', title: 'Summe', steps: ['summe ← 0', { for: 'für i von 1 bis n', do: ['[[summe ← summe + i]]'] }, { if: 'summe > 100', then: ['Ausgabe: groß'], else: [] }] },
+  { type: 'er_diagram', entities: [{ name: 'Klasse', attributes: ['__Bezeichnung__'] }, { name: 'Schüler', attributes: ['__ID__', 'Name'] }], relationships: [{ name: 'gehört zu', from: 'Schüler', to: 'Klasse', from_card: 'n', to_card: '[[1]]' }] },
+  { type: 'activity_diagram', nodes: [{ kind: 'start' }, { id: 'a', text: 'Teig rühren' }, { id: 'd', kind: 'decision' }, { id: 'b', text: '[[Backen]]' }, { kind: 'end' }], edges: [{ from: 'start', to: 'a' }, { from: 'a', to: 'd' }, { from: 'd', to: 'b', label: '[fertig]' }, { from: 'd', to: 'a', label: '[sonst]' }, { from: 'b', to: 'end' }] },
+  { type: 'use_case_diagram', system: 'Bibliothek', actors: ['Leser', { name: 'Bibliothekar', side: 'right' }], use_cases: ['Buch ausleihen', 'Ausweis prüfen'], links: [{ from: 'Leser', to: 'Buch ausleihen' }, { from: 'Buch ausleihen', to: 'Ausweis prüfen', kind: 'include' }, { from: 'Bibliothekar', to: 'Ausweis prüfen', blank: true }] },
+  { type: 'flowchart', nodes: [{ kind: 'start' }, { kind: 'io', text: 'Eingabe: x' }, { id: 'q', kind: 'decision', text: 'x > 0?' }, { id: 'p', kind: 'io', text: 'Ausgabe: positiv' }, { id: 'n', kind: 'io', text: '' }, { id: 'm', kind: 'merge' }, { kind: 'end' }], edges: [{ from: 'start', to: 'Eingabe: x' }, { from: 'Eingabe: x', to: 'q' }, { from: 'q', to: 'p', label: 'ja' }, { from: 'q', to: 'n', label: 'nein' }, { from: 'p', to: 'm' }, { from: 'n', to: 'm' }, { from: 'm', to: 'end' }] },
   { type: 'staff', abc: ABC },
   { type: 'empty_staves', clef: 'bass', count: 2 },
   { type: 'spacer', lines: 2 },
@@ -255,3 +264,37 @@ test('picture: needs an image id from search_images; works inside columns', () =
   assert.equal(imgs.length, 1);
   assert.ok(imgs[0].widthMm <= 170 / 4 + 0.01, 'picture fits its column');
 });
+
+test('computer science diagrams: theme colours, solution version, printed labels, source in the alt text', () => {
+  const block = { type: 'structogram', title: 'Test', steps: [{ if: 'x > 0', then: ['[[y ← x]]'], else: ['y ← 0'] }] };
+  const img = (r) => layout.collectImages(r.elements)[0];
+  const de = img(layout.compose([block], { theme: 'modern', lang: 'de' }));
+  const en = img(layout.compose([block], { theme: 'classic', lang: 'en' }));
+  const sol = img(layout.compose([Object.assign({ show_answers: true }, block)], { theme: 'modern', lang: 'de' }));
+  assert.match(de.svg, />wahr</);
+  assert.match(de.svg, />falsch</);
+  assert.match(en.svg, />true</);
+  assert.match(de.svg, /fill="#eff6ff"/, 'modern: light accent header');
+  assert.match(en.svg, /fill="#f2f2f2"/, 'classic: grey header');
+  assert.ok(!de.svg.includes('y ← x'));
+  assert.match(sol.svg, /fill="#2563eb"[^>]*font-weight="700">y ← x</);
+  assert.equal(sol.widthMm, de.widthMm);
+  assert.equal(sol.heightMm, de.heightMm);
+  assert.match(de.alt, /^Struktogramm: Test\n\nWSGRAPHIC /);
+  assert.deepEqual(layout.parseMarker(de.alt, layout.GRAPHIC_MARKER).steps, block.steps);
+  // width_cm, and a precise error for the model
+  const wide = img(layout.compose([Object.assign({ width_cm: 15 }, block)], {}));
+  assert.ok(Math.abs(wide.widthMm - 152.4) < 0.01);
+  assert.throws(() => layout.compose([{ type: 'class_diagram', classes: [{ name: 'A' }], relations: [{ from: 'A', to: 'X' }] }], {}),
+    /^Error: blocks\[0\] \(class_diagram\): classDiagram: "relations\[0\]\.to" is "X"/);
+  assert.deepEqual(layout.DIAGRAM_TYPES.filter((t) => !layout.GRAPHIC_TYPES.includes(t)), []);
+});
+
+test('flowchart: Start/Ende in the language of the worksheet', () => {
+  const block = { type: 'flowchart', nodes: [{ kind: 'start' }, 'x ← 1', { kind: 'end' }] };
+  const svg = (lang) => layout.collectImages(layout.compose([block], { lang }).elements)[0].svg;
+  assert.match(svg('de'), />Ende</);
+  assert.match(svg('en'), />End</);
+  assert.match(svg('fr'), />Début</);
+});
+

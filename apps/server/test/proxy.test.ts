@@ -227,6 +227,47 @@ test('tools: insert_blocks / replace / delete validation', () => {
   assert.deepEqual(checkClientToolCall({ id: 'g1', name: 'get_elements', arguments: { from: 1 } }).args, { from: 1, to: 1 });
 });
 
+test('tools: computer science diagrams keep deeply nested steps and are validated', () => {
+  const deep = { if: 'a', then: [{ while: 'b', do: [{ if: 'c', then: [{ repeat: ['x ← x + 1'], until: 'bis x = 3' }], else: [] }] }], else: ['[[y]]'] };
+  const ok = checkClientToolCall({
+    id: 'u1',
+    name: 'insert_blocks',
+    arguments: {
+      position: 'end',
+      blocks: [
+        { type: 'structogram', title: 'Tief', steps: ['start', deep] },
+        { type: 'sequence_diagram', participants: ['a', 'b'], messages: [{ fragment: 'loop', label: 'i', messages: [{ fragment: 'alt', label: 'x', messages: [{ fragment: 'opt', label: 'y', messages: [{ from: 'a', to: 'b', text: 'm()' }] }] }] }] },
+        { type: 'class_diagram', classes: [{ name: 'Tier', methods: 2 }, { name: 'Hund' }], relations: [{ from: 'Hund', to: 'Tier', kind: 'inheritance', blank: true }], show_answers: true },
+        { type: 'state_diagram', notation: 'automaton', states: ['q0', 'q1'], initial: 'q0', accepting: ['q1'], transitions: [{ from: 'q0', to: 'q1', label: 'a' }] },
+        { type: 'er_diagram', entities: [{ name: 'A', attributes: ['__id__'] }, { name: 'B' }], relationships: [{ name: 'r', from: 'A', to: 'B', from_card: '1', to_card: 'n' }] },
+        { type: 'object_diagram', objects: [{ name: 'o', class: 'K' }], links: [] },
+        { type: 'activity_diagram', nodes: [{ kind: 'start' }, { id: 'a', text: 'Tun' }, { kind: 'end' }], edges: [{ from: 'start', to: 'a' }, { from: 'a', to: 'end', blank: true }] },
+        { type: 'flowchart', nodes: [{ kind: 'start' }, { id: 'q', kind: 'decision', text: 'x > 0?' }, { kind: 'end' }], edges: [{ from: 'start', to: 'q' }, { from: 'q', to: 'end', label: 'ja' }] },
+        { type: 'use_case_diagram', system: 'S', actors: [{ name: 'A', side: 'right' }], use_cases: ['U', 'V'], links: [{ from: 'A', to: 'U' }, { from: 'U', to: 'V', kind: 'include' }] },
+      ],
+    },
+  });
+  assert.equal(ok.ok, true, ok.error);
+  const b = ok.args.blocks as any[];
+  assert.deepEqual(b[0].steps[1], deep);
+  assert.equal(b[1].messages[0].messages[0].messages[0].messages[0].text, 'm()');
+  assert.equal(b[2].relations[0].blank, true);
+  assert.equal(b[6].edges[1].blank, true);
+  assert.equal(b[7].nodes[1].kind, 'decision');
+  assert.deepEqual(b[8].links[1], { from: 'U', to: 'V', kind: 'include' });
+  assert.equal(b[8].actors[0].side, 'right');
+  // diagram texts are code: a literal backslash-n stays as it is
+  let nested: unknown = 'tief';
+  for (const v of ['d', 'c', 'b', 'a']) nested = { switch: v, cases: [{ label: v, do: [nested] }] };
+  const code = checkClientToolCall({ id: 'u3', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'structogram', steps: ['printf("%d\\n", summe)', nested] }] } });
+  assert.equal(code.ok, true, code.error);
+  assert.equal((code.args.blocks as any[])[0].steps[0], 'printf("%d\\n", summe)');
+  assert.equal(JSON.stringify((code.args.blocks as any[])[0].steps[1]).includes('"tief"'), true, 'four nested switches survive');
+  const bad = checkClientToolCall({ id: 'u2', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'class_diagram', classes: [{ name: 'A' }], relations: [{ from: 'A', to: 'B' }] }] } });
+  assert.equal(bad.ok, false);
+  assert.match(bad.error!, /blocks\[0\] \(class_diagram\): classDiagram: "relations\[0\]\.to" is "B", which is not one of the classes: A\./);
+});
+
 test('tools: designed worksheet blocks are validated and laid out once', () => {
   const ok = checkClientToolCall({
     id: 'n1',

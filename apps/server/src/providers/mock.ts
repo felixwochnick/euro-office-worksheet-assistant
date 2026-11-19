@@ -217,6 +217,32 @@ export class MockProvider implements LLMProvider {
       return { content: res.ok ? 'Fertig (Mock-Modus): Seite eingerichtet.' : `Mock-Modus: Seite einrichten fehlgeschlagen: ${res.error ?? '?'}`, tool_calls: [] };
     }
 
+    // W0c) "Füge ein Klassendiagramm (UML) ein …" -> a class diagram to fill in and its solution
+    if (/(klassendiagramm|class diagram|\buml\b)/i.test(userText)) {
+      if (done('insert_blocks').length === 0) {
+        const classes = [
+          { name: 'Konto', kind: 'abstract', attributes: ['- kontonummer: String', '# kontostand: double'], methods: ['+ einzahlen(betrag: double)', '+ abstract abheben(betrag: double): boolean'] },
+          { name: 'Girokonto', attributes: ['[[- dispo: double]]'], methods: ['+ abheben(betrag: double): boolean'] },
+          { name: 'Kunde', attributes: ['- name: String'], methods: 1 },
+        ];
+        const relations = [
+          { from: 'Girokonto', to: 'Konto', kind: 'inheritance', blank: true },
+          { from: 'Kunde', to: 'Konto', kind: 'association', label: 'besitzt', from_mult: '1', to_mult: '[[0..*]]', directed: true },
+        ];
+        const blocks = [
+          { type: 'task', number: '1', instruction: 'Ergänze das Klassendiagramm: Zeichne die Vererbung ein und ergänze die Lücken.', icons: ['single', 'draw'] },
+          { type: 'class_diagram', classes, relations },
+          { type: 'page_break' },
+          { type: 'heading', level: 2, text: 'Lösung' },
+          { type: 'class_diagram', classes, relations, show_answers: true },
+        ];
+        return { content: '', tool_calls: [{ id: nextId(), name: 'insert_blocks', arguments: { position: 'end', blocks } }] };
+      }
+      const res = parseResult(done('insert_blocks')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Einfügen fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      return { content: res.inserted === false ? 'Mock-Modus: Klassendiagramm verworfen.' : 'Fertig (Mock-Modus): Klassendiagramm zum Ergänzen und Lösung eingefügt.', tool_calls: [] };
+    }
+
     // W1) "Erstelle ein Arbeitsblatt zu <Thema>" -> one insert_blocks call at the end
     const worksheet = /(erstell|mach|create)/i.test(userText) && /(arbeitsblatt|worksheet)/i.test(userText);
     if (worksheet) {

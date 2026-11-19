@@ -7,7 +7,8 @@
  * Euro-Office builder API (apps/plugin/src/js/blocks.js) and what the chat preview
  * renders as HTML. All design decisions live here: fonts, colours and spacing
  * come from the theme (worksheet-themes.js), puzzles from worksheet-generators.js,
- * graphics from worksheet-svg.js, syllable colouring from german-syllables.js.
+ * graphics from worksheet-svg.js, computer science diagrams (UML, structograms, ER) from
+ * worksheet-diagrams.js, syllable colouring from german-syllables.js.
  * Pure and deterministic – used by the plugin (browser), by the proxy (to
  * validate blocks before they reach the editor) and by the unit tests.
  *
@@ -33,6 +34,7 @@
         case 'worksheet-themes': return require('./worksheet-themes.js');
         case 'worksheet-generators': return require('./worksheet-generators.js');
         case 'worksheet-svg': return require('./worksheet-svg.js');
+        case 'worksheet-diagrams': return require('./worksheet-diagrams.js');
         case 'german-syllables': return require('./german-syllables.js');
         default: return null;
       }
@@ -42,6 +44,7 @@
       'worksheet-themes': 'WorksheetThemes',
       'worksheet-generators': 'WorksheetGen',
       'worksheet-svg': 'WorksheetSvg',
+      'worksheet-diagrams': 'WorksheetDiagrams',
       'german-syllables': 'GermanSyllables'
     };
     root.WorksheetLayout = factory(function (name) { return root[globals[name]]; });
@@ -65,15 +68,18 @@
   var CHECKED = '☒';
   var SYMBOL_FONT = 'DejaVu Sans';
 
+  /** Computer science diagrams (worksheet-diagrams.js). */
+  var DIAGRAM_TYPES = ['class_diagram', 'object_diagram', 'sequence_diagram', 'state_diagram', 'activity_diagram', 'use_case_diagram',
+    'structogram', 'flowchart', 'er_diagram'];
   var BLOCK_TYPES = [
     'title', 'name_line', 'heading', 'paragraph', 'task', 'list', 'table', 'lines', 'box', 'cloze', 'word_bank',
     'multiple_choice', 'true_false', 'matching', 'crossword', 'word_search', 'reading_text', 'formula',
     'number_line', 'coordinate_system', 'chart', 'mindmap', 'qr_code', 'picture', 'svg', 'cut_line', 'self_assessment',
     'hint_cards', 'grade_key', 'columns', 'staff', 'empty_staves', 'page_break', 'spacer'
-  ];
+  ].concat(DIAGRAM_TYPES);
   var LINE_STYLES = ['plain', 'school1', 'school2', 'school3', 'school4', 'grid5', 'grid10'];
   var GRAPHIC_TYPES = ['lineature', 'crossword', 'word_search', 'number_line', 'coordinate_system', 'chart', 'mindmap',
-    'qr_code', 'picture', 'svg', 'cut_line'];
+    'qr_code', 'picture', 'svg', 'cut_line'].concat(DIAGRAM_TYPES);
 
   // ---------------------------------------------------------------------------
   // Units and small helpers
@@ -830,6 +836,79 @@
     return graphicBlock(c, b, g, 'Mindmap: ' + str(b.center), sourceOf(b, 'mindmap'));
   };
 
+  // ---------------------------------------------------------------------------
+  // Computer science diagrams (UML, structograms, ER) – also as fill-in versions
+  // ---------------------------------------------------------------------------
+  function diagramOpts(c, b, extra) {
+    var t = c.theme;
+    var o = svgOpts(c, {
+      mutedColor: t.colors.muted || '#6b7280',
+      headerFill: t.colors.accentLight || '#f3f4f6',
+      accentColor: t.colors.accent || '#2563eb',
+      showAnswers: b.show_answers === true,
+      maxWidthMm: c.widthMm
+    });
+    if (b.width_cm != null) o.widthMm = clamp(num(b.width_cm, 10), 3, c.widthMm / 10) * 10;
+    Object.keys(extra || {}).forEach(function (k) { o[k] = extra[k]; });
+    return o;
+  }
+
+  function diagramLib() { return lib('worksheet-diagrams'); }
+
+  function countOf(list) { return Array.isArray(list) ? list.length : 0; }
+
+  builders.class_diagram = function (b, c) {
+    var g = diagramLib().classDiagram(diagramOpts(c, b, { classes: b.classes, relations: b.relations, direction: b.direction }));
+    return graphicBlock(c, b, g, 'Klassendiagramm (' + countOf(b.classes) + ' Klassen)', sourceOf(b, 'class_diagram'));
+  };
+
+  builders.object_diagram = function (b, c) {
+    var g = diagramLib().objectDiagram(diagramOpts(c, b, { objects: b.objects, links: b.links, direction: b.direction }));
+    return graphicBlock(c, b, g, 'Objektdiagramm (' + countOf(b.objects) + ' Objekte)', sourceOf(b, 'object_diagram'));
+  };
+
+  builders.sequence_diagram = function (b, c) {
+    var g = diagramLib().sequenceDiagram(diagramOpts(c, b, { participants: b.participants, messages: b.messages, activations: b.activations }));
+    return graphicBlock(c, b, g, 'Sequenzdiagramm (' + countOf(b.participants) + ' Beteiligte)', sourceOf(b, 'sequence_diagram'));
+  };
+
+  builders.state_diagram = function (b, c) {
+    var g = diagramLib().stateDiagram(diagramOpts(c, b, {
+      states: b.states, transitions: b.transitions, notation: b.notation, initial: b.initial, accepting: b.accepting, direction: b.direction
+    }));
+    var auto = /^(automaton|automat|dfa|nfa|dea|nea)$/i.test(str(b.notation));
+    return graphicBlock(c, b, g, (auto ? 'Endlicher Automat' : 'Zustandsdiagramm') + ' (' + countOf(b.states) + ' Zustände)', sourceOf(b, 'state_diagram'));
+  };
+
+  builders.structogram = function (b, c) {
+    var g = diagramLib().structogram(diagramOpts(c, b, {
+      title: b.title, steps: b.steps, labels: { yes: c.L.structYes, no: c.L.structNo, otherwise: c.L.structOtherwise }
+    }));
+    return graphicBlock(c, b, g, 'Struktogramm' + (b.title ? ': ' + str(b.title) : ''), sourceOf(b, 'structogram'));
+  };
+
+  builders.activity_diagram = function (b, c) {
+    var g = diagramLib().activityDiagram(diagramOpts(c, b, { nodes: b.nodes, edges: b.edges, direction: b.direction }));
+    return graphicBlock(c, b, g, 'Aktivitätsdiagramm (' + countOf(b.nodes) + ' Knoten)', sourceOf(b, 'activity_diagram'));
+  };
+
+  builders.flowchart = function (b, c) {
+    var g = diagramLib().flowchart(diagramOpts(c, b, {
+      nodes: b.nodes, edges: b.edges, direction: b.direction, labels: { start: c.L.flowStart, end: c.L.flowEnd }
+    }));
+    return graphicBlock(c, b, g, 'Programmablaufplan' + (b.title ? ': ' + str(b.title) : '') + ' (' + countOf(b.nodes) + ' Knoten)', sourceOf(b, 'flowchart'));
+  };
+
+  builders.use_case_diagram = function (b, c) {
+    var g = diagramLib().useCaseDiagram(diagramOpts(c, b, { system: b.system, actors: b.actors, use_cases: b.use_cases, links: b.links }));
+    return graphicBlock(c, b, g, 'Anwendungsfalldiagramm' + (b.system ? ': ' + str(b.system) : '') + ' (' + countOf(b.use_cases) + ' Anwendungsfälle)', sourceOf(b, 'use_case_diagram'));
+  };
+
+  builders.er_diagram = function (b, c) {
+    var g = diagramLib().erDiagram(diagramOpts(c, b, { entities: b.entities, relationships: b.relationships, notation: b.notation }));
+    return graphicBlock(c, b, g, 'ER-Diagramm (' + countOf(b.entities) + ' Entitäten)', sourceOf(b, 'er_diagram'));
+  };
+
   builders.qr_code = function (b, c) {
     var g = svgLib().qrCode(str(b.url), svgOpts(c, { sizeMm: b.size_cm != null ? clamp(num(b.size_cm, 2.5), 1.5, 8) * 10 : 25, label: b.caption, color: '#000000' }));
     return [imagePara(c, imageRun(g, graphicAlt('QR-Code: ' + str(b.url), sourceOf(b, 'qr_code'))), { jc: b.align === 'left' ? 'left' : b.align === 'right' ? 'right' : 'center', after: 160 })];
@@ -1078,6 +1157,7 @@
     BLOCK_TYPES: BLOCK_TYPES,
     LINE_STYLES: LINE_STYLES,
     GRAPHIC_TYPES: GRAPHIC_TYPES,
+    DIAGRAM_TYPES: DIAGRAM_TYPES,
     GRAPHIC_MARKER: GRAPHIC_MARKER,
     TASK_MARKER: TASK_MARKER,
     BLOCK_MARKER: BLOCK_MARKER,
