@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.7.1 – the desktop app updates itself
+
+- **Self-updates:** releases now carry signed update bundles and `latest.json`. From this version on the desktop app
+  (macOS, Windows, AppImage) installs a new version with one click from its update notice (see README, *Updates*);
+  the `.deb` package still links to the download page.
+- **Updating from 0.7.0 or older:** those versions do not contain the update key yet. They show 0.7.1 with a link to
+  the download page – install it once by hand, later versions arrive by themselves.
+
 ## 0.7.0 – pictures on worksheets
 
 - **Pictures:** worksheets for primary and special-needs schools no longer have to be text only. The AI searches
