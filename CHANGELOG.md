@@ -1,7 +1,12 @@
 # Changelog
 
-## Unreleased
+## 0.8.1 – ChatGPT over MCP, first release with a notarized macOS app
 
+- **First published release since 0.7.0:** 0.7.1 and 0.8.0 were never published – their macOS builds failed because
+  the signing secret held a *Developer ID Installer* certificate, which cannot sign apps (*failed to resolve signing
+  identity*). With a *Developer ID Application* certificate this release contains everything of 0.8.0 (computer
+  science diagrams, reworked website) and 0.7.1 (self-updates, signed and notarized macOS app). Apps of 0.7.0 or older
+  show 0.8.1 with a link to the download page: install it once by hand, later versions arrive by themselves.
 - **ChatGPT can connect over MCP:** the sign-in failed with "Unknown client_id". ChatGPT's client ID metadata
   document prefers `private_key_jwt` but also lists `none` in `token_endpoint_auth_methods_supported`; the server
   now accepts a client that can use `none` (public client with PKCE), not only one whose preferred method is `none`.
