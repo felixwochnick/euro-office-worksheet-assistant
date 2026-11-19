@@ -179,6 +179,32 @@ try {
   assert.match(hf.footer.join(' '), /Seite 1 von 1/);
   console.log('ok - setup_page (header with school and logo, page numbers)');
 
+  // 1g) picture: search_images (ARASAAC, needs internet) -> picture block beside text (columns) with the licence credit.
+  //     E2E_OFFLINE=1 skips it.
+  if (!process.env.E2E_OFFLINE) {
+    await frame.locator('#chat-text').fill('Füge ein Bild vom Fuchs ein');
+    await frame.locator('#chat-send').click();
+    const picCard = frame.locator('.card').filter({ has: frame.locator('.preview-doc img') }).filter({ hasText: 'Sergio Palao, ARASAAC' }).last();
+    await picCard.locator('button.primary').waitFor({ timeout: 30000 });
+    if (shot) await picCard.screenshot({ path: `${shot}-picture.png` });
+    await picCard.locator('button.primary').click();
+    await frame.locator('.msg.assistant', { hasText: 'Bild „Fuchs“' }).waitFor({ timeout: 15000 });
+    const pics = await page.evaluate(() => {
+      const out = [];
+      const scan = (paras) => paras.forEach((p) => (p.drawings || []).forEach((dr) => out.push({ descr: dr.descr || '', src: String(dr.src || '').slice(0, 22), wMm: dr.wMm })));
+      window.HarnessMock.state.elements.forEach((e) => (e.type === 'table' ? e.rows.forEach((r) => r.forEach((c) => scan(c.paras))) : scan([e])));
+      const texts = [];
+      window.HarnessMock.state.elements.forEach((e) => { if (e.type === 'table') e.rows.forEach((r) => r.forEach((c) => c.paras.forEach((p) => texts.push(p.text)))); });
+      return { pics: out.filter((x) => /^Bild: /.test(x.descr)), texts };
+    });
+    assert.equal(pics.pics.length, 1, 'one picture in the document');
+    assert.match(pics.pics[0].descr, /^Bild: Fuchs\n\nWSGRAPHIC \{"type":"picture","image_id":"arasaac:\d+"/);
+    assert.equal(pics.pics[0].src, 'data:image/png;base64,');
+    assert.ok(Math.abs(pics.pics[0].wMm - 30) < 0.5, `picture is 3 cm wide (${pics.pics[0].wMm} mm)`);
+    assert.ok(pics.texts.some((t) => /Sergio Palao, ARASAAC/.test(t)), 'licence credit under the picture');
+    console.log('ok - picture via search_images (pictogram beside text, credit)');
+  }
+
   // 2) manual mode: template after element 0, load + replace selected image
   await frame.locator('.tab[data-tab=manual]').click();
   await frame.locator('#m-template').selectOption('melody');

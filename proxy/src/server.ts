@@ -5,6 +5,7 @@
  *   GET  /v1/meta                 public: auth mode, MCP endpoint, chat available (used by the plugin settings)
  *   GET  /v1/info                 connection test (authenticated)
  *   POST /v1/chat                 one agent step of the AI chat
+ *   POST /v1/images/fetch         a picture for a worksheet (id from search_images) as data URL
  *   POST /v1/auth/login           AUTH_MODE=nextcloud: start Nextcloud Login Flow v2 for the plugin
  *   POST /v1/auth/login/poll      … poll until the user granted access -> plugin session token
  *   POST /v1/auth/logout          … sign out (deletes the Nextcloud app password)
@@ -32,6 +33,7 @@ import { runTurn } from './agent.js';
 import { AuthError, AuthService, bearer, type Identity } from './auth.js';
 import { Bridge } from './bridge.js';
 import { loadConfig, type Config } from './config.js';
+import { createImageService, ImageError, type ImageService } from './images.js';
 import { createMcpEndpoint } from './mcp.js';
 import { OAuthServer } from './oauth.js';
 import { createProvider } from './providers/index.js';
@@ -114,6 +116,8 @@ export interface ServerDeps {
   extend?: (app: FastifyInstance) => void | Promise<void>;
   /** Shown to users when the chat is switched off (e.g. the companion's settings page). */
   settingsUrl?: string;
+  /** Picture search (tests); default: built from the configuration. null = pictures off. */
+  images?: ImageService | null;
 }
 
 declare module 'fastify' {
@@ -150,6 +154,25 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
       : null;
   auth.oauth = oauth;
   const bridge = new Bridge({ authenticate: (token) => auth.authenticatePlugin(token), log: app.log });
+  const images =
+    deps.images !== undefined
+      ? deps.images
+      : createImageService({
+          sources: cfg.imageSources,
+          folder: cfg.imageFolder,
+          nextcloud:
+            cfg.authMode === 'nextcloud'
+              ? {
+                  internalUrl: cfg.nextcloudInternalUrl,
+                  // The app password of the user's most recent plugin sign-in.
+                  credentials: (userId) => {
+                    const s = store.state.sessions.filter((x) => x.userId === userId).sort((a, b) => b.lastUsedAt - a.lastUsedAt)[0];
+                    return s ? { login: s.loginName, password: s.appPassword } : undefined;
+                  },
+                }
+              : undefined,
+          localFolder: cfg.authMode !== 'nextcloud' && !!cfg.imageFolder,
+        });
   app.addHook('onClose', async () => {
     bridge.close();
     auth.close();
@@ -249,6 +272,8 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
         messages,
         documentContext: body.document_context,
         maxIterations: cfg.maxIterations,
+        userId: req.identity?.userId,
+        images,
       });
       return result;
     } catch (err) {
@@ -260,6 +285,33 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
       throw err;
     }
   });
+
+  // --- pictures (the plugin loads them right before it builds the worksheet) ---
+  app.post(
+    '/v1/images/fetch',
+    {
+      preHandler: requirePlugin,
+      config: { rateLimit: { max: Math.max(120, cfg.rateLimitMax * 4), timeWindow: cfg.rateLimitWindow } },
+      schema: { body: { type: 'object', required: ['image_id'], additionalProperties: false, properties: { image_id: { type: 'string', minLength: 3, maxLength: 600 } } } },
+    },
+    async (req, reply) => {
+      if (!images) return reply.code(404).send({ error: 'images_off', message: 'Pictures are switched off on this server.' });
+      try {
+        const r = await images.fetch((req.body as { image_id: string }).image_id, req.identity?.userId ?? 'default');
+        return {
+          ok: true,
+          image_id: r.meta.image_id,
+          title: r.meta.title,
+          credit: r.meta.credit,
+          mime: r.mime,
+          data_url: `data:${r.mime};base64,${r.bytes.toString('base64')}`,
+        };
+      } catch (err) {
+        if (err instanceof ImageError) return reply.code(err.status).send({ error: 'image', message: err.message });
+        throw err;
+      }
+    },
+  );
 
   // --- plugin sign-in with Nextcloud (Login Flow v2) ---
   if (cfg.authMode === 'nextcloud') {
@@ -319,6 +371,7 @@ export async function buildServer(cfg: Config, deps: ServerDeps = {}): Promise<F
     const endpoint = createMcpEndpoint({
       bridge,
       version: VERSION,
+      images,
       onToolCall: (i) => app.log.info(i, 'mcp tool call'),
     });
     const nodeHandler = toNodeHandler(endpoint, { onerror: (err) => app.log.error({ err: err.message }, 'mcp handler error') });

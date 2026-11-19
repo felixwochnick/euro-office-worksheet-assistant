@@ -73,42 +73,83 @@ function safeLookup(
 }
 
 /** GET an https URL and return its body as text, or null on any problem. */
-export function fetchSmallDocument(url: string): Promise<string | null> {
+export async function fetchSmallDocument(url: string): Promise<string | null> {
+  const r = await fetchSafe(url, { maxBytes: MAX_BYTES, timeoutMs: TIMEOUT_MS, accept: 'application/json' });
+  return r && r.status === 200 ? r.body.toString('utf8') : null;
+}
+
+export interface SafeResponse {
+  status: number;
+  contentType: string;
+  body: Buffer;
+}
+
+export interface SafeFetchOptions {
+  maxBytes: number;
+  timeoutMs: number;
+  accept?: string;
+  /** If set, only these host names are contacted. */
+  allowedHosts?: ReadonlySet<string>;
+  userAgent?: string;
+}
+
+/**
+ * GET an https URL with the protections above (no redirects, blocked internal addresses, size and time limits).
+ * Resolves null when the URL is refused, the server is unreachable or the body is too large; otherwise the
+ * status, content type and body (also for non-200 answers).
+ */
+export function fetchSafe(url: string, opts: SafeFetchOptions): Promise<SafeResponse | null> {
   let u: URL;
   try {
     u = new URL(url);
   } catch {
     return Promise.resolve(null);
   }
-  if (u.protocol !== 'https:') return Promise.resolve(null);
-  const host = u.hostname.replace(/^\[|\]$/g, '');
+  if (u.protocol !== 'https:' || u.username || u.password) return Promise.resolve(null);
+  const host = u.hostname.replace(/^\[|\]$/g, '').toLowerCase();
+  if (opts.allowedHosts && !opts.allowedHosts.has(host)) return Promise.resolve(null);
   if (net.isIP(host) && isBlockedAddress(host)) return Promise.resolve(null);
   return new Promise((resolve) => {
+    let settled = false;
+    const done = (v: SafeResponse | null) => {
+      if (settled) return;
+      settled = true;
+      resolve(v);
+    };
     const req = https.get(
       u,
-      { lookup: safeLookup as unknown as typeof dns.lookup, timeout: TIMEOUT_MS, headers: { accept: 'application/json', 'user-agent': 'Arbeitsblatt-Assistent' } },
+      {
+        lookup: safeLookup as unknown as typeof dns.lookup,
+        timeout: opts.timeoutMs,
+        headers: { accept: opts.accept ?? '*/*', 'user-agent': opts.userAgent ?? 'Arbeitsblatt-Assistent' },
+      },
       (res) => {
-        if (res.statusCode !== 200 || Number(res.headers['content-length'] || 0) > MAX_BYTES) {
+        if (Number(res.headers['content-length'] || 0) > opts.maxBytes) {
           res.destroy();
-          return resolve(null);
+          return done(null);
         }
         const chunks: Buffer[] = [];
         let size = 0;
         res.on('data', (c: Buffer) => {
           size += c.length;
-          if (size > MAX_BYTES) {
+          if (size > opts.maxBytes) {
             res.destroy();
-            resolve(null);
+            done(null);
             return;
           }
           chunks.push(c);
         });
-        res.on('end', () => resolve(size <= MAX_BYTES ? Buffer.concat(chunks).toString('utf8') : null));
-        res.on('error', () => resolve(null));
+        res.on('end', () =>
+          done(size <= opts.maxBytes ? { status: res.statusCode ?? 0, contentType: String(res.headers['content-type'] || ''), body: Buffer.concat(chunks) } : null),
+        );
+        res.on('error', () => done(null));
       },
     );
     req.on('timeout', () => req.destroy());
-    req.on('error', () => resolve(null));
-    setTimeout(() => req.destroy(), TIMEOUT_MS + 1000).unref?.();
+    req.on('error', () => done(null));
+    setTimeout(() => {
+      req.destroy();
+      done(null);
+    }, opts.timeoutMs + 1000).unref?.();
   });
 }
