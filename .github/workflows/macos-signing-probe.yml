@@ -15,6 +15,26 @@ jobs:
     runs-on: macos-latest
     steps:
       - uses: actions/checkout@v4
+      - name: Diagnose the certificate (public data only, no key material)
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+        run: |
+          tmp="$(mktemp -d)"; trap 'rm -rf "$tmp"' EXIT
+          printf '%s' "$APPLE_CERTIFICATE" | base64 --decode > "$tmp/c.p12"
+          echo "p12: $(wc -c < "$tmp/c.p12") bytes, base64 length ${#APPLE_CERTIFICATE}"
+          echo "--- pkcs12 structure (LibreSSL, -nokeys; certificate PEM lines removed)"
+          /usr/bin/openssl pkcs12 -info -in "$tmp/c.p12" -nokeys -passin env:APPLE_CERTIFICATE_PASSWORD 2>&1 \
+            | grep -vE '^[A-Za-z0-9+/=]{20,}$|BEGIN CERTIFICATE|END CERTIFICATE' || true
+          echo "--- import into a temporary keychain"
+          kc="$tmp/diag.keychain-db"
+          security create-keychain -p diag "$kc"; security unlock-keychain -p diag "$kc"
+          security import "$tmp/c.p12" -k "$kc" -f pkcs12 -t agg -P "$APPLE_CERTIFICATE_PASSWORD" -T /usr/bin/codesign || true
+          echo "--- certificates in the keychain"
+          security find-certificate -a -p "$kc" | /usr/bin/openssl x509 -noout -subject -issuer -dates 2>&1 || echo "no certificate"
+          echo "--- identities (all, then valid only)"
+          security find-identity -p codesigning "$kc" || true
+          security delete-keychain "$kc"
       - uses: pnpm/action-setup@v4
       - uses: actions/setup-node@v4
         with:
