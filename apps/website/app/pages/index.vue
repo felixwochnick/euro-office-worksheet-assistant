@@ -98,7 +98,7 @@ docker compose up -d`,
   mcp: [null, 'claude mcp add --transport http worksheet-assistant https://worksheets.example.org/mcp', null]
 }
 
-const installer = (suffix: string) => `Arbeitsblatt-Assistent_${APP_VERSION}_${suffix}`
+const installer = (suffix: string) => `worksheet-assistant_${APP_VERSION}_${suffix}`
 const downloads = [
   { label: 'Windows', file: installer('windows-x64-setup.exe'), icon: 'i-simple-icons-windows' },
   { label: 'macOS (Apple silicon)', file: installer('macos-arm64.dmg'), icon: 'i-simple-icons-apple' },

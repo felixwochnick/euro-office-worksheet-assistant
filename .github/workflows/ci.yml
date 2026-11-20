@@ -128,7 +128,7 @@ jobs:
           exe=apps/desktop/src-tauri/binaries/worksheet-assistant-${{ matrix.target }}
           [ -f "$exe.exe" ] && exe="$exe.exe"
           # macOS: the copy inside the app bundle, signed by the bundler with the hardened runtime (JIT entitlements)
-          app="apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/macos/Arbeitsblatt-Assistent.app"
+          app="apps/desktop/src-tauri/target/${{ matrix.target }}/debug/bundle/macos/Worksheet Assistant.app"
           if [ -d "$app" ]; then exe="$app/Contents/MacOS/worksheet-assistant"; codesign -dv --entitlements - "$exe" 2>&1 | tail -n 12; fi
           "$exe" version
           home="$(mktemp -d)"

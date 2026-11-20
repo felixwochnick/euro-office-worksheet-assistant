@@ -352,7 +352,7 @@ const fr: SiteContent = {
       { title: 'Installer Euro-Office', description: 'Installez l’application de bureau Euro-Office ou Nextcloud Office pour Windows, macOS ou Linux et lancez-la une première fois.' },
       {
         title: 'Installer l’application Worksheet Assistant',
-        description: 'Téléchargez le programme d’installation pour votre système et installez l’application comme n’importe quelle autre (macOS : faites-la glisser dans **Applications**) ; elle s’appelle **Arbeitsblatt-Assistent**. Au démarrage, sa fenêtre s’ouvre : elle configure le plugin et travaille de façon invisible en arrière-plan. Sur macOS, l’application est notarisée par Apple. Sous Windows, elle n’est pas encore signée – si SmartScreen affiche un avertissement : **Informations complémentaires → Exécuter quand même**.'
+        description: 'Téléchargez le programme d’installation pour votre système et installez l’application comme n’importe quelle autre (macOS : faites-la glisser dans **Applications**) ; elle s’appelle **Worksheet Assistant**. Au démarrage, sa fenêtre s’ouvre : elle configure le plugin et travaille de façon invisible en arrière-plan. Sur macOS, l’application est notarisée par Apple. Sous Windows, elle n’est pas encore signée – si SmartScreen affiche un avertissement : **Informations complémentaires → Exécuter quand même**.'
       },
       {
         title: 'Choisir votre IA',

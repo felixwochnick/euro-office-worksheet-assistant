@@ -302,7 +302,7 @@ const en: SiteContent = {
       { title: 'Install Euro-Office', description: 'Install the Euro-Office or Nextcloud Office desktop app for Windows, macOS or Linux and start it once.' },
       {
         title: 'Install the Worksheet Assistant app',
-        description: 'Download the installer for your system and install it like any other app (macOS: drag it into **Applications**); it is called **Arbeitsblatt-Assistent**. On start its window opens: it sets up the plugin and works invisibly in the background. On macOS the app is notarized by Apple. On Windows it is not signed yet – if SmartScreen warns: **More info → Run anyway**.'
+        description: 'Download the installer for your system and install it like any other app (macOS: drag it into **Applications**). On start its window opens: it sets up the plugin and works invisibly in the background. On macOS the app is notarized by Apple. On Windows it is not signed yet – if SmartScreen warns: **More info → Run anyway**.'
       },
       {
         title: 'Choose your AI',

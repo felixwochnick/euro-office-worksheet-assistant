@@ -6,9 +6,9 @@
  *
  *   node scripts/collect-desktop.mjs <target triple>
  *
- *   Arbeitsblatt-Assistent_<version>_macos-arm64.dmg      + _macos-arm64.app.tar.gz(.sig)  (update bundle)
- *   Arbeitsblatt-Assistent_<version>_windows-x64-setup.exe (+ .sig: the installer is the update bundle)
- *   Arbeitsblatt-Assistent_<version>_linux-x64.AppImage    (+ .sig) and Arbeitsblatt-Assistent_<version>_amd64.deb
+ *   worksheet-assistant_<version>_macos-arm64.dmg      + _macos-arm64.app.tar.gz(.sig)  (update bundle)
+ *   worksheet-assistant_<version>_windows-x64-setup.exe (+ .sig: the installer is the update bundle)
+ *   worksheet-assistant_<version>_linux-x64.AppImage    (+ .sig) and worksheet-assistant_<version>_amd64.deb
  */
 import fs from 'node:fs';
 import path from 'node:path';
@@ -29,7 +29,7 @@ const arch = target.startsWith('aarch64') ? 'arm64' : 'x64';
 const os = target.includes('apple') ? 'macos' : target.includes('windows') ? 'windows' : 'linux';
 /** Platform key of the Tauri updater. */
 const platform = `${{ macos: 'darwin', windows: 'windows', linux: 'linux' }[os]}-${arch === 'arm64' ? 'aarch64' : 'x86_64'}`;
-const name = (suffix) => `Arbeitsblatt-Assistent_${version}_${suffix}`;
+const name = (suffix) => `worksheet-assistant_${version}_${suffix}`;
 
 function find(dir, re) {
   const d = path.join(bundle, dir);

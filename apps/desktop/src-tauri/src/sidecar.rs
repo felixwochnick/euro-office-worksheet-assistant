@@ -510,7 +510,7 @@ mod tests {
     fn temporary_locations() {
         let mac = cfg!(target_os = "macos");
         assert_eq!(
-            is_temporary_location(Path::new("/Volumes/Arbeitsblatt-Assistent/A.app/Contents/MacOS/a")),
+            is_temporary_location(Path::new("/Volumes/Worksheet Assistant/A.app/Contents/MacOS/a")),
             mac
         );
         assert_eq!(
@@ -518,7 +518,7 @@ mod tests {
             mac
         );
         assert!(!is_temporary_location(Path::new(
-            "/Applications/Arbeitsblatt-Assistent.app/Contents/MacOS/a"
+            "/Applications/Worksheet Assistant.app/Contents/MacOS/a"
         )));
     }
 
