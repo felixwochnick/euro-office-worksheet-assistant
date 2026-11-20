@@ -1,6 +1,6 @@
 {
   "name": "euro-office-worksheet-assistant",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "description": "Euro-Office (ONLYOFFICE) worksheet assistant: panel plugin with AI chat, MCP endpoint and a desktop app.",
   "license": "MIT",
