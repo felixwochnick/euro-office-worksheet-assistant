@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "Arbeitsblatt-Assistent",
+  "productName": "Worksheet Assistant",
   "mainBinaryName": "worksheet-assistant-app",
   "version": "../package.json",
   "identifier": "io.github.felixwochnick.worksheet-assistant",
@@ -73,6 +73,12 @@
       "deb": {
         "depends": [
           "libayatana-appindicator3-1"
+        ],
+        "conflicts": [
+          "arbeitsblatt-assistent"
+        ],
+        "replaces": [
+          "arbeitsblatt-assistent"
         ]
       }
     },

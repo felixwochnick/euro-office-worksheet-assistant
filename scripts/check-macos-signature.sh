@@ -10,7 +10,7 @@
 set -euo pipefail
 
 bundle="$1"
-app="$bundle/macos/Arbeitsblatt-Assistent.app"
+app="$(ls -d "$bundle"/macos/*.app | head -n 1)"
 server="$app/Contents/MacOS/worksheet-assistant"
 dmg="$(ls "$bundle"/dmg/*.dmg | head -n 1)"
 

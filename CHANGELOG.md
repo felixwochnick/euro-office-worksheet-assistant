@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.8.2 – English file names for the desktop app
+
+- **English file names:** the desktop app is installed as *Worksheet Assistant* (macOS `Worksheet Assistant.app`,
+  Windows folder and Start menu entry, Debian package `worksheet-assistant`), its installers are called
+  `worksheet-assistant_<version>_…`. Its window and menus stay German. Up to 0.8.1 it was *Arbeitsblatt-Assistent*:
+  the Windows setup and the `.deb` replace that installation (plugin, autostart and the Claude entry stay). On macOS
+  and with the AppImage, quit the old app, start the new one (it takes over autostart and the Claude entry), then
+  delete the old one.
+- **0.8.1 was not published:** its macOS builds were signed correctly, but Apple's notary service kept the first
+  submissions of the new Developer ID team *In Progress* for hours, and the release stayed a draft. 0.8.2 contains
+  everything of 0.8.1. Apps of 0.7.0 or older show 0.8.2 with a link to the download page.
+
 ## 0.8.1 – ChatGPT over MCP, first release with a notarized macOS app
 
 - **First published release since 0.7.0:** 0.7.1 and 0.8.0 were never published – their macOS builds failed because

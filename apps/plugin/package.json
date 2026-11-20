@@ -1,6 +1,6 @@
 {
   "name": "@worksheet-assistant/plugin",
-  "version": "0.8.1",
+  "version": "0.8.2",
   "private": true,
   "description": "Euro-Office (ONLYOFFICE) panel plugin: AI chat, music notation and worksheet blocks. Files in src/; scripts/build.sh builds dist/worksheet-assistant/ with the shared modules and vendor files.",
   "license": "MIT",

@@ -302,7 +302,7 @@ const nl: SiteContent = {
       { title: 'Euro-Office installeren', description: 'Installeer de desktopapp van Euro-Office of Nextcloud Office voor Windows, macOS of Linux en start hem één keer.' },
       {
         title: 'Worksheet Assistant-app installeren',
-        description: 'Download het installatiebestand voor je systeem en installeer de app zoals elke andere app (macOS: sleep hem naar **Programma’s**); de app heet **Arbeitsblatt-Assistent**. Bij het starten opent zijn venster: de app richt de plugin in en werkt onzichtbaar op de achtergrond. Op macOS is de app genotariseerd door Apple. Op Windows is hij nog niet ondertekend – als SmartScreen waarschuwt: **Meer informatie → Toch uitvoeren**.'
+        description: 'Download het installatiebestand voor je systeem en installeer de app zoals elke andere app (macOS: sleep hem naar **Programma’s**); de app heet **Worksheet Assistant**. Bij het starten opent zijn venster: de app richt de plugin in en werkt onzichtbaar op de achtergrond. Op macOS is de app genotariseerd door Apple. Op Windows is hij nog niet ondertekend – als SmartScreen waarschuwt: **Meer informatie → Toch uitvoeren**.'
       },
       {
         title: 'Kies je AI',

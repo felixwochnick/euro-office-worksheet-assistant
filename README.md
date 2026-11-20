@@ -204,7 +204,7 @@ There are three parts: the **plugin** (in the Euro-Office Document Server), the 
 
 Prebuilt packages are attached to each [GitHub release](https://github.com/felixwochnick/euro-office-worksheet-assistant/releases)
 (`worksheet-assistant.tar.gz`, `.zip`, `.plugin`; up to 0.1.0 `music-notation.*`; from 0.6.0 the desktop app's
-installers `Arbeitsblatt-Assistent_<version>_…`); the proxy image is `ghcr.io/felixwochnick/euro-office-worksheet-assistant`.
+installers, from 0.8.2 `worksheet-assistant_<version>_…`, before `Arbeitsblatt-Assistent_<version>_…`); the proxy image is `ghcr.io/felixwochnick/euro-office-worksheet-assistant`.
 Releases are created by pushing a tag (see [Releases](#releases)).
 Until the first release exists, build locally with `bash scripts/build.sh` and use `--source dist/worksheet-assistant`.
 
@@ -307,7 +307,7 @@ Reopen the document. The plugin is gone after the next AIO update – use A to a
 ### D – desktop app (Windows, macOS, Linux)
 
 The desktop editors (Euro-Office, Nextcloud Office) have no plugin manager, and there is no Document Server to put
-a proxy next to. The **desktop app "Arbeitsblatt-Assistent"** does both on your computer: it installs the plugin
+a proxy next to. The **desktop app "Worksheet Assistant"** (German UI: Arbeitsblatt-Assistent) does both on your computer: it installs the plugin
 into the desktop editors and runs the local server (AI chat and MCP) invisibly in the background. No terminal, no
 browser.
 
@@ -318,16 +318,21 @@ You need the Euro-Office or Nextcloud Office desktop editor: install it and star
 
 | System | File |
 |--------|------|
-| Windows (x64) | `Arbeitsblatt-Assistent_<version>_windows-x64-setup.exe` – installs for the current user, no admin rights needed |
-| macOS, Apple silicon | `Arbeitsblatt-Assistent_<version>_macos-arm64.dmg` |
-| macOS, Intel | `Arbeitsblatt-Assistent_<version>_macos-x64.dmg` |
-| Linux (AppImage) | `Arbeitsblatt-Assistent_<version>_linux-x64.AppImage` / `_linux-arm64.AppImage` |
-| Linux (Debian, Ubuntu) | `Arbeitsblatt-Assistent_<version>_amd64.deb` / `_arm64.deb` |
+| Windows (x64) | `worksheet-assistant_<version>_windows-x64-setup.exe` – installs for the current user, no admin rights needed |
+| macOS, Apple silicon | `worksheet-assistant_<version>_macos-arm64.dmg` |
+| macOS, Intel | `worksheet-assistant_<version>_macos-x64.dmg` |
+| Linux (AppImage) | `worksheet-assistant_<version>_linux-x64.AppImage` / `_linux-arm64.AppImage` |
+| Linux (Debian, Ubuntu) | `worksheet-assistant_<version>_amd64.deb` / `_arm64.deb` |
 
 **2. Install** it like any other app: run the Windows setup; on macOS open the `.dmg` and drag the app into
 *Applications* – start it from there, not from the disk image (the app asks for this: autostart, the Claude entry
 and updates need its final place); on Linux make the AppImage executable and start it, or install the `.deb`
-(`sudo apt install ./Arbeitsblatt-Assistent_<version>_amd64.deb`).
+(`sudo apt install ./worksheet-assistant_<version>_amd64.deb`).
+
+Up to 0.8.1 the app was installed as *Arbeitsblatt-Assistent*. The Windows setup and the `.deb` replace that
+installation (plugin, autostart and the Claude entry stay). On macOS and with the AppImage, quit the old app first
+(*Beenden* in its menu – otherwise starting the new one only brings up the old window), start the new one (it takes
+over autostart and the Claude entry), then delete the old *Arbeitsblatt-Assistent*.
 
 On macOS the app is signed with a Developer ID and notarized by Apple (from 0.7.1), so it opens without a warning.
 On Windows it has no developer signature yet: SmartScreen may warn on the first start – *More info → Run anyway*.
@@ -390,8 +395,8 @@ Reference:
 | Settings | Linux `~/.config/worksheet-assistant/`, Windows `%APPDATA%\Worksheet Assistant\`, macOS `~/Library/Application Support/Worksheet Assistant/` (`config.json`, mode 0600 – contains the API key); the same folders as the standalone program of 0.4/0.5 |
 | Server | The app runs its server program `worksheet-assistant` invisibly (`--app` mode) on `127.0.0.1:8787` (AI chat proxy and MCP). `AUTH_MODE=local`: listens on `127.0.0.1` only; the plugin uses the token, MCP needs no sign-in (Host and Origin are checked) |
 | Autostart | Off by default; switch under *Einstellungen*. Linux XDG autostart, macOS LaunchAgent, Windows `HKCU\…\Run`; starts the app hidden in the tray / menu bar |
-| MCP | Streamable HTTP `http://127.0.0.1:8787/mcp`, or `<app executable> mcp-stdio` for clients that start a command. Claude Desktop entry (`claude_desktop_config.json`): `{"mcpServers":{"worksheet-assistant":{"command":"<app executable>","args":["mcp-stdio"]}}}`, e.g. macOS `/Applications/Arbeitsblatt-Assistent.app/Contents/MacOS/worksheet-assistant-app` |
-| Command line | The server program `worksheet-assistant` inside the app: Linux (`.deb`) `/usr/bin/worksheet-assistant`, macOS `Arbeitsblatt-Assistent.app/Contents/MacOS/worksheet-assistant`, Windows next to `worksheet-assistant-app.exe` in the install folder. Same commands as before: `status`, `install-plugin [--force]`, `uninstall`, `autostart on\|off`, `mcp-stdio`, `help`. `--app` is only for the desktop app (JSON events on stdout, quits when stdin closes) |
+| MCP | Streamable HTTP `http://127.0.0.1:8787/mcp`, or `<app executable> mcp-stdio` for clients that start a command. Claude Desktop entry (`claude_desktop_config.json`): `{"mcpServers":{"worksheet-assistant":{"command":"<app executable>","args":["mcp-stdio"]}}}`, e.g. macOS `/Applications/Worksheet Assistant.app/Contents/MacOS/worksheet-assistant-app` |
+| Command line | The server program `worksheet-assistant` inside the app: Linux (`.deb`) `/usr/bin/worksheet-assistant`, macOS `Worksheet Assistant.app/Contents/MacOS/worksheet-assistant`, Windows next to `worksheet-assistant-app.exe` in the install folder. Same commands as before: `status`, `install-plugin [--force]`, `uninstall`, `autostart on\|off`, `mcp-stdio`, `help`. `--app` is only for the desktop app (JSON events on stdout, quits when stdin closes) |
 | Log | `server.log` in the app's log folder: Linux `~/.local/share/io.github.felixwochnick.worksheet-assistant/logs/`, macOS `~/Library/Logs/io.github.felixwochnick.worksheet-assistant/`, Windows `%LOCALAPPDATA%\io.github.felixwochnick.worksheet-assistant\logs\`. *Einstellungen* has buttons to open the settings and log folders |
 
 Building the app yourself: see [Build → Desktop app](#desktop-app).
