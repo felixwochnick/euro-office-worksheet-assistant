@@ -448,6 +448,7 @@
         if (!res.ok) throw new Error(t('error.editor', { detail: res.error }));
         var note = res.method !== 'api' ? '\n' + t('warning.fallback', { method: res.method, extra: res.warnings.indexOf('alt') !== -1 ? t('warning.noAlt') : '' }) : '';
         show($('m-status'), t('manual.inserted') + note, 'ok');
+        window.WorksheetDoc.refreshSources(settings); // pictures may move to other pages: sources page, "von N"
         loadOutlineOptions();
       }).catch(function (e) {
         show($('m-status'), e.message, 'error');
@@ -470,6 +471,7 @@
       }).then(function (res) {
         if (!res || !res.ok) throw new Error(t('error.editor', { detail: (res && res.error) || '?' }));
         show($('m-status'), t('manual.replaced'), 'ok');
+        window.WorksheetDoc.refreshSources(settings);
       }).catch(function (e) { show($('m-status'), e.message, 'error'); });
     });
 

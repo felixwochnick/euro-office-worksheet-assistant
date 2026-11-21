@@ -668,7 +668,8 @@ function cleanItem(x: unknown, max: number): string | Record<string, unknown> {
   if (x && typeof x === 'object' && !Array.isArray(x)) {
     const o = x as Record<string, unknown>;
     const text = o.text == null ? '' : unescapeText(String(o.text)).slice(0, max);
-    if (!('image_id' in o)) return text;
+    // models often fill optional fields with null or "": no picture then
+    if (o.image_id == null || (typeof o.image_id === 'string' && !o.image_id.trim())) return text;
     const item: Record<string, unknown> = { image_id: typeof o.image_id === 'string' ? o.image_id.trim() : o.image_id };
     if (text) item.text = text;
     const w = Number(o.width_cm);
@@ -694,6 +695,8 @@ function pictureProblem(v: unknown, path: string, depth = 0): string | null {
   const o = v as Record<string, unknown>;
   delete o.picture_meta;
   delete o.picture_data;
+  // an empty optional field (null, "") means "no picture"
+  if ('image_id' in o && (o.image_id == null || (typeof o.image_id === 'string' && !o.image_id.trim()))) delete o.image_id;
   if ('image_id' in o) {
     const id = typeof o.image_id === 'string' ? o.image_id.trim() : '';
     if (!PICTURE_ID.test(id)) {

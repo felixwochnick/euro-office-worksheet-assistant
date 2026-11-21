@@ -358,6 +358,26 @@ test('tools: pictures inside tasks – every image_id is checked and gets pictur
   assert.deepEqual((inColumns.args.blocks as any[])[0].columns[0][0].items[0].picture_meta, META);
   const off = await checkToolCall({ id: 'p5', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'list', items: [{ image_id: 'arasaac:2623' }] }] } }, { userId: 'u', images: null });
   assert.match(off.error!, /switched off/);
+
+  // models fill optional fields with null or "": that means "no picture", not an error
+  const empty = await checkToolCall({
+    id: 'p6', name: 'insert_blocks',
+    arguments: {
+      position: 'end',
+      blocks: [
+        { type: 'multiple_choice', questions: [{ question: 'Q?', options: ['a', 'b'], correct: [0], image_id: null }] },
+        { type: 'true_false', statements: [{ text: 'x', correct: true, image_id: '' }] },
+        { type: 'list', items: [{ image_id: null, text: 'Hund' }, 'Katze'] },
+        { type: 'table', rows: [['A', 'B'], [{ image_id: '  ', text: 'Kuh' }, 'x']] },
+        { type: 'crossword', entries: [{ answer: 'Hund', clue: 'bellt', image_id: null }, { answer: 'Dach', clue: 'oben am Haus' }] },
+      ],
+    },
+  }, ctx);
+  assert.equal(empty.ok, true, empty.error);
+  const eb = empty.args.blocks as any[];
+  assert.ok(!('image_id' in eb[0].questions[0]) && !('image_id' in eb[1].statements[0]) && !('image_id' in eb[4].entries[0]));
+  assert.deepEqual(eb[2].items, ['Hund', 'Katze']);
+  assert.equal(eb[3].rows[1][0], 'Kuh');
 });
 
 test('tools: without pictures the schema has no picture items and no image_id', () => {

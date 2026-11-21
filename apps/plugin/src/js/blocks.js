@@ -216,7 +216,7 @@
       var w = 0;
       var sec = null;
       try {
-        sec = doc.GetFinalSection();
+        sec = worksheetSection();
         // Public getters (twips) in newer editor versions ...
         if (sec.GetPageWidth && sec.GetPageMarginLeft && sec.GetPageMarginRight) {
           w = sec.GetPageWidth() - sec.GetPageMarginLeft() - sec.GetPageMarginRight();
@@ -395,6 +395,14 @@
       }
       return null;
     }
+    /** The section of the worksheet: with a sources page the one before the last (the sources page has its own). */
+    function worksheetSection() {
+      try {
+        var secs = doc.GetSections ? doc.GetSections() : [];
+        if (secs && secs.length > 1 && findSources()) return secs[secs.length - 2];
+      } catch (e) {}
+      return doc.GetFinalSection();
+    }
     /** End of the worksheet content: the index of P_end (new content goes before it), else the element count. */
     function worksheetEnd() {
       var s = findSources();
@@ -496,6 +504,43 @@
       }
       if (!hasBookmark()) warnings.push('bookmark: could not be placed');
     }
+    /** Page number fields (the editor's own or PAGE/NUMPAGES/PAGEREF fields) in a header or footer. */
+    function hasPageFields(apiContent) {
+      try {
+        var dc = apiContent.Document;
+        var paras = dc.GetAllParagraphs({ All: true }) || [];
+        for (var i = 0; i < paras.length; i++) {
+          var items = paras[i].Content || [];
+          for (var j = 0; j < items.length; j++) {
+            var rc = items[j] && items[j].Content;
+            if (!rc || !rc.length) continue;
+            for (var k = 0; k < rc.length; k++) if (rc[k] instanceof AscWord.CRunPageNum) return true;
+          }
+        }
+        var fields = [];
+        dc.GetAllFields(false, fields);
+        return fields.some(function (f) {
+          var t = f.GetInstruction && f.GetInstruction() ? f.GetInstruction().GetType() : null;
+          return t === AscWord.fieldtype_PAGE || t === AscWord.fieldtype_NUMPAGES || t === AscWord.fieldtype_PAGEREF;
+        });
+      } catch (e) { return false; }
+    }
+    /** The sources page inherits the worksheet header; when that shows page numbers, it gets an empty header of its own. */
+    function noPageNumbersOnSources() {
+      try {
+        var secs = doc.GetSections();
+        if (!secs || secs.length < 2) return;
+        var fin = secs[secs.length - 1];
+        var ws = secs[secs.length - 2];
+        ['default', 'even'].forEach(function (k) {
+          try {
+            if (fin.GetHeader(k, false)) return;
+            var h = ws.GetHeader(k, false);
+            if (h && hasPageFields(h)) fin.GetHeader(k, true);
+          } catch (e) {}
+        });
+      } catch (e) {}
+    }
     function hasSectionBreak(p) {
       try { return !!(p.Paragraph && p.Paragraph.Get_SectionPr && p.Paragraph.Get_SectionPr()); } catch (e) { return false; }
     }
@@ -504,6 +549,19 @@
      * req.keep = the table is up to date, only the bookmark and the page reference are refreshed.
      */
     function sourcesOp() {
+      // The page number conversion and the field updates move the cursor into the header/footer:
+      // keep the user's position.
+      var userState = null;
+      try { if (internals) userState = internals.SaveDocumentState(); } catch (e) {}
+      var res = sourcesOpInner();
+      if (userState) {
+        try { internals.LoadDocumentState(userState); } catch (e) {
+          try { internals.RemoveSelection(); internals.SetDocPosType(0); } catch (e2) {}
+        }
+      }
+      return res;
+    }
+    function sourcesOpInner() {
       var src = findSources();
       if (!req.elements || !req.elements.length) {
         if (!src) return { ok: true, op: 'sources', sources: 'none', warnings: warnings };
@@ -547,6 +605,7 @@
       var pe = src && src.pEnd >= 0 ? doc.GetElement(src.pEnd) : null;
       if (pe) placeBookmark(pe);
       var converted = internals ? pageCountToRef() : 0;
+      if (internals) noPageNumbersOnSources();
       var wsPages = null;
       try {
         doc.GetPageCount(); // recalculates the layout, so the page reference is right
@@ -703,10 +762,10 @@
         }
       } catch (e) {}
     }
-    try { doc.GetPageCount(); } catch (e) {} // layout, for the pages of the pictures
     var groups = {};
     var drawings = [];
     try { drawings = doc.GetAllDrawingObjects() || []; } catch (e) {}
+    var laidOut = false;
     for (var k = 0; k < drawings.length; k++) {
       var text = describe(drawings[k]);
       if (!text || text.indexOf('\nQuelle: ') === -1) continue;
@@ -721,6 +780,7 @@
       var g = groups[credit];
       if (!g) { g = groups[credit] = { credit: credit, titles: [], pages: [] }; res.entries.push(g); }
       if (title && g.titles.indexOf(title) === -1) g.titles.push(title);
+      if (!laidOut) { laidOut = true; try { doc.GetPageCount(); } catch (e) {} } // layout, for the pages of the pictures
       var page = pageOf(drawings[k]);
       if (page && g.pages.indexOf(page) === -1) g.pages.push(page);
     }
@@ -926,6 +986,18 @@
     } catch (e) {}
     try {
       var s = doc.GetFinalSection();
+      // with a picture sources page at the end, the worksheet is the section before it
+      try {
+        var n0 = doc.GetElementsCount();
+        for (var si = n0 - 1; si >= 0 && si >= n0 - 8; si--) {
+          var se = doc.GetElement(si);
+          if (se && se.GetClassType() === 'table' && /^WSSOURCES /.test(String(se.GetTableDescription() || ''))) {
+            var secs = doc.GetSections();
+            if (secs.length > 1) s = secs[secs.length - 2];
+            break;
+          }
+        }
+      } catch (e) {}
       var w = s.GetPageWidth() / 1440 * 25.4;
       var pm = s.Section && s.Section.PageMargins;
       res.pageWidthMm = Math.round(w * 10) / 10;

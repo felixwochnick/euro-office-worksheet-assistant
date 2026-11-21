@@ -355,6 +355,28 @@ test('matching: same order with and without loaded pictures; letters mode; solut
   assert.throws(() => layout.compose([{ type: 'matching', pairs: [{ left: { image_id: 'http://x/y.png' }, right: 'a' }, { left: 'b', right: 'c' }] }], {}), /image_id/);
 });
 
+test('matching and crossword: the picture ids do not change the order (the proxy canonicalises them after its check)', () => {
+  const m = (id) => layout.compose([{ type: 'matching', pairs: [{ left: { image_id: id }, right: 'Sehen' }, { left: 'Ohr', right: 'Hören' }, { left: 'Nase', right: 'Riechen' }] }], {});
+  const rightCol = (r) => r.elements[0].rows.filter((x, i) => i % 2 === 0).map((row) => cellTexts(row.cells[4]));
+  assert.deepEqual(rightCol(m('arasaac:02623')), rightCol(m('arasaac:2623')));
+  const cw = (id) => layout.compose([{ type: 'crossword', entries: [{ answer: 'HUND', image_id: id }, { answer: 'KATZE', clue: 'miaut' }, { answer: 'KUH', clue: 'muht' }] }], {});
+  const grid = (r) => r.elements.find((e) => e.runs && e.runs[0] && e.runs[0].image).runs[0].image;
+  assert.equal(layout.parseMarker(grid(cw('arasaac:02623')).alt, layout.GRAPHIC_MARKER).type, 'crossword');
+  assert.ok(grid(cw('arasaac:02623')).svg, 'the grid is an SVG');
+  assert.equal(grid(cw('arasaac:02623')).svg, grid(cw('arasaac:2623')).svg, 'same grid');
+});
+
+test('box and self-assessment: an item object prints its text, never "[object Object]"', () => {
+  const r = layout.compose([
+    { type: 'box', variant: 'tip', items: [{ image_id: 'arasaac:1', text: 'Auge' }, 'Ohr'] },
+    { type: 'self_assessment', statements: [{ text: 'Ich kann lesen.', image_id: 'arasaac:1' }, 'Ich kann zählen.'] },
+  ], {});
+  const all = JSON.stringify(r.elements);
+  assert.doesNotMatch(all, /object Object/);
+  assert.match(all, /Auge/);
+  assert.match(all, /Ich kann lesen\./);
+});
+
 test('multiple choice: picture options side by side with check boxes below, a picture with the question', () => {
   const q = { question: 'Was hörst du?', image_id: 'arasaac:7', picture_meta: { title: 'Ohr', credit: ARASAAC, width: 400, height: 300 },
     options: [pic(1, 'Glocke', { text: 'Glocke' }), pic(2, 'Fisch'), 'nichts'], correct: [0] };

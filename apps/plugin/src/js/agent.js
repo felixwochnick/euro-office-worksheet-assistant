@@ -268,7 +268,8 @@
           var out = { ok: true, inserted: true, index: r.index, method: r.method, alt_text_set: !!r.alt_text };
           if (r.warnings && r.warnings.indexOf('cursor') !== -1) out.note = 'Inserted at the cursor because the requested position could not be reached.';
           if (rendered.warnings && rendered.warnings.length) out.render_warnings = rendered.warnings.slice(0, 5);
-          return out;
+          // the staff can move pictures to other pages: sources page and "von N" in the footer
+          return window.WorksheetDoc.refreshSources(settings).then(function () { return out; });
         });
       });
     });
@@ -428,7 +429,8 @@
             abc: abc
           }).then(function (r) {
             if (!r || !r.ok) return { ok: false, replaced: false, error: (r && r.error) || 'replace failed' };
-            return { ok: true, replaced: true, index: index, method: r.method, alt_text_set: !!r.alt_text, previous_abc: staff.abc };
+            var done = { ok: true, replaced: true, index: index, method: r.method, alt_text_set: !!r.alt_text, previous_abc: staff.abc };
+            return window.WorksheetDoc.refreshSources(settings).then(function () { return done; });
           });
         });
       });

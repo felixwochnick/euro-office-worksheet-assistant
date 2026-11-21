@@ -633,7 +633,7 @@
     if (Array.isArray(items) && items.length) {
       var ref = c.listPrefix + '-' + (++c.listCounter);
       items.forEach(function (it) {
-        out.push(cellPara(c, String(it), c.body, { style: 'List Paragraph', numbering: { ref: ref, type: 'bullet' }, after: 20, syllables: syllables }));
+        out.push(cellPara(c, itemText(it), c.body, { style: 'List Paragraph', numbering: { ref: ref, type: 'bullet' }, after: 20, syllables: syllables }));
       });
     }
     if (out.length) out[out.length - 1].after = 0;
@@ -883,9 +883,12 @@
         if (!isPictureItem(it[side]) && !str(it[side]).trim()) throw blockError('matching pair ' + (i + 1) + ': "' + side + '" must be a text or a picture item {image_id}.');
       });
     });
-    var m = genLib().matching(items.map(function (it, i) {
+    // pictures enter the shuffle as placeholders: the proxy checks the layout before it canonicalises the ids
+    // ("arasaac:02623" -> "arasaac:2623"), so the ids must not change the seed
+    var genItems = items.map(function (it, i) {
       return { left: isPictureItem(it.left) ? 'picture ' + i : it.left, right: isPictureItem(it.right) ? 'picture ' + i : it.right };
-    }), { seed: JSON.stringify(items.map(function (it) { return { left: it.left, right: it.right }; })) });
+    });
+    var m = genLib().matching(genItems, { seed: JSON.stringify(genItems) });
     var srcAt = [];
     m.key.forEach(function (pos, src) { srcAt[pos] = src; });
     var leftRef = function (i) { return isPictureItem(items[i].left) ? items[i].src.left : items[i].left; };
@@ -957,7 +960,8 @@
     });
     var PIC = '⁣picture ';
     var gen = entries.map(function (e, i) { return { answer: e.answer, clue: e.image_id ? PIC + i : e.clue }; });
-    var layout = genLib().crossword(gen, { seed: JSON.stringify(entries), maxWidth: 17, maxHeight: 17 });
+    // seed without the picture ids (canonicalised by the proxy after its layout check)
+    var layout = genLib().crossword(gen, { seed: JSON.stringify(gen), maxWidth: 17, maxHeight: 17 });
     if (layout.errors && layout.errors.length) throw blockError('crossword: ' + layout.errors.join(' '));
     if (layout.unplaced && layout.unplaced.length) {
       throw blockError('crossword: these answers could not be placed: ' + layout.unplaced.map(function (u) { return u.answer; }).join(', ') +
@@ -1226,7 +1230,7 @@
 
   builders.self_assessment = function (b, c) {
     var t = c.theme;
-    var st = (b.statements || []).map(String);
+    var st = (b.statements || []).map(function (s) { return itemText(s); });
     if (!st.length) throw blockError('self_assessment needs "statements".');
     var headBase = { font: t.font, size: t.sizes.small || undefined, color: t.colors.tableHeaderText || t.colors.text, b: true };
     var faces = [['smiley_good', c.L.selfGood], ['smiley_neutral', c.L.selfOk], ['smiley_bad', c.L.selfBad]];
