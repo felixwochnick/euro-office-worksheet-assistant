@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.9.0 – pictures inside tasks, picture credits on a sources page
+
+- **Pictures inside tasks:** children who cannot read well yet work with the pictures themselves – connect the
+  picture of an eye with "Sehen", tick the right picture, sort pictures in a table. A task item can be a picture
+  `{image_id, text?, width_cm?}`: `matching` (left and right), `multiple_choice` (options, and a picture with the
+  question), `true_false` (a picture with the statement), `table` (cells), `list` (items, a pictogram before the
+  word) and `crossword` (picture clues). The AI puts pictures into the task instead of a picture column beside it.
+  `get_elements` shows them as `[Bild arasaac:2623 „Auge“]`, so they survive when the AI changes the task.
+- **Sources page:** the licence credits are no longer printed under each picture but collected on a page at the end
+  of the document (*Bildquellen*), one line per credit with the titles and pages. The plugin keeps it up to date with
+  every change and removes it when no picture is left. It has no page number and does not count: with 6 pages of
+  worksheet the footer says *Seite 1 von 6* although the sources page is page 7 (the footer refers to the end of the
+  worksheet instead of counting all pages). New content at the end goes before it; the AI cannot change or delete it.
+  The worksheet check counts only the worksheet pages.
+
 ## 0.8.2 – English file names for the desktop app
 
 - **English file names:** the desktop app is installed as *Worksheet Assistant* (macOS `Worksheet Assistant.app`,
