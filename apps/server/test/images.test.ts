@@ -6,11 +6,12 @@ import path from 'node:path';
 import { runTurn } from '../src/agent.js';
 import { loadConfig } from '../src/config.js';
 import { ImageError, ImageService, ownPath, parseMultistatus, words, type HttpGet } from '../src/images.js';
-import { buildSystemPrompt } from '../src/prompt.js';
+import { buildSystemPrompt, renderDocumentContext } from '../src/prompt.js';
+import { MockProvider } from '../src/providers/mock.js';
 import { buildServer } from '../src/server.js';
 import { checkToolCall, runServerTool, toolDefinitions } from '../src/tools.js';
 import type { SafeResponse } from '../src/safe-fetch.js';
-import type { CompletionRequest, CompletionResult, LLMProvider } from '../src/types.js';
+import type { ChatMessage, CompletionRequest, CompletionResult, LLMProvider } from '../src/types.js';
 
 const TOKEN = 'test-token-0123456789';
 const PNG = Buffer.from('89504e470d0a1a0a0000000d49484452', 'hex');
@@ -20,6 +21,12 @@ function json(v: unknown): SafeResponse {
 }
 
 const ARASAAC_FOX = { _id: 2623, keywords: [{ keyword: 'Fuchs' }], tags: ['animal', 'wild'] };
+/** More pictograms of the fake ARASAAC (the five senses). */
+const ARASAAC_MORE: Record<string, { _id: number; keywords: Array<{ keyword: string }> }> = {
+  Auge: { _id: 6573, keywords: [{ keyword: 'Auge' }] },
+  Ohr: { _id: 2871, keywords: [{ keyword: 'Ohr' }] },
+  Nase: { _id: 2887, keywords: [{ keyword: 'Nase' }] },
+};
 const COMMONS_FOX = {
   query: {
     pages: [
@@ -47,6 +54,10 @@ function fakeHttp(log: string[] = []): HttpGet {
     if (u.hostname === 'api.arasaac.org') {
       if (u.pathname === '/v1/pictograms/de/search/Fuchs') return json([ARASAAC_FOX]);
       if (u.pathname === '/v1/pictograms/de/2623') return json(ARASAAC_FOX);
+      const word = /^\/v1\/pictograms\/de\/search\/(.+)$/.exec(u.pathname);
+      if (word && ARASAAC_MORE[decodeURIComponent(word[1])]) return json([ARASAAC_MORE[decodeURIComponent(word[1])]]);
+      const more = Object.values(ARASAAC_MORE).find((p) => u.pathname === `/v1/pictograms/de/${p._id}`);
+      if (more) return json(more);
       return { status: 404, contentType: 'application/json', body: Buffer.from('[]') };
     }
     if (u.hostname === 'static.arasaac.org') return { status: 200, contentType: 'image/png', body: PNG };
@@ -290,6 +301,153 @@ test('tools: search_images and picture blocks', async () => {
   assert.match(noId.error!, /call search_images first/);
   const offBlocks = await checkToolCall({ id: '7', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'picture', image_id: 'arasaac:2623' }] } }, { userId: 'u', images: null });
   assert.match(offBlocks.error!, /switched off/);
+});
+
+test('tools: pictures inside tasks – every image_id is checked and gets picture_meta, nested errors name the place', async () => {
+  const log: string[] = [];
+  const images = new ImageService({ sources: ['arasaac', 'commons'], folder: '', httpGet: fakeHttp(log) });
+  const ctx = { userId: 'u', images };
+  const ok = await checkToolCall({
+    id: 'p1', name: 'insert_blocks',
+    arguments: {
+      position: 'end',
+      blocks: [
+        { type: 'matching', pairs: [{ left: { image_id: ' arasaac:2623 ', picture_data: { dataUrl: 'x' }, extra: 1 }, right: 'Fuchs' }, { left: 'Hund', right: { image_id: 'arasaac:2623', text: 'bellt nicht' } }] },
+        { type: 'multiple_choice', questions: [{ question: 'Was ist das?', image_id: 'arasaac:2623', options: [{ image_id: 'commons:Red fox.jpg' }, 'Katze'], correct: [0] }] },
+        { type: 'true_false', statements: [{ text: 'Das ist ein Fuchs.', correct: true, image_id: 'arasaac:2623' }] },
+        { type: 'table', rows: [['Tier', 'Bild'], ['Fuchs', { image_id: 'arasaac:2623', text: 'Fuchs', width_cm: 20, junk: 'x' }]] },
+        { type: 'list', items: [{ image_id: 'arasaac:2623', text: 'der Fuchs' }, 'der Hund', { text: 'die Katze' }] },
+        { type: 'crossword', entries: [{ answer: 'Fuchs', image_id: 'arasaac:2623' }, { answer: 'Hund', clue: 'bellt' }, { answer: 'Dach', clue: 'oben am Haus' }] },
+        { type: 'paragraph', text: 'Kein Bild', image_id: 'arasaac:2623' },
+      ],
+    },
+  }, ctx);
+  assert.equal(ok.ok, true, ok.error);
+  const blocks = ok.args.blocks as any[];
+  const META = { title: 'Fuchs', credit: 'Piktogramm: Sergio Palao, ARASAAC (arasaac.org), CC BY-NC-SA 4.0', width: 500, height: 500 };
+  const left = blocks[0].pairs[0].left;
+  assert.equal(left.image_id, 'arasaac:2623', 'trimmed id');
+  assert.deepEqual(left.picture_meta, META);
+  assert.equal(left.picture_data, undefined, 'the model cannot inject image data');
+  assert.deepEqual(blocks[0].pairs[1].right.picture_meta, META);
+  assert.deepEqual(blocks[1].questions[0].picture_meta, META);
+  assert.equal(blocks[1].questions[0].options[0].picture_meta.title, 'Red fox');
+  assert.deepEqual(blocks[2].statements[0].picture_meta, META);
+  assert.deepEqual(blocks[3].rows[1][1], { image_id: 'arasaac:2623', text: 'Fuchs', width_cm: 8, picture_meta: META }, 'table cells keep only the picture item fields');
+  assert.deepEqual(blocks[4].items.map((x: any) => (typeof x === 'string' ? x : x.image_id)), ['arasaac:2623', 'der Hund', 'die Katze']);
+  assert.deepEqual(blocks[5].entries[0].picture_meta, META);
+  assert.equal(blocks[6].image_id, undefined, 'image_id only on picture blocks at the top level');
+  assert.equal(log.filter((u) => u.endsWith('/v1/pictograms/de/2623')).length, 1, 'the same picture is described once');
+
+  const bad = await checkToolCall({
+    id: 'p2', name: 'insert_blocks',
+    arguments: { position: 'end', blocks: [{ type: 'paragraph', text: 'x' }, { type: 'matching', pairs: [{ left: 'a', right: 'b' }, { left: { image_id: 'https://x/y.png' }, right: 'c' }] }] },
+  }, ctx);
+  assert.equal(bad.ok, false);
+  assert.match(bad.error!, /^Nothing was inserted\. blocks\[1\]\.pairs\[1\]\.left: "image_id" must be an id from a search_images result/);
+  const nested = await checkToolCall({
+    id: 'p3', name: 'replace_elements',
+    arguments: { from: 0, to: 0, blocks: [{ type: 'columns', columns: [[{ type: 'table', rows: [[{ image_id: 'arasaac:99' }]] }], [{ type: 'paragraph', text: 'x' }]] }] },
+  }, ctx);
+  assert.match(nested.error!, /^Nothing was changed\. Unknown picture/);
+  const inColumns = await checkToolCall({
+    id: 'p4', name: 'insert_blocks',
+    arguments: { position: 'end', blocks: [{ type: 'columns', columns: [[{ type: 'list', items: [{ image_id: 'arasaac:2623' }, 'b'] }], [{ type: 'paragraph', text: 'x' }]] }] },
+  }, ctx);
+  assert.equal(inColumns.ok, true, inColumns.error);
+  assert.deepEqual((inColumns.args.blocks as any[])[0].columns[0][0].items[0].picture_meta, META);
+  const off = await checkToolCall({ id: 'p5', name: 'insert_blocks', arguments: { position: 'end', blocks: [{ type: 'list', items: [{ image_id: 'arasaac:2623' }] }] } }, { userId: 'u', images: null });
+  assert.match(off.error!, /switched off/);
+
+  // models fill optional fields with null or "": that means "no picture", not an error
+  const empty = await checkToolCall({
+    id: 'p6', name: 'insert_blocks',
+    arguments: {
+      position: 'end',
+      blocks: [
+        { type: 'multiple_choice', questions: [{ question: 'Q?', options: ['a', 'b'], correct: [0], image_id: null }] },
+        { type: 'true_false', statements: [{ text: 'x', correct: true, image_id: '' }] },
+        { type: 'list', items: [{ image_id: null, text: 'Hund' }, 'Katze'] },
+        { type: 'table', rows: [['A', 'B'], [{ image_id: '  ', text: 'Kuh' }, 'x']] },
+        { type: 'crossword', entries: [{ answer: 'Hund', clue: 'bellt', image_id: null }, { answer: 'Dach', clue: 'oben am Haus' }] },
+      ],
+    },
+  }, ctx);
+  assert.equal(empty.ok, true, empty.error);
+  const eb = empty.args.blocks as any[];
+  assert.ok(!('image_id' in eb[0].questions[0]) && !('image_id' in eb[1].statements[0]) && !('image_id' in eb[4].entries[0]));
+  assert.deepEqual(eb[2].items, ['Hund', 'Katze']);
+  assert.equal(eb[3].rows[1][0], 'Kuh');
+});
+
+test('tools: without pictures the schema has no picture items and no image_id', () => {
+  const find = (v: unknown, path = ''): string[] => {
+    if (!v || typeof v !== 'object') return [];
+    const out: string[] = [];
+    for (const [k, x] of Object.entries(v as Record<string, unknown>)) {
+      if (k === 'image_id') out.push(path + '.' + k);
+      out.push(...find(x, path + '.' + k));
+    }
+    return out;
+  };
+  const off = toolDefinitions({ images: null });
+  const on = toolDefinitions({ images: ncService() });
+  for (const name of ['insert_blocks', 'replace_elements']) {
+    const offDef = off.find((d) => d.name === name)!;
+    const onDef = on.find((d) => d.name === name)!;
+    assert.deepEqual(find(offDef.parameters), [], `${name}: no image_id without pictures`);
+    assert.ok(find(onDef.parameters).length >= 5, `${name}: image_id in picture blocks, items, questions, statements, entries`);
+    const offProps = (offDef.parameters as any).properties.blocks.items.properties;
+    const onProps = (onDef.parameters as any).properties.blocks.items.properties;
+    assert.deepEqual(offProps.pairs.items.properties.left, { type: 'string', maxLength: 500 });
+    assert.equal(onProps.pairs.items.properties.left.anyOf.length, 2);
+    assert.deepEqual(offProps.items.items, { type: 'string', maxLength: 2000 });
+    assert.equal(offProps.statements.items.anyOf.length, 2, 'statements keep their string/object alternatives');
+    assert.doesNotMatch(offProps.type.description, /picture item|Pictures inside tasks/);
+    assert.match(onProps.type.description, /Pictures inside tasks/);
+  }
+});
+
+test('prompt: the picture sources page is one line the model must leave alone', () => {
+  const out = renderDocumentContext({
+    elements: [
+      { index: 0, type: 'paragraph', text: 'Die fünf Sinne', is_heading: true, heading_level: 1 },
+      { index: 1, type: 'table', rows: 5, cols: 5, block: 'matching', text: '[Bild arasaac:6573 „Auge“] | Sehen' },
+      { index: 2, type: 'paragraph', text: '', sources: true },
+      { index: 3, type: 'table', sources: true, text: '(Bildquellen – picture sources page, maintained automatically)' },
+      { index: 4, type: 'paragraph', sources: true },
+    ],
+    picture_sources_page: { from: 2, to: 4 },
+    cursor_index: 1,
+    total_elements: 5,
+  });
+  assert.match(out, /\[2-4\] PICTURE SOURCES PAGE \(automatic – never edit, delete or insert there; content inserted at "end" goes before it\)/);
+  assert.equal(out.match(/PICTURE SOURCES PAGE/g)!.length, 1);
+  assert.doesNotMatch(out, /Bildquellen – picture sources page/);
+  assert.match(out, /\[1\] \[matching\] \(table 5×5\) "\[Bild arasaac:6573 „Auge“\] \| Sehen"/);
+  assert.match(buildSystemPrompt(undefined, { pictures: true }), /\[Bild <image_id> „<title>“\] back into picture items/);
+});
+
+test('agent: mock builds a matching task with pictures (picture ↔ word)', async () => {
+  const provider = new MockProvider();
+  const images = ncService();
+  const messages: ChatMessage[] = [{ role: 'user', content: 'Erstelle eine Zuordnungsaufgabe mit Bildern zu den Sinnen' }];
+  const r1 = await runTurn({ provider, messages, maxIterations: 6, userId: 'anna', images });
+  assert.equal(r1.done, false);
+  const call = r1.pending_tool_calls[0];
+  assert.equal(call.name, 'insert_blocks');
+  const [task, matching] = call.arguments.blocks as any[];
+  assert.equal(task.type, 'task');
+  assert.equal(matching.type, 'matching');
+  assert.deepEqual(matching.pairs.map((p: any) => [p.left.image_id, p.left.picture_meta.title, p.right]),
+    [['arasaac:6573', 'Auge', 'Sehen'], ['arasaac:2871', 'Ohr', 'Hören'], ['arasaac:2887', 'Nase', 'Riechen']]);
+  assert.equal(r1.messages.filter((m) => m.role === 'tool' && m.name === 'search_images').length, 3);
+  messages.push(...r1.messages, { role: 'tool', tool_call_id: call.id, name: call.name, content: JSON.stringify({ ok: true, inserted: true, count: 3 }) });
+  const r2 = await runTurn({ provider, messages, maxIterations: 6, userId: 'anna', images });
+  assert.equal(r2.done, true);
+  assert.equal((r2.messages[0] as { content: string }).content, 'Fertig (Mock-Modus): Zuordnung mit 3 Bildern eingefügt.');
+  const off = await runTurn({ provider: new MockProvider(), messages: [{ role: 'user', content: 'Bilder zuordnen' }], maxIterations: 6 });
+  assert.match((off.messages[0] as { content: string }).content, /ausgeschaltet/);
 });
 
 class Scripted implements LLMProvider {

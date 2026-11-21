@@ -226,7 +226,7 @@
     if (call.name === 'replace_staff') return this.replaceStaff(call, signal);
     if (call.name === 'setup_page') return this.setupPage(call, signal);
     if (call.name === 'check_worksheet') {
-      return window.WorksheetDoc.checkData().then(function (data) {
+      return window.WorksheetDoc.checkData(settings).then(function (data) {
         var r = window.WorksheetCheck.check({ elements: data.elements, layout: data.layout }, { grade: args.grade, max_pages: args.max_pages });
         return { ok: true, passed: r.ok, summary: r.summary, stats: r.stats, tasks: r.tasks, issues: r.issues.slice(0, 40) };
       });
@@ -268,7 +268,8 @@
           var out = { ok: true, inserted: true, index: r.index, method: r.method, alt_text_set: !!r.alt_text };
           if (r.warnings && r.warnings.indexOf('cursor') !== -1) out.note = 'Inserted at the cursor because the requested position could not be reached.';
           if (rendered.warnings && rendered.warnings.length) out.render_warnings = rendered.warnings.slice(0, 5);
-          return out;
+          // the staff can move pictures to other pages: sources page and "von N" in the footer
+          return window.WorksheetDoc.refreshSources(settings).then(function () { return out; });
         });
       });
     });
@@ -301,6 +302,20 @@
     });
   }
 
+  /** What happened to the picture sources page, for the model (it must not write credits itself). */
+  function sourcesNote(out, s) {
+    if (!s) return out;
+    if (s.sources === 'created' || s.sources === 'updated') {
+      out.picture_sources = 'The picture credits are listed on the sources page (Bildquellen) at the end of the document; ' +
+        'it has no page number and is not counted in "Seite X von N". It is updated automatically – do not write credits yourself.';
+    } else if (s.sources === 'removed') {
+      out.picture_sources = 'No pictures with credits are left, so the sources page at the end was removed.';
+    } else if (s.ok === false && s.error) {
+      out.picture_sources = 'The picture sources page could not be updated: ' + s.error;
+    }
+    return out;
+  }
+
   /** insert_blocks / replace_elements: worksheet content (title, tasks, tables, puzzles, graphics, staves …). */
   ChatAgent.prototype.editBlocks = function (call, signal) {
     var self = this;
@@ -320,9 +335,10 @@
           : { op: 'insert', position: args.position, elements: forEditor(prep.elements) };
         if (prep.storeTheme) req.theme = prep.storeTheme;
         if (prep.storeLang) req.lang = prep.storeLang;
-        return window.WorksheetDoc.editBlocks(req).then(function (r) {
+        return window.WorksheetDoc.editBlocks(req, settings).then(function (r) {
           if (!r.ok) return { ok: false, error: r.error };
           var out = { ok: true, count: r.count, first_index: r.first_index, last_index: r.last_index, theme: prep.theme };
+          sourcesNote(out, r.sources);
           if (replacing) { out.replaced = true; out.removed = r.removed; } else { out.inserted = true; }
           var warnings = (prep.warnings || []).concat(r.warnings || []);
           if (warnings.length) out.warnings = warnings.slice(0, 8);
@@ -380,9 +396,9 @@
       return confirm.then(function (accepted) {
         if (signal && signal.aborted) return { ok: false, error: 'aborted by user' };
         if (!accepted) return { ok: true, deleted: false, reason: 'The user did not confirm the deletion.' };
-        return window.WorksheetDoc.editBlocks({ op: 'delete', from: from, to: to }).then(function (r) {
+        return window.WorksheetDoc.editBlocks({ op: 'delete', from: from, to: to }, settings).then(function (r) {
           if (!r.ok) return { ok: false, error: r.error };
-          return { ok: true, deleted: true, removed_count: r.removed.length, removed: r.removed, note: 'Indices of later elements have shifted.' };
+          return sourcesNote({ ok: true, deleted: true, removed_count: r.removed.length, removed: r.removed, note: 'Indices of later elements have shifted.' }, r.sources);
         });
       });
     });
@@ -413,7 +429,8 @@
             abc: abc
           }).then(function (r) {
             if (!r || !r.ok) return { ok: false, replaced: false, error: (r && r.error) || 'replace failed' };
-            return { ok: true, replaced: true, index: index, method: r.method, alt_text_set: !!r.alt_text, previous_abc: staff.abc };
+            var done = { ok: true, replaced: true, index: index, method: r.method, alt_text_set: !!r.alt_text, previous_abc: staff.abc };
+            return window.WorksheetDoc.refreshSources(settings).then(function () { return done; });
           });
         });
       });

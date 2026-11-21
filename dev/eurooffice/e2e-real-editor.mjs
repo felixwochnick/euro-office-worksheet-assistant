@@ -229,7 +229,8 @@ try {
     await plugin.locator('#s-mcp').check();
     await plugin.locator('#s-mcp-status.ok').waitFor({ timeout: 15000 });
     step('MCP bridge connected: ' + (await plugin.locator('#s-mcp-status').textContent()));
-    const sdk = await import(pathToFileURL(path.join(here, '../../node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
+    // a dependency of apps/server (pnpm workspace: not hoisted to the root node_modules)
+    const sdk = await import(pathToFileURL(path.join(here, '../../apps/server/node_modules/@modelcontextprotocol/client/dist/index.mjs')).href);
     const mcp = new sdk.Client({ name: 'e2e', version: '1.0.0' });
     await mcp.connect(new sdk.StreamableHTTPClientTransport(new URL(PROXY_URL + '/mcp'), { requestInit: { headers: { authorization: `Bearer ${PROXY_TOKEN}` } } }));
     const docs = await mcp.callTool({ name: 'list_open_documents', arguments: {} });
@@ -315,6 +316,97 @@ try {
   step('fallbacks PutImageDataToSelection / PasteHtml insert separate images with alt text');
   await shot(page, '5-fallbacks');
 
+  // Picture sources page: a picture inside a task with a credit -> a page of its own at the end (section break, own empty
+  // footer); the worksheet footer refers to the end of the worksheet, so "von N" does not count the sources page.
+  const src = await plugin.evaluate(async () => {
+    const png = await MusicRenderer.renderPng('X:1\nM:none\nL:1/4\nK:C clef=treble\nC |]', { widthCm: 3 });
+    const alt = 'Bild: Auge\nQuelle: Piktogramm: Sergio Palao, ARASAAC (arasaac.org), CC BY-NC-SA 4.0\n\nWSPICTURE {"image_id":"arasaac:2623"}';
+    const cell = (runs) => ({ content: [{ t: 'p', runs }] });
+    const els = [{ t: 'table', rows: [{ cells: [cell([{ image: { dataUrl: png.dataUrl, wEmu: 25 * 36000, hEmu: 10 * 36000, alt, kind: 'picture' } }]), cell([{ text: 'Sehen' }])] }] }];
+    const r = await WorksheetDoc.editBlocks({ op: 'insert', position: 'end', elements: els }, {});
+    const o = await MusicEditor.getOutline();
+    const info = await MusicEditor.callCommand(function () {
+      var doc = Api.GetDocument();
+      return { pages: doc.GetPageCount(), sections: doc.GetSections().length, count: doc.GetElementsCount() };
+    }, {}, false);
+    const again = await WorksheetDoc.editBlocks({ op: 'insert', position: 'end', elements: [{ t: 'p', runs: [{ text: 'Ende des Arbeitsblatts' }] }] }, {});
+    const o2 = await MusicEditor.getOutline();
+    const refused = await WorksheetDoc.editBlocks({ op: 'delete', from: o2.picture_sources_page.from, to: o2.picture_sources_page.to }, {});
+    const cells = await WorksheetDoc.getElements(o.picture_sources_page.from - 1, o.picture_sources_page.from - 1);
+    return {
+      sources: r.sources, range: o.picture_sources_page, info, again: again.sources && again.sources.sources,
+      endBefore: o2.elements.findIndex((e) => e.text === 'Ende des Arbeitsblatts') < o2.picture_sources_page.from,
+      refused: !refused.ok, tags: cells.elements[0].rows,
+    };
+  });
+  console.log('   sources page:', JSON.stringify(src));
+  assert.equal(src.sources.sources, 'created');
+  assert.equal(src.info.sections, 2, 'the sources page is a section of its own');
+  assert.equal(src.sources.worksheet_pages, src.info.pages - 1, 'worksheet pages = all pages but the sources page');
+  assert.equal(src.sources.page_refs, 1, 'the footer refers to the end of the worksheet');
+  assert.equal(src.again, 'kept');
+  assert.ok(src.endBefore, 'new content at the end goes before the sources page');
+  assert.ok(src.refused, 'the sources page cannot be deleted');
+  assert.match(src.tags[0][0], /^\[Bild arasaac:2623 „Auge“\]/);
+  step(`sources page after a section break, footer "von ${src.sources.worksheet_pages}" of ${src.info.pages} pages`);
+  await shot(page, '6-sources');
+
+  // ... the user's position stays in the text; setup_page while the sources page exists (columns and header only on the
+  // worksheet, no page numbers on the sources page, text width of the worksheet); a staff updates it; removing the
+  // last picture removes the page and gives the footer its page count back; then the page is created again.
+  const more = await plugin.evaluate(async () => {
+    const posType = () => MusicEditor.callCommand(function () { var ld = Api.GetDocument().Document; return ld.GetDocPosType ? ld.GetDocPosType() : null; }, {}, false);
+    const sections = () => MusicEditor.callCommand(function () {
+      var doc = Api.GetDocument(); var secs = doc.GetSections();
+      return { n: secs.length, finalHeader: !!secs[secs.length - 1].GetHeader('default', false), bookmarks: doc.GetAllBookmarksNames(), pages: doc.GetPageCount() };
+    }, {}, false);
+    const out = { pos: await posType() };
+    await WorksheetDoc.setupPage({ columns: 2, header: { center: 'Seite {page} von {pages}' } }, {});
+    out.width2 = (await WorksheetDoc.docInfo()).textWidthMm;
+    out.afterSetup = await sections();
+    out.posAfterSetup = await posType();
+    await WorksheetDoc.setupPage({ columns: 1 }, {});
+    out.width1 = (await WorksheetDoc.docInfo()).textWidthMm;
+    const abc = 'X:1\nM:none\nL:1/4\nK:C clef=treble\nC D E |]';
+    const png = await MusicRenderer.renderPng(abc, { widthCm: 12 });
+    const o0 = await MusicEditor.getOutline();
+    // "after" the last element of the sources page
+    out.staff = (await MusicEditor.insertImage({ dataUrl: png.dataUrl, widthMm: png.widthMm, heightMm: png.heightMm, abc, position: { after_paragraph_index: o0.total_elements - 1 } })).ok;
+    const o = await MusicEditor.getOutline();
+    const all = await WorksheetDoc.getElements(0, o.total_elements - 1);
+    const pic = all.elements.find((e) => e.rows && e.rows.some((r) => r.some((c) => /\[Bild arasaac:2623/.test(c))));
+    out.staffBefore = o.elements.findIndex((e) => /C D E/.test(e.abc || '')) < o.picture_sources_page.from;
+    const del = await WorksheetDoc.editBlocks({ op: 'delete', from: pic.index, to: pic.index }, {});
+    out.removed = del.sources && del.sources.sources;
+    out.afterRemove = await sections();
+    out.footer = await MusicEditor.callCommand(function () {
+      var f = Api.GetDocument().GetFinalSection().GetFooter('default', false);
+      var n = 0;
+      f.Document.GetAllParagraphs({ All: true }).forEach(function (P) { P.Content.forEach(function (r) { (r.Content || []).forEach(function (x) { if (x instanceof AscWord.CRunPagesCount) n++; }); }); });
+      return n;
+    }, {}, false);
+    const png2 = await MusicRenderer.renderPng('X:1\nM:none\nL:1/4\nK:C clef=treble\nC |]', { widthCm: 3 });
+    const alt = 'Bild: Auge\nQuelle: Piktogramm: Sergio Palao, ARASAAC (arasaac.org), CC BY-NC-SA 4.0\n\nWSPICTURE {"image_id":"arasaac:2623"}';
+    const again = await WorksheetDoc.editBlocks({ op: 'insert', position: 'end', elements: [{ t: 'p', runs: [{ image: { dataUrl: png2.dataUrl, wEmu: 25 * 36000, hEmu: 10 * 36000, alt, kind: 'picture' } }] }] }, {});
+    out.recreated = again.sources && again.sources.sources;
+    out.posEnd = await posType();
+    return out;
+  });
+  console.log('   sources page edits:', JSON.stringify(more));
+  // 2 = header/footer (the field conversion would leave the cursor there); the e2e has a drawing selected (3) before
+  assert.notEqual(more.pos, 2, 'cursor not left in the footer after creating the sources page');
+  assert.notEqual(more.posAfterSetup, 2, 'cursor not left in the footer after setup_page');
+  assert.ok(more.width2 < more.width1 * 0.6, `two columns on the worksheet: ${more.width2} mm of ${more.width1} mm`);
+  assert.equal(more.afterSetup.finalHeader, true, 'the sources page gets an empty header instead of the page numbers');
+  assert.ok(more.staff && more.staffBefore, 'a staff "after" the sources page goes before it');
+  assert.equal(more.removed, 'removed');
+  assert.equal(more.afterRemove.n, 1, 'one section again');
+  assert.deepEqual(more.afterRemove.bookmarks, []);
+  assert.ok(more.footer >= 1, 'the footer counts all pages again');
+  assert.equal(more.recreated, 'created');
+  assert.notEqual(more.posEnd, 2);
+  step('sources page: cursor stays in the text, setup_page with columns and header, staff before it, removed and created again');
+
   // Save and inspect the .docx. Give the editor time to send the last changes
   // to the server first (co-editing changes are transmitted asynchronously).
   await page.waitForTimeout(Number(process.env.SAVE_DELAY_MS || 5000));
@@ -337,6 +429,14 @@ try {
   assert.ok(media.length >= 6, 'images are embedded in the saved .docx');
   assert.ok(descrs.some((d) => /Geändert/.test(d)) && descrs.some((d) => /C \^F G/.test(d)) && descrs.some((d) => /Hal-lo du/.test(d)), 'ABC alt text survives saving');
   step('saved .docx contains the PNG images and the ABC alt texts');
+  const footerXml = listing.split('\n').map((l) => l.trim().split(/\s+/).slice(-1)[0]).filter((n) => /^word\/footer\d*\.xml$/.test(n))
+    .map((n) => execFileSync('unzip', ['-p', file, n]).toString()).join('\n');
+  assert.match(footerXml, /PAGEREF Arbeitsblatt_Ende/, 'footer refers to the end of the worksheet');
+  assert.match(xml, /<w:bookmarkStart [^>]*w:name="Arbeitsblatt_Ende"/, 'bookmark at the end of the worksheet');
+  assert.match(xml, /<w:pPr>(?:(?!<\/w:pPr>)[\s\S])*<w:sectPr/, 'section break before the sources page');
+  assert.match(xml, /Bildquellen/);
+  assert.ok(descrs.some((d) => /^Bild: Auge\\nQuelle: Piktogramm/.test(d)), 'picture credit in the alt text');
+  step('saved .docx: section break, bookmark, PAGEREF in the footer, sources page');
 
   assert.deepEqual(errors, []);
   step('no page errors');

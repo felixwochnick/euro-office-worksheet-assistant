@@ -86,7 +86,11 @@ export interface DocumentContext {
     graphic?: { type?: string; [key: string]: unknown };
     /** Block type of a table inserted by the assistant (e.g. "box:rule", "true_false"). */
     block?: string;
+    /** Part of the picture sources page at the end (maintained by the plugin). */
+    sources?: boolean;
   }>;
+  /** Element indices of the picture sources page at the end of the document (maintained by the plugin), if there is one. */
+  picture_sources_page?: { from: number; to: number } | null;
   cursor_index?: number | null;
   total_elements?: number;
   truncated?: boolean;

@@ -37,8 +37,10 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
   (tool `search_images`) and places them (block `picture`, beside text with `columns`). Sources: **ARASAAC**
   pictograms (simple, consistent drawings made for special-needs teaching, German keywords), **Wikimedia Commons**
   (photos, drawings, historical pictures) and the teacher's **own pictures** – a folder in their Nextcloud
-  (`Arbeitsblatt-Bilder`), e.g. comic panels for Latin or own photos. The licence credit of free pictures is printed
-  under the picture automatically. See [Pictures](#pictures).
+  (`Arbeitsblatt-Bilder`), e.g. comic panels for Latin or own photos. Pictures also go **inside tasks**: match the
+  picture of an eye with "Sehen", tick the right picture, sort pictures in a table, a picture crossword. The licence
+  credits are collected on a **sources page** at the end of the document that does not count in the page numbers.
+  See [Pictures](#pictures).
 - **Page setup and house style** – paper size, orientation, margins, columns, header with school name and logo
   (from the settings) and footer with page numbers (tool `setup_page`).
 - **Quality check** – after creating a worksheet the AI runs `check_worksheet`: task numbering, instructions, space
@@ -594,6 +596,8 @@ Worksheets (any subject):
 - „Prüfe das Arbeitsblatt.“
 - „Erstelle ein Arbeitsblatt zu Haustieren für die Förderschule (Lernen), Klasse 2 – mit Piktogrammen zu jedem Wort.“
 - „Setze neben Aufgabe 1 ein Bild von einem Fuchs.“
+- „Erstelle eine Zuordnungsaufgabe zu den fünf Sinnen: Die Kinder verbinden das Bild (Auge, Ohr, Nase, Zunge, Hand) mit dem Wort.“
+- „Mach ein Bilderrätsel (Kreuzworträtsel mit Bildern) zu Tieren auf dem Bauernhof.“
 - „Nimm für das Latein-Arbeitsblatt Bilder aus meinem Asterix-Ordner.“ (own pictures, see [Pictures](#pictures))
 
 Computer science (see [Computer science diagrams](#computer-science-diagrams)):
@@ -814,10 +818,34 @@ searches with `search_images`, chooses by title, keywords and description and pl
 alignment, caption; beside text with `columns`). Pictures keep their id in the alt text, so the AI can change or
 replace them later.
 
+**Pictures inside tasks:** wherever a task has items, an item can be a picture `{image_id, text?, width_cm?}` – the
+picture alone (so "Was ist das?" does not give the answer away) or with a word under it:
+
+| Task | Pictures |
+|------|----------|
+| `matching` | `pairs[].left` / `right`: picture ↔ word or picture ↔ picture (dots to connect or letters) |
+| `multiple_choice` | `options[]`: tick the right picture; `questions[].image_id`: a picture with the question |
+| `true_false` | `statements[].image_id`: a picture with the statement |
+| `table` | a cell: sorting tables, picture and word columns |
+| `list` | an item: word lists with a pictogram before each word |
+| `crossword` | `entries[].image_id`: picture clues (the clue text is optional then) |
+
+When the AI reads a table back (`get_elements`), pictures appear as `[Bild arasaac:2623 „Auge“]`, so it keeps them
+when it changes the task.
+
+**Sources page:** the licence credits are not printed under the pictures but collected on a page of their own at the
+end of the document (*Bildquellen*): one line per credit – all ARASAAC pictograms share one – with the titles and the
+pages where the pictures are. The plugin creates, updates and removes this page by itself whenever it changes the
+document (and before the worksheet check). It is a section of its own without a page number, and the footer counts
+only the worksheet pages: with 6 pages of worksheet and the sources page as page 7 the footer says *Seite 1 von 6*.
+For this the footer shows a page reference to the end of the worksheet (bookmark `Arbeitsblatt_Ende`) instead of
+the page count; the plugin updates it after every change. New content at the end goes before the sources page, and
+the AI cannot change or delete it.
+
 | Source | What | Licence / credit |
 |--------|------|------------------|
-| `arasaac` | [ARASAAC](https://arasaac.org) pictograms: simple, consistent drawings of objects, animals, actions and feelings, made for special-needs teaching; searched in German | CC BY-NC-SA 4.0 – free for non-commercial use such as school; the credit (*Sergio Palao, ARASAAC*) is printed under the picture |
-| `commons` | [Wikimedia Commons](https://commons.wikimedia.org): photos, drawings, maps, art and historical pictures | free licences (CC0, CC BY, CC BY-SA …); author and licence are printed under the picture |
+| `arasaac` | [ARASAAC](https://arasaac.org) pictograms: simple, consistent drawings of objects, animals, actions and feelings, made for special-needs teaching; searched in German | CC BY-NC-SA 4.0 – free for non-commercial use such as school; the credit (*Sergio Palao, ARASAAC*) goes on the sources page |
+| `commons` | [Wikimedia Commons](https://commons.wikimedia.org): photos, drawings, maps, art and historical pictures | free licences (CC0, CC BY, CC BY-SA …); author and licence go on the sources page |
 | `own` | the teacher's own pictures in the picture folder, matched by file and folder names (`Asterix/obelix-hinkelstein.png`) | none – the teacher decides what may be used in class |
 
 **Own pictures:** with `AUTH_MODE=nextcloud` every user creates the folder **`Arbeitsblatt-Bilder`** (`IMAGE_FOLDER`)
@@ -876,6 +904,15 @@ when it starts; after an update it removes the old files from the caches, loads 
 close and reopen the document. **When updating from 0.4.x or older** (which has no such check), each user has to clear
 the site data of the Document Server once (browser settings, or reload with an emptied cache) – or the new version
 appears with the next Document Server update.
+
+### The sources page and changes by hand
+
+The editor has no field for "pages of this section" (`SECTIONPAGES`), so the footer's "von N" is a page reference to
+the end of the worksheet, which keeps its value until it is updated. The plugin updates it – and the sources page – with
+every change it makes and before the worksheet check. After editing by hand (a new page, a deleted picture) the
+number and the list are brought up to date by the next change through the assistant; right-click → *Feld
+aktualisieren* updates the number at once. Page-count fields that came from Word (`{NUMPAGES}`) are not switched.
+Pictures inserted before 0.9.0 keep their credit under the picture and are not listed.
 
 ### Tested with Euro-Office 9.3.8
 
@@ -975,4 +1012,4 @@ Exact versions and checksums: `vendor/SOURCES.md`.
 
 Pictures that the AI puts on worksheets are not part of this project: ARASAAC pictograms are by Sergio Palao,
 property of the Government of Aragón, licensed **CC BY-NC-SA 4.0**; Wikimedia Commons files carry their own free
-licences. The credit is printed under each picture.
+licences. Their credits are listed on the sources page at the end of each worksheet.
