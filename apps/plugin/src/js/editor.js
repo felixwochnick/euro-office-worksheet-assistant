@@ -163,6 +163,20 @@
       if (sp && sp.GetPosInParent) selectedIndex = sp.GetPosInParent();
     } catch (e) {}
 
+    // The picture sources page at the end (section break paragraph + "WSSOURCES" table) is maintained by the
+    // plugin: marked, so the AI leaves it alone.
+    var wsEnd = count;
+    for (var si = count - 1; si >= 0 && si >= count - 8; si--) {
+      try {
+        var sEl = doc.GetElement(si);
+        if (sEl && sEl.GetClassType() === 'table' && /^WSSOURCES /.test(String(sEl.GetTableDescription() || ''))) {
+          wsEnd = si > 0 && doc.GetElement(si - 1).GetClassType() === 'paragraph' ? si - 1 : si;
+          break;
+        }
+      } catch (e) {}
+    }
+    if (wsEnd < count) res.picture_sources_page = { from: wsEnd, to: count - 1 };
+
     // Staves (images with ABC alt text) are numbered in document order:
     // "Notenzeile 1" = first staff. Counted over the whole document, also
     // outside the element window.
@@ -190,6 +204,12 @@
       if (staffAbc) staffNo++;
       if (i < from || i >= to) continue;
       var item = { index: i, type: type };
+      if (i >= wsEnd) {
+        item.sources = true;
+        item.text = '(Bildquellen – picture sources page, maintained automatically)';
+        res.elements.push(item);
+        continue;
+      }
       // GetText() of a real editor paragraph ends with the paragraph mark ("\r\n").
       var text = textOf(el).replace(/[\r\n]+$/, '').replace(/[\r\n]+/g, ' ');
       item.text = text.length > maxText ? text.slice(0, maxText) + '…' : text;
@@ -278,6 +298,19 @@
         target = best;
       }
 
+      // Never onto the picture sources page at the end (section break paragraph + "WSSOURCES" table).
+      var wsEnd = count;
+      for (var si = count - 1; si >= 0 && si >= count - 8; si--) {
+        try {
+          var sEl = doc.GetElement(si);
+          if (sEl && sEl.GetClassType() === 'table' && /^WSSOURCES /.test(String(sEl.GetTableDescription() || ''))) {
+            wsEnd = si > 0 && doc.GetElement(si - 1).GetClassType() === 'paragraph' ? si - 1 : si;
+            break;
+          }
+        } catch (e) {}
+      }
+      if (target !== null && target >= wsEnd) target = wsEnd - 1;
+
       var img = Api.CreateImage(req.dataUrl, req.wEmu, req.hEmu);
       if (!img) return { ok: false, error: 'Api.CreateImage returned nothing' };
       try { if (img.SetWrappingStyle) img.SetWrappingStyle('inline'); } catch (e) {}
@@ -311,11 +344,13 @@
             }
           } catch (e) {}
         }
+        var onSources = cur !== null && cur >= wsEnd;
+        if (onSources) cur = wsEnd - 1;
         if (cur !== null && cur >= 0 && cur < count) {
           var curEl = doc.GetElement(cur);
           var isEmptyPara = false;
           try {
-            isEmptyPara = curEl.GetClassType() === 'paragraph' && !String(curEl.GetText ? curEl.GetText() : '').replace(/[\r\n\s]+/g, '') &&
+            isEmptyPara = !onSources && curEl.GetClassType() === 'paragraph' && !String(curEl.GetText ? curEl.GetText() : '').replace(/[\r\n\s]+/g, '') &&
               !(curEl.GetAllDrawingObjects && curEl.GetAllDrawingObjects().length);
           } catch (e) {}
           if (isEmptyPara) {

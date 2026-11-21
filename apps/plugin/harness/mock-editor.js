@@ -22,6 +22,8 @@
     props: {},             // document custom properties
     header: [],            // header paragraphs (element objects)
     footer: [],
+    finalFooter: [],       // own footer of the last section when the document has a section break (sources page)
+    bookmarks: {},         // name -> element
     page: { w: 11906, h: 16838, portrait: true, margins: null, columns: 1 },
     selection: null,       // { el, text } for Search(...).Select()
     log: []
@@ -44,6 +46,8 @@
     state.props = {};
     state.header = [];
     state.footer = [];
+    state.finalFooter = [];
+    state.bookmarks = {};
     state.page = { w: 11906, h: 16838, portrait: true, margins: null, columns: 1 };
     render();
   }
@@ -74,7 +78,7 @@
   ApiDrawing.prototype.SetTitle = function (s) { this._d.title = s; return true; };
   ApiDrawing.prototype.getParaDrawing = function () {
     var d = this._d;
-    return { docPr: { get descr() { return d.descr; }, setDescr: function (s) { d.descr = s; }, setTitle: function (s) { d.title = s; } } };
+    return { PageNum: 0, docPr: { get descr() { return d.descr; }, setDescr: function (s) { d.descr = s; }, setTitle: function (s) { d.title = s; } } };
   };
   ApiDrawing.prototype.Delete = function () {
     var owner = findDrawing(this._d);
@@ -98,7 +102,11 @@
 
   function ApiParagraph(el) {
     this._el = el;
-    this.Paragraph = { GetParent: function () { return state.elements.indexOf(el) !== -1 ? LOGIC_DOC : null; } };
+    this.Paragraph = {
+      GetParent: function () { return state.elements.indexOf(el) !== -1 ? LOGIC_DOC : null; },
+      Get_SectionPr: function () { return el.sectionBreak ? {} : null; },
+      GetAbsolutePage: function () { return 0; }
+    };
   }
   ApiParagraph.prototype.GetClassType = function () { return 'paragraph'; };
   ApiParagraph.prototype.GetText = function () { return this._el.text; };
@@ -141,6 +149,7 @@
   ApiParagraph.prototype.GetNumbering = function () { return this._el.list ? { type: this._el.list } : null; };
   ApiParagraph.prototype.SetBottomBorder = function () { this._el.line = true; (this._el.borders = this._el.borders || {}).Bottom = true; };
   ApiParagraph.prototype.SetSpacingBefore = function () {};
+  ApiParagraph.prototype.SetFontSize = function (v) { (this._el.pr = this._el.pr || {}).SetFontSize = v; return true; };
   ApiParagraph.prototype.SetSpacingAfter = function () {};
   ApiParagraph.prototype.AddPageBreak = function () { this._el.pageBreak = true; };
   ApiParagraph.prototype.AddDrawing = function (img) { this._el.drawings.push(img._d); return true; };
@@ -150,7 +159,8 @@
     var el = this._el;
     return {
       GetText: function () { return el.text; },
-      Select: function () { state.cursor = state.elements.indexOf(el); return true; }
+      Select: function () { state.cursor = state.elements.indexOf(el); return true; },
+      AddBookmark: function (name) { state.bookmarks[name] = el; return true; }
     };
   };
 
@@ -217,7 +227,10 @@
     };
   }
 
-  function ApiSection() {
+  /** kind: 'main' (the worksheet) or 'final' (after a section break: the sources page with its own footer). */
+  function sectioned() { return state.elements.some(function (e) { return e.sectionBreak; }); }
+  function ApiSection(kind) {
+    this._kind = kind || 'main';
     this.Section = { get PageMargins() { var m = state.page.margins; return m ? { Left: m[0] / 56.7, Top: m[1] / 56.7, Right: m[2] / 56.7, Bottom: m[3] / 56.7 } : { Left: 20, Top: 20, Right: 20, Bottom: 20 }; } };
   }
   ApiSection.prototype.GetPageWidth = function () { return state.page.w; };
@@ -226,7 +239,9 @@
   ApiSection.prototype.SetPageMargins = function (l, t, r, b) { state.page.margins = [l, t, r, b]; return true; };
   ApiSection.prototype.SetEqualColumns = function (n) { state.page.columns = n; return true; };
   ApiSection.prototype.GetHeader = function () { return headerContent(state.header); };
-  ApiSection.prototype.GetFooter = function () { return headerContent(state.footer); };
+  ApiSection.prototype.GetFooter = function () { return headerContent(this._kind === 'final' && sectioned() ? state.finalFooter : state.footer); };
+  ApiSection.prototype.SetType = function () { return true; };
+  ApiSection.prototype.SetTitlePage = function () { return true; };
 
   function ApiDocument() { this.Document = LOGIC_DOC; }
   ApiDocument.prototype.GetCustomProperties = function () {
@@ -242,8 +257,23 @@
     return true;
   };
   ApiDocument.prototype.RemoveSelection = function () { state.selection = null; return true; };
-  ApiDocument.prototype.GetFinalSection = function () { return new ApiSection(); };
-  ApiDocument.prototype.GetSections = function () { return [new ApiSection()]; };
+  ApiDocument.prototype.GetFinalSection = function () { return new ApiSection(sectioned() ? 'final' : 'main'); };
+  ApiDocument.prototype.GetSections = function () { return sectioned() ? [new ApiSection('main'), new ApiSection('final')] : [new ApiSection('main')]; };
+  ApiDocument.prototype.CreateSection = function (p) { p._el.sectionBreak = true; state.finalFooter = []; return new ApiSection('main'); };
+  ApiDocument.prototype.Push = function (p) { state.elements.push(p._el); return true; };
+  ApiDocument.prototype.GetAllBookmarksNames = function () { return Object.keys(state.bookmarks); };
+  ApiDocument.prototype.DeleteBookmark = function (name) { delete state.bookmarks[name]; return true; };
+  ApiDocument.prototype.GetAllDrawingObjects = function () {
+    var out = [];
+    function scan(list) {
+      list.forEach(function (el) {
+        if (el.type === 'table') { el.rows.forEach(function (r) { r.forEach(function (c) { scan(c.paras); }); }); return; }
+        (el.drawings || []).forEach(function (d) { out.push(new ApiDrawing(d)); });
+      });
+    }
+    scan(state.elements);
+    return out;
+  };
   ApiDocument.prototype.GetPageCount = function () { return 1; };
   ApiDocument.prototype.GetElementsCount = function () { return state.elements.length; };
   ApiDocument.prototype.GetElement = function (i) { var el = state.elements[i]; return el ? wrap(el) : null; };
@@ -434,7 +464,7 @@
         var text = document.createElement('span');
         if (el.list) text.className = 'list ' + el.list;
         if (el.line) div.className += ' line';
-        if (el.pageBreak) div.className += ' page-break';
+        if (el.pageBreak || el.sectionBreak) div.className += ' page-break';
         if (el.shd) div.style.background = el.shd;
         if (el.runs && el.runs.length) renderRuns(text, el);
         else text.textContent = el.text || (el.drawings.length || el.line ? '' : '¶');

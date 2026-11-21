@@ -179,12 +179,26 @@ try {
   assert.match(hf.footer.join(' '), /Seite 1 von 1/);
   console.log('ok - setup_page (header with school and logo, page numbers)');
 
-  // 1g) picture: search_images (ARASAAC, needs internet) -> picture block beside text (columns) with the licence credit.
-  //     E2E_OFFLINE=1 skips it.
+  // 1g) picture: search_images (ARASAAC, needs internet) -> picture block beside text (columns); the licence credit goes
+  //     to the sources page at the end. E2E_OFFLINE=1 skips it.
+  /** The sources page: the "WSSOURCES" table, its text and the section break before it. */
+  const sourcesPage = () => page.evaluate(() => {
+    const els = window.HarnessMock.state.elements;
+    const i = els.findIndex((e) => e.type === 'table' && /^WSSOURCES /.test(e.description || ''));
+    if (i < 0) return null;
+    return {
+      index: i, last: i === els.length - 2, sectionBreak: !!(els[i - 1] && els[i - 1].sectionBreak),
+      text: els[i].rows[0][0].paras.map((p) => p.text).join('\n'),
+      bookmark: Object.keys(window.HarnessMock.state.bookmarks),
+    };
+  });
   if (!process.env.E2E_OFFLINE) {
+    const cardsBeforePic = await frame.locator('.card').count();
     await frame.locator('#chat-text').fill('Füge ein Bild vom Fuchs ein');
     await frame.locator('#chat-send').click();
-    const picCard = frame.locator('.card').filter({ has: frame.locator('.preview-doc img') }).filter({ hasText: 'Sergio Palao, ARASAAC' }).last();
+    const picCard = frame.locator('.card').nth(cardsBeforePic);
+    await picCard.locator('.preview-doc img').first().waitFor({ timeout: 30000 });
+    assert.equal(await picCard.getByText('Sergio Palao').count(), 0, 'no credit under the picture in the preview');
     await picCard.locator('button.primary').waitFor({ timeout: 30000 });
     if (shot) await picCard.screenshot({ path: `${shot}-picture.png` });
     await picCard.locator('button.primary').click();
@@ -194,15 +208,60 @@ try {
       const scan = (paras) => paras.forEach((p) => (p.drawings || []).forEach((dr) => out.push({ descr: dr.descr || '', src: String(dr.src || '').slice(0, 22), wMm: dr.wMm })));
       window.HarnessMock.state.elements.forEach((e) => (e.type === 'table' ? e.rows.forEach((r) => r.forEach((c) => scan(c.paras))) : scan([e])));
       const texts = [];
-      window.HarnessMock.state.elements.forEach((e) => { if (e.type === 'table') e.rows.forEach((r) => r.forEach((c) => c.paras.forEach((p) => texts.push(p.text)))); });
+      window.HarnessMock.state.elements.forEach((e) => {
+        if (e.type === 'table' && !/^WSSOURCES /.test(e.description || '')) e.rows.forEach((r) => r.forEach((c) => c.paras.forEach((p) => texts.push(p.text))));
+        else if (e.type !== 'table') texts.push(e.text);
+      });
       return { pics: out.filter((x) => /^Bild: /.test(x.descr)), texts };
     });
     assert.equal(pics.pics.length, 1, 'one picture in the document');
-    assert.match(pics.pics[0].descr, /^Bild: Fuchs\n\nWSGRAPHIC \{"type":"picture","image_id":"arasaac:\d+"/);
+    assert.match(pics.pics[0].descr, /^Bild: Fuchs\nQuelle: Piktogramm: Sergio Palao, ARASAAC[^\n]*\n\nWSGRAPHIC \{"type":"picture","image_id":"arasaac:\d+"/);
     assert.equal(pics.pics[0].src, 'data:image/png;base64,');
     assert.ok(Math.abs(pics.pics[0].wMm - 30) < 0.5, `picture is 3 cm wide (${pics.pics[0].wMm} mm)`);
-    assert.ok(pics.texts.some((t) => /Sergio Palao, ARASAAC/.test(t)), 'licence credit under the picture');
-    console.log('ok - picture via search_images (pictogram beside text, credit)');
+    const srcPage = await sourcesPage();
+    assert.ok(srcPage, 'sources page created');
+    assert.ok(!pics.texts.some((t) => /Sergio Palao/.test(t)), 'no credit under the picture');
+    assert.ok(srcPage.last && srcPage.sectionBreak, 'sources page at the end, after a section break');
+    assert.match(srcPage.text, /^Bildquellen\nS\. 1:\s+„Fuchs“ – Piktogramm: Sergio Palao, ARASAAC/);
+    assert.deepEqual(srcPage.bookmark, ['Arbeitsblatt_Ende']);
+    console.log('ok - picture via search_images (pictogram beside text, credit on the sources page)');
+
+    // 1g2) pictures inside a task: matching picture (Auge, Ohr, Nase) <-> word; the sources page lists the new pictures
+    const cardsBeforeMatch = await frame.locator('.card').count();
+    await frame.locator('#chat-text').fill('Erstelle eine Zuordnungsaufgabe mit Bildern');
+    await frame.locator('#chat-send').click();
+    const matchCard = frame.locator('.card').nth(cardsBeforeMatch);
+    await matchCard.locator('button.primary').waitFor({ timeout: 30000 });
+    assert.equal(await matchCard.locator('.preview-doc table img').count(), 3, 'three pictures inside the matching table in the preview');
+    if (shot) await matchCard.screenshot({ path: `${shot}-picture-matching.png` });
+    await matchCard.locator('button.primary').click();
+    await frame.locator('.msg.assistant', { hasText: 'Zuordnung mit 3 Bildern' }).waitFor({ timeout: 20000 });
+    const match = await page.evaluate(() => {
+      const els = window.HarnessMock.state.elements;
+      const t = els.find((e) => e.type === 'table' && e.rows.some((r) => r.some((c) => c.paras.some((p) => (p.drawings || []).some((d) => /WSPICTURE /.test(d.descr || ''))))));
+      if (!t) return null;
+      const alts = [];
+      const words = [];
+      t.rows.forEach((r) => r.forEach((c) => c.paras.forEach((p) => { (p.drawings || []).forEach((d) => alts.push(d.descr)); if (p.text) words.push(p.text); })));
+      return { alts, words };
+    });
+    assert.ok(match, 'matching table with pictures in the document');
+    assert.equal(match.alts.length, 3);
+    for (const alt of match.alts) assert.match(alt, /^Bild: [^\n]+\nQuelle: Piktogramm: Sergio Palao, ARASAAC[^\n]*\n\nWSPICTURE \{"image_id":"arasaac:\d+"\}$/);
+    assert.deepEqual([...match.words].filter((w) => /Sehen|Hören|Riechen/.test(w)).sort(), ['Hören', 'Riechen', 'Sehen']);
+    assert.ok(!match.words.some((w) => /Sergio Palao/.test(w)), 'no credit inside the task');
+    const srcPage2 = await sourcesPage();
+    assert.ok(srcPage2.last, 'still one sources page at the end');
+    assert.equal(srcPage2.text.split('\n').length, 2, 'one line for all ARASAAC pictograms');
+    assert.match(srcPage2.text, /„Fuchs“, „[^“]+“, „[^“]+“, „[^“]+“ – Piktogramm: Sergio Palao/);
+    console.log('ok - pictures inside a matching task, one credit line on the sources page');
+
+    // get_elements shows the pictures of the task, so the AI can keep them when it rebuilds the table
+    const tIdx = await page.evaluate(() => window.HarnessMock.state.elements.findIndex((e) => e.type === 'table' && e.rows.some((r) => r.some((c) => c.paras.some((p) => (p.drawings || []).some((d) => /WSPICTURE /.test(d.descr || '')))))));
+    const panel = page.frames().find((f) => f.url().includes('/worksheet-assistant/index.html'));
+    const ge = await panel.evaluate((i) => window.WorksheetDoc.getElements(i, i), tIdx);
+    assert.match(ge.elements[0].rows[0][0], /^\[Bild arasaac:\d+ „[^“]+“\]/);
+    console.log('ok - get_elements shows pictures in tasks as [Bild …] tags');
   }
 
   // 1h) computer science diagram: a class diagram to fill in and its solution (dagre layout in the browser, rasterised)
