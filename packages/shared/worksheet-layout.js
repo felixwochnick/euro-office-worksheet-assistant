@@ -22,9 +22,11 @@
  *   table { t:'table', rows: [{ height?, cells: [{ content: [elements], shd?, valign?, borders?, width? }] }],
  *           widths? (percent), borders? (top…insideV: border or null = none), cellMargins?, description?, jc? }
  *   image runs: { image: { svg, widthMm, heightMm, alt } } or { image: { abc, widthCm, kind: 'staff' } };
- *           the plugin rasterises them and adds { dataUrl, wEmu, hEmu }. Pictures (block picture) arrive with
+ *           the plugin rasterises them and adds { dataUrl, wEmu, hEmu }. Pictures (block picture and picture items
+ *           {image_id, text?, width_cm?} inside tasks, see pictureRefs) arrive with
  *           { dataUrl, wEmu, hEmu, widthMm, heightMm, alt, kind: 'picture' } when the plugin loaded them
- *           (block.picture_data), otherwise without dataUrl (layout check in the proxy).
+ *           (picture_data), otherwise without dataUrl (layout check in the proxy). Their alt text is
+ *           "Bild: <title>\nQuelle: <credit>\n\nWSGRAPHIC {…}" (block) or "…\n\nWSPICTURE {…}" (item).
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -64,6 +66,11 @@
   var GRAPHIC_MARKER = 'WSGRAPHIC ';
   var TASK_MARKER = 'WSTASK ';
   var BLOCK_MARKER = 'WSBLOCK ';
+  /** Marker in the alt text of a picture inside a task (matching, multiple choice, table …): {image_id, text?, width_cm?}. */
+  var PICTURE_MARKER = 'WSPICTURE ';
+  /** Prefix of the licence credit line in the alt text of a picture (the plugin builds the sources page from it). */
+  var CREDIT_PREFIX = 'Quelle: ';
+  var PICTURE_ID = /^(arasaac|commons|own):./;
   var CHECKBOX = '☐';
   var CHECKED = '☒';
   var SYMBOL_FONT = 'DejaVu Sans';
@@ -229,6 +236,141 @@
     try { return JSON.parse(s.slice(i + marker.length)); } catch (e) { return null; }
   }
 
+  // ---------------------------------------------------------------------------
+  // Pictures (search_images): picture blocks and picture items inside tasks
+  // ---------------------------------------------------------------------------
+
+  function isPlainObject(v) { return !!v && typeof v === 'object' && !Array.isArray(v); }
+
+  /** A picture item {image_id, text?, width_cm?} – or any task object that carries an image_id. */
+  function isPictureItem(v) { return isPlainObject(v) && typeof v.image_id === 'string'; }
+
+  /**
+   * Every object with a string image_id at any depth of the blocks, in document order: picture blocks, picture items
+   * (matching pairs, options, table cells, list items) and statements/entries/questions with a picture (also inside
+   * columns). The proxy stores picture_meta on them, the plugin picture_data.
+   */
+  function pictureRefs(blocks) {
+    var out = [];
+    (function walk(v, depth) {
+      if (depth > 40 || !v || typeof v !== 'object') return;
+      if (Array.isArray(v)) { for (var i = 0; i < v.length; i++) walk(v[i], depth + 1); return; }
+      if (typeof v.image_id === 'string') out.push(v);
+      Object.keys(v).forEach(function (k) {
+        if (k === 'picture_data' || k === 'picture_meta') return;
+        var x = v[k];
+        if (x && typeof x === 'object') walk(x, depth + 1);
+      });
+    })(blocks, 0);
+    return out;
+  }
+
+  function oneLine(s) { return str(s).replace(/\s+/g, ' ').trim(); }
+
+  /** Title, credit and aspect ratio of a picture: picture_data (loaded by the plugin) or picture_meta (proxy). */
+  function pictureInfo(ref) {
+    var data = isPlainObject(ref.picture_data) ? ref.picture_data : null;
+    var meta = isPlainObject(ref.picture_meta) ? ref.picture_meta : {};
+    var pw = num(data && data.width, 0) || num(meta.width, 0);
+    var ph = num(data && data.height, 0) || num(meta.height, 0);
+    if (!(pw > 0 && ph > 0)) { pw = 4; ph = 3; }
+    return {
+      data: data && data.dataUrl ? data : null,
+      pw: pw,
+      ph: ph,
+      title: oneLine((data && data.title) || meta.title || ''),
+      credit: oneLine(data && data.credit != null ? data.credit : meta.credit || '')
+    };
+  }
+
+  /** "Bild: Fuchs\nQuelle: Piktogramm: …" – the readable part of a picture's alt text. */
+  function pictureDescription(info) {
+    return (info.title ? 'Bild: ' + info.title : 'Bild') + (info.credit ? '\n' + CREDIT_PREFIX + info.credit : '');
+  }
+
+  function checkPictureId(ref, what) {
+    var id = str(ref.image_id).trim();
+    if (!PICTURE_ID.test(id)) throw blockError((what || 'picture') + ' needs "image_id" from search_images.');
+    return id;
+  }
+
+  /** An image run of widthMm × heightMm for a picture (with the loaded data, otherwise a placeholder of that size). */
+  function pictureImage(info, wMm, hMm, alt) {
+    wMm = Math.round(wMm * 100) / 100;
+    hMm = Math.round(hMm * 100) / 100;
+    var im = { widthMm: wMm, heightMm: hMm, alt: alt, kind: 'picture' };
+    if (info.data) {
+      im.dataUrl = info.data.dataUrl;
+      im.wEmu = Math.round(wMm * 36000);
+      im.hEmu = Math.round(hMm * 36000);
+    }
+    return { image: im };
+  }
+
+  /**
+   * A picture item inside a task: fits a box of maxWMm × boxHMm (aspect ratio kept). width_cm (1–8) sets the width
+   * instead; the available width still limits it. what: name for error messages. ownText: false when ref.text is not
+   * the picture's text (a true/false statement) and must not go into the WSPICTURE source.
+   */
+  function itemPictureRun(c, ref, maxWMm, boxHMm, what, ownText) {
+    var id = checkPictureId(ref, what);
+    var info = pictureInfo(ref);
+    var w;
+    var h;
+    if (ref.width_cm != null && isFinite(Number(ref.width_cm))) {
+      w = Math.min(maxWMm, clamp(num(ref.width_cm, 2.5), 1, 8) * 10);
+      h = w * info.ph / info.pw;
+      if (h > 120) { h = 120; w = h * info.pw / info.ph; }
+    } else {
+      h = boxHMm;
+      w = h * info.pw / info.ph;
+      if (w > maxWMm) { w = maxWMm; h = w * info.ph / info.pw; }
+    }
+    var source = { image_id: id };
+    if (ownText !== false && ref.text != null && str(ref.text).trim()) source.text = str(ref.text);
+    if (ref.width_cm != null && isFinite(Number(ref.width_cm))) source.width_cm = Number(ref.width_cm);
+    return pictureImage(info, w, h, pictureDescription(info) + '\n\n' + PICTURE_MARKER + JSON.stringify(source));
+  }
+
+  /** The words of an item: a string as is, a picture item its text (or '' – the picture alone), {text} its text. */
+  function itemText(v) {
+    if (isPlainObject(v)) return v.text != null ? str(v.text) : '';
+    return str(v);
+  }
+
+  /** An item of a task field: a picture item stays an object, anything else becomes its text. */
+  function asItem(v) { return isPictureItem(v) ? v : itemText(v); }
+
+  /** A short name for an item in solution keys: its text, else the picture's title, else "Bild". */
+  function itemLabel(c, v) {
+    var t = itemText(v).trim();
+    if (t) return t;
+    if (isPictureItem(v)) return pictureInfo(v).title || c.L.picture || 'Bild';
+    return '';
+  }
+
+  /** The item without data the editor or the alt text must not get (picture_data, picture_meta). */
+  function cleanItem(v) {
+    if (!isPictureItem(v)) return itemText(v);
+    var o = { image_id: str(v.image_id) };
+    if (v.text != null && str(v.text) !== '') o.text = str(v.text);
+    if (v.width_cm != null && isFinite(Number(v.width_cm))) o.width_cm = Number(v.width_cm);
+    return o;
+  }
+
+  /** Inner width of a table column (percent of the text width) without the cell margins (twips). */
+  function cellInnerMm(c, percent, marginsTw) {
+    return Math.max(10, c.widthMm * percent / 100 - (marginsTw || 200) * 25.4 / 1440);
+  }
+
+  /** Paragraphs of a table cell that shows a picture item: the picture (centred) and its text below. */
+  function pictureCellContent(c, ref, maxWMm, boxHMm, what, textBase) {
+    var out = [para([itemPictureRun(c, ref, maxWMm, boxHMm, what)], { jc: 'center', after: 0, before: 0 })];
+    var t = itemText(ref);
+    if (t.trim()) out.push(cellPara(c, t, textBase || c.body, { jc: 'center', before: 40 }));
+    return out;
+  }
+
   function svgLib() { return lib('worksheet-svg'); }
   function genLib() { return lib('worksheet-generators'); }
 
@@ -351,27 +493,35 @@
     var type = b.style || (b.ordered ? 'numbered' : 'bullet');
     if (['bullet', 'numbered', 'letters', 'checkbox'].indexOf(type) === -1) type = 'bullet';
     var ref = c.listPrefix + '-' + (++c.listCounter);
-    var items = (b.items || []).map(String);
+    var items = (b.items || []).map(asItem);
     return items.map(function (item, i) {
       var props = c.paraDefaults();
       props.style = 'List Paragraph';
       props.numbering = { ref: ref, type: type };
       props.after = i === items.length - 1 ? (c.theme.spaceAfter != null ? c.theme.spaceAfter * 20 : undefined) : 40;
-      return para(textRuns(item, c.body, { syllables: b.syllables, theme: c.theme }), props);
+      var runs = [];
+      if (isPictureItem(item)) {
+        // pictogram inline before the word (word lists for weak readers)
+        runs.push(itemPictureRun(c, item, Math.min(40, c.widthMm - 15), 15, 'list item ' + (i + 1)));
+        if (itemText(item).trim()) runs.push({ text: '  ' });
+      }
+      textRuns(itemText(item), c.body, { syllables: b.syllables, theme: c.theme }).forEach(function (r) { runs.push(r); });
+      return para(runs, props);
     });
   };
 
   builders.table = function (b, c) {
     var t = c.theme;
-    var rows = (b.rows || []).map(function (r) { return (r || []).map(str); });
+    var rows = (b.rows || []).map(function (r) { return (r || []).map(asItem); });
     var answerRows = clamp(Math.round(num(b.answer_rows, 0)), 0, 30);
     var cols = rows.reduce(function (m, r) { return Math.max(m, r.length); }, 1);
     for (var a = 0; a < answerRows; a++) rows.push([]);
     var header = b.header !== false && rows.length > 1;
     var headerCol = b.header_column === true;
     var minH = b.row_height_cm != null ? tw(clamp(num(b.row_height_cm, 0.8), 0.5, 5) * 10) : (answerRows ? tw(9) : undefined);
+    var widths = normWidths(b.widths, cols);
     var out = {
-      t: 'table', borders: gridBorders(t.colors.border, 4), widths: normWidths(b.widths, cols),
+      t: 'table', borders: gridBorders(t.colors.border, 4), widths: widths,
       cellMargins: { left: 100, right: 100, top: 40, bottom: 40 }, rows: []
     };
     rows.forEach(function (r, ri) {
@@ -381,6 +531,15 @@
         var txt = r[ci] == null ? '' : r[ci];
         var isHeadCol = headerCol && ci === 0 && !isHead;
         var base = isHead ? { font: t.font, size: t.size, color: t.colors.tableHeaderText || t.colors.text, b: true } : isHeadCol ? run('', c.body, { b: true }) : c.body;
+        if (isPictureItem(txt)) {
+          // a picture in the cell (sorting tables, picture + word): as wide as the cell, at most 3 cm high
+          var inner = cellInnerMm(c, widths ? widths[ci] : 100 / cols, 200);
+          cells.push(cell(pictureCellContent(c, txt, inner, 30, 'table rows[' + ri + '][' + ci + ']', base), {
+            shd: isHead ? t.colors.tableHeader : isHeadCol ? t.colors.accentLight : undefined,
+            valign: 'center'
+          }));
+          continue;
+        }
         var jc = isHead ? (b.align === 'center' ? 'center' : 'left') : (b.align === 'center' && ci > 0 ? 'center' : undefined);
         if (/^\s*\[[ xX]\]\s*$/.test(txt)) jc = 'center';
         cells.push(cell([cellPara(c, txt, base, { jc: jc })], {
@@ -592,16 +751,63 @@
     return run(checked ? CHECKED : CHECKBOX, c.body, { font: SYMBOL_FONT, b: false, color: checked ? c.theme.colors.accent : c.body.color });
   }
 
+  /** Options with pictures side by side: the picture on top, the check box (and the option's text) below it. */
+  function pictureOptions(c, options, correct, showAnswers, qi) {
+    var n = options.length;
+    var perRow = n <= 4 ? n : n <= 6 ? 3 : 4;
+    var indentPct = 6 / c.widthMm * 100;
+    var colPct = (100 - indentPct) / perRow;
+    var inner = cellInnerMm(c, colPct, 160);
+    var rows = [];
+    for (var i = 0; i < n; i += perRow) {
+      var cells = [cell([para([], { after: 0 })], {})]; // indentation like the text options
+      for (var k = 0; k < perRow; k++) {
+        var oi = i + k;
+        if (oi >= n) { cells.push(cell([para([], { after: 0 })], {})); continue; }
+        var o = options[oi];
+        var ok = showAnswers && correct.indexOf(oi) !== -1;
+        var content = [];
+        if (isPictureItem(o)) {
+          content.push(para([itemPictureRun(c, o, inner, 25, 'question ' + (qi + 1) + ' option ' + (oi + 1))], { jc: 'center', after: 40, before: 0 }));
+        }
+        var runs = [checkboxRun(c, ok)];
+        var t = itemText(o);
+        if (t.trim()) {
+          runs.push({ text: ' ' });
+          textRuns(t, c.body, {}).forEach(function (r) { if (ok) r.b = true; runs.push(r); });
+        }
+        content.push(para(runs, { jc: 'center', after: 0, before: 0 }));
+        cells.push(cell(content, { valign: 'bottom' }));
+      }
+      rows.push({ cells: cells });
+    }
+    var widths = [indentPct];
+    for (var w = 0; w < perRow; w++) widths.push(colPct);
+    return {
+      t: 'table', borders: noBorders(), widths: normWidths(widths, widths.length),
+      cellMargins: { left: 80, right: 80, top: 40, bottom: 80 }, rows: rows
+    };
+  }
+
   builders.multiple_choice = function (b, c) {
     var out = [];
     var qs = Array.isArray(b.questions) ? b.questions : [];
     if (!qs.length) throw blockError('multiple_choice needs "questions" [{question, options[], correct?}].');
     qs.forEach(function (q, qi) {
-      var options = Array.isArray(q.options) ? q.options.map(String) : [];
+      var options = Array.isArray(q.options) ? q.options.map(asItem) : [];
       if (options.length < 2) throw blockError('question ' + (qi + 1) + ' needs at least 2 options.');
       var correct = Array.isArray(q.correct) ? q.correct.map(Number) : q.correct != null ? [Number(q.correct)] : [];
       var qRuns = [run((qi + 1) + '.  ', c.body, { b: true })].concat(textRuns(q.question, c.body));
       out.push(para(qRuns, { keepNext: true, after: 60, indLeft: tw(6), indFirst: -tw(6), line: c.paraDefaults().line }));
+      if (isPictureItem(q)) {
+        // a picture with the question ("Was ist das?")
+        out.push(para([itemPictureRun(c, q, Math.min(80, c.widthMm - 6), 30, 'question ' + (qi + 1))], { indLeft: tw(6), keepNext: true, after: 80 }));
+      }
+      if (options.some(isPictureItem)) {
+        out.push(pictureOptions(c, options, correct, !!b.show_answers, qi));
+        out.push(para([], { after: qi === qs.length - 1 ? 100 : 60, before: 0, line: { value: tw(3), rule: 'exact' } }));
+        return;
+      }
       var short = options.join('').length <= 60 && options.length <= 4 && !b.vertical;
       if (short) {
         var runs = [];
@@ -631,25 +837,36 @@
     if (!st.length) throw blockError('true_false needs "statements" [{text, correct?}].');
     var labels = Array.isArray(b.labels) && b.labels.length === 2 ? b.labels.map(String) : [c.L['true'], c.L['false']];
     var headBase = { font: t.font, size: t.size, color: t.colors.tableHeaderText || t.colors.text, b: true };
+    var lw = Math.max(10, Math.max(labels[0].length, labels[1].length) * 1.6 + 4);
+    // statements with a picture: an extra column for the pictures in front of the text
+    var withPictures = st.some(isPictureItem);
+    var picPct = withPictures ? Math.min(30, 24 / c.widthMm * 100) : 0;
+    var head = [cell([cellPara(c, b.header || c.L.statement, headBase)], { shd: t.colors.tableHeader, valign: 'center' })];
+    if (withPictures) head.unshift(cell([cellPara(c, '', headBase)], { shd: t.colors.tableHeader, valign: 'center' }));
     var rows = [{
       header: true,
-      cells: [cell([cellPara(c, b.header || c.L.statement, headBase)], { shd: t.colors.tableHeader, valign: 'center' })].concat(labels.map(function (l) {
+      cells: head.concat(labels.map(function (l) {
         return cell([cellPara(c, l, headBase, { jc: 'center' })], { shd: t.colors.tableHeader, valign: 'center' });
       }))
     }];
     st.forEach(function (s, i) {
-      var text = typeof s === 'string' ? s : s.text;
-      var correct = typeof s === 'object' && s.correct != null ? !!s.correct : null;
+      var text = typeof s === 'string' ? s : s && s.text;
+      var correct = s && typeof s === 'object' && s.correct != null ? !!s.correct : null;
       var cells = [cell([cellPara(c, (i + 1) + '.  ' + str(text), c.body)], { valign: 'center' })];
+      if (withPictures) {
+        cells.unshift(cell(isPictureItem(s)
+          ? [para([itemPictureRun(c, s, cellInnerMm(c, picPct, 200), 18, 'statement ' + (i + 1), false)], { jc: 'center', after: 0, before: 0 })]
+          : [para([], { after: 0 })], { valign: 'center' }));
+      }
       [true, false].forEach(function (v) {
         var ok = b.show_answers && correct === v;
         cells.push(cell([para([checkboxRun(c, ok)], { jc: 'center', after: 0, before: 0 })], { valign: 'center' }));
       });
       rows.push({ height: tw(8), cells: cells });
     });
-    var lw = Math.max(10, Math.max(labels[0].length, labels[1].length) * 1.6 + 4);
+    var widths = withPictures ? [picPct, 100 - 2 * lw - picPct, lw, lw] : [100 - 2 * lw, lw, lw];
     return [{
-      t: 'table', borders: gridBorders(t.colors.border, 4), widths: normWidths([100 - 2 * lw, lw, lw], 3),
+      t: 'table', borders: gridBorders(t.colors.border, 4), widths: normWidths(widths, widths.length),
       cellMargins: { left: 100, right: 100, top: 40, bottom: 40 }, rows: rows
     }, spacerAfterTable()];
   };
@@ -658,31 +875,53 @@
     var t = c.theme;
     var pairs = Array.isArray(b.pairs) ? b.pairs : [];
     if (pairs.length < 2 || pairs.length > 12) throw blockError('matching needs 2–12 "pairs" [{left, right}].');
-    var m = genLib().matching(pairs.map(function (p) { return { left: str(p.left), right: str(p.right) }; }), { seed: JSON.stringify(pairs) });
+    // items: strings or picture items {image_id, text?} (picture ↔ word); the shuffle depends only on what the model
+    // sent (not on loaded picture data), so the proxy's check and the plugin lay out the same order
+    var items = pairs.map(function (p) { return { left: cleanItem(p && p.left), right: cleanItem(p && p.right), src: p || {} }; });
+    items.forEach(function (it, i) {
+      ['left', 'right'].forEach(function (side) {
+        if (!isPictureItem(it[side]) && !str(it[side]).trim()) throw blockError('matching pair ' + (i + 1) + ': "' + side + '" must be a text or a picture item {image_id}.');
+      });
+    });
+    var m = genLib().matching(items.map(function (it, i) {
+      return { left: isPictureItem(it.left) ? 'picture ' + i : it.left, right: isPictureItem(it.right) ? 'picture ' + i : it.right };
+    }), { seed: JSON.stringify(items.map(function (it) { return { left: it.left, right: it.right }; })) });
+    var srcAt = [];
+    m.key.forEach(function (pos, src) { srcAt[pos] = src; });
+    var leftRef = function (i) { return isPictureItem(items[i].left) ? items[i].src.left : items[i].left; };
+    var rightRef = function (pos) { var s = srcAt[pos]; return isPictureItem(items[s].right) ? items[s].src.right : items[s].right; };
     var mode = b.mode === 'letters' ? 'letters' : 'lines';
+    var widths = mode === 'lines' ? [38, 5, 14, 5, 38] : [6, 34, 8, 8, 6, 38];
+    var leftCol = mode === 'lines' ? 0 : 1;
+    var rightCol = mode === 'lines' ? 4 : 5;
     var boxB = border(6, t.colors.border);
     var boxed = { top: boxB, bottom: boxB, left: boxB, right: boxB };
     var rows = [];
     var dot = function () { return cell([para([run('●', c.body, { color: t.colors.accent, font: SYMBOL_FONT })], { jc: 'center', after: 0 })], { valign: 'center' }); };
+    // a matching item in its box: text, or a picture (2.5 cm high) with its text below
+    var itemCell = function (ref, col, what) {
+      var content = isPictureItem(ref) ? pictureCellContent(c, ref, cellInnerMm(c, widths[col], 200), 25, what) : [cellPara(c, ref, c.body)];
+      return cell(content, { valign: 'center', borders: boxed });
+    };
     for (var i = 0; i < m.left.length; i++) {
       var cells;
       if (mode === 'lines') {
         cells = [
-          cell([cellPara(c, m.left[i], c.body)], { valign: 'center', borders: boxed }),
+          itemCell(leftRef(i), leftCol, 'matching pair ' + (i + 1) + ' left'),
           dot(),
           cell([para([])], {}),
           dot(),
-          cell([cellPara(c, m.right[i], c.body)], { valign: 'center', borders: boxed })
+          itemCell(rightRef(i), rightCol, 'matching pair ' + (srcAt[i] + 1) + ' right')
         ];
       } else {
         var ans = b.show_answers ? m.letters[m.key[i]] : '';
         cells = [
           cell([cellPara(c, (i + 1) + '.', run('', c.body, { b: true }))], { valign: 'center' }),
-          cell([cellPara(c, m.left[i], c.body)], { valign: 'center', borders: boxed }),
+          itemCell(leftRef(i), leftCol, 'matching pair ' + (i + 1) + ' left'),
           cell([cellPara(c, ans, run('', c.body, { b: true, color: t.colors.accent }), { jc: 'center' })], { valign: 'center', borders: boxed }),
           cell([para([])], {}),
           cell([cellPara(c, m.letters[i] + ')', run('', c.body, { b: true }))], { valign: 'center' }),
-          cell([cellPara(c, m.right[i], c.body)], { valign: 'center', borders: boxed })
+          itemCell(rightRef(i), rightCol, 'matching pair ' + (srcAt[i] + 1) + ' right')
         ];
       }
       rows.push({ height: tw(mode === 'lines' ? 10 : 9), cells: cells });
@@ -690,10 +929,10 @@
     }
     var out = [{
       t: 'table', borders: noBorders(), cellMargins: { left: 100, right: 100, top: 40, bottom: 40 },
-      widths: mode === 'lines' ? [38, 5, 14, 5, 38] : [6, 34, 8, 8, 6, 38], rows: rows
+      widths: widths, rows: rows
     }];
     if (b.show_answers && mode === 'lines') {
-      var key = m.left.map(function (l, i) { return l + ' – ' + m.right[m.key[i]]; }).join(';  ');
+      var key = m.left.map(function (l, i) { return itemLabel(c, leftRef(i)) + ' – ' + itemLabel(c, rightRef(m.key[i])); }).join(';  ');
       out.push(bodyPara(c, '**' + c.L.solution + ':** ' + key, { before: 120 }));
     } else {
       out.push(spacerAfterTable());
@@ -703,8 +942,22 @@
 
   builders.crossword = function (b, c) {
     var t = c.theme;
-    var entries = (b.entries || []).map(function (e) { return { answer: str(e.answer), clue: str(e.clue) }; });
-    var layout = genLib().crossword(entries, { seed: JSON.stringify(entries), maxWidth: 17, maxHeight: 17 });
+    var raw = Array.isArray(b.entries) ? b.entries : [];
+    // entries as the model sent them (no loaded picture data): seed and alt text. A picture entry {answer, image_id,
+    // clue?} is a picture clue (Bilderrätsel).
+    var entries = raw.map(function (e) {
+      e = e || {};
+      var o = { answer: str(e.answer), clue: str(e.clue) };
+      if (isPictureItem(e)) {
+        if (!o.clue) delete o.clue;
+        o.image_id = str(e.image_id);
+        if (e.width_cm != null && isFinite(Number(e.width_cm))) o.width_cm = Number(e.width_cm);
+      }
+      return o;
+    });
+    var PIC = '⁣picture ';
+    var gen = entries.map(function (e, i) { return { answer: e.answer, clue: e.image_id ? PIC + i : e.clue }; });
+    var layout = genLib().crossword(gen, { seed: JSON.stringify(entries), maxWidth: 17, maxHeight: 17 });
     if (layout.errors && layout.errors.length) throw blockError('crossword: ' + layout.errors.join(' '));
     if (layout.unplaced && layout.unplaced.length) {
       throw blockError('crossword: these answers could not be placed: ' + layout.unplaced.map(function (u) { return u.answer; }).join(', ') +
@@ -714,9 +967,21 @@
     var g = svgLib().crosswordGrid(layout, svgOpts(c, { cellMm: cellMm, showAnswers: !!b.show_answers }));
     var out = [imagePara(c, imageRun(g, graphicAlt('Kreuzworträtsel (' + layout.words.length + ' Wörter)',
       { type: 'crossword', entries: entries, show_answers: !!b.show_answers })), { jc: 'center', after: 160 })];
+    var clueW = cellInnerMm(c, 50, 220) - 8;
     var col = function (title, list) {
       var ps = [cellPara(c, title, { font: t.headingFont, size: t.size, color: t.colors.heading, b: true }, { after: 60 })];
       list.forEach(function (w) {
+        var pic = String(w.clue).indexOf(PIC) === 0 ? Number(String(w.clue).slice(PIC.length)) : -1;
+        if (pic >= 0 && raw[pic]) {
+          // picture clue: number, picture, the clue text if there is one
+          var runs = [run(w.number + '  ', c.body), itemPictureRun(c, raw[pic], clueW, 20, 'crossword entry ' + (pic + 1))];
+          if (entries[pic].clue) {
+            runs.push({ text: '  ' });
+            textRuns(entries[pic].clue, c.body).forEach(function (r) { runs.push(r); });
+          }
+          ps.push(para(runs, { indLeft: tw(6), indFirst: -tw(6), after: 80, before: 0 }));
+          return;
+        }
         ps.push(cellPara(c, w.number + '  ' + w.clue, c.body, { indLeft: tw(6), indFirst: -tw(6), after: 40 }));
       });
       return cell(ps, {});
@@ -915,43 +1180,26 @@
   };
 
   /**
-   * A picture from search_images. b.picture_data = { dataUrl, width, height } is added by the plugin (loaded through the
-   * proxy), b.picture_meta = { title, credit, width?, height? } by the proxy. The credit (licence) is printed below.
+   * A picture from search_images. b.picture_data = { dataUrl, width, height, title, credit } is added by the plugin
+   * (loaded through the proxy), b.picture_meta = { title, credit, width?, height? } by the proxy. The licence credit is
+   * not printed here: it is in the alt text ("Quelle: …") and the plugin collects all credits on the sources page.
    */
   builders.picture = function (b, c) {
-    var id = str(b.image_id).trim();
-    if (!/^(arasaac|commons|own):./.test(id)) throw blockError('picture needs "image_id" from search_images.');
-    var data = b.picture_data && typeof b.picture_data === 'object' ? b.picture_data : null;
-    var meta = b.picture_meta && typeof b.picture_meta === 'object' ? b.picture_meta : {};
-    var pw = num(data && data.width, 0) || num(meta.width, 0) || 4;
-    var ph = num(data && data.height, 0) || num(meta.height, 0) || 3;
+    var id = checkPictureId(b, 'picture');
+    var info = pictureInfo(b);
     var wMm = clamp(num(b.width_cm, 5), 1.5, c.widthMm / 10) * 10;
-    var hMm = wMm * ph / pw;
+    var hMm = wMm * info.ph / info.pw;
     var maxH = 160; // fits the text area of A4/A5 in portrait and landscape
     if (hMm > maxH) { wMm = wMm * maxH / hMm; hMm = maxH; }
-    var title = str((data && data.title) || meta.title || '').trim();
-    var credit = str(data && data.credit != null ? data.credit : meta.credit || '').trim();
     var source = { type: 'picture', image_id: id };
     ['width_cm', 'align', 'caption'].forEach(function (k) { if (b[k] != null) source[k] = b[k]; });
-    var im = { widthMm: wMm, heightMm: hMm, alt: graphicAlt(title ? 'Bild: ' + title : 'Bild', source), kind: 'picture' };
-    if (data && data.dataUrl) {
-      im.dataUrl = data.dataUrl;
-      im.wEmu = Math.round(wMm * 36000);
-      im.hEmu = Math.round(hMm * 36000);
-    }
+    var img = pictureImage(info, wMm, hMm, graphicAlt(pictureDescription(info), source));
     var jc = b.align === 'left' || b.align === 'right' ? b.align : 'center';
-    var below = [];
-    if (b.caption) below.push(para(textRuns(b.caption, c.small), { jc: jc, after: 0, keepNext: !!credit }));
-    if (credit) {
-      // a plain run: author names must not be read as **markup**
-      var cr = { text: credit, size: Math.max(6, (c.small.size || 9) - 2) };
-      if (c.small.font) cr.font = c.small.font;
-      if (c.small.color) cr.color = c.small.color;
-      below.push(para([cr], { jc: jc, after: 0 }));
-    }
-    var out = [imagePara(c, { image: im }, { jc: jc, after: below.length ? 20 : 160, keepNext: below.length ? true : undefined })];
-    if (below.length) below[below.length - 1].after = 160;
-    return out.concat(below);
+    if (!b.caption) return [imagePara(c, img, { jc: jc, after: 160 })];
+    return [
+      imagePara(c, img, { jc: jc, after: 20, keepNext: true }),
+      para(textRuns(b.caption, c.small), { jc: jc, after: 160 })
+    ];
   };
 
   builders.svg = function (b, c) {
@@ -1161,7 +1409,10 @@
     GRAPHIC_MARKER: GRAPHIC_MARKER,
     TASK_MARKER: TASK_MARKER,
     BLOCK_MARKER: BLOCK_MARKER,
+    PICTURE_MARKER: PICTURE_MARKER,
+    CREDIT_PREFIX: CREDIT_PREFIX,
     compose: compose,
+    pictureRefs: pictureRefs,
     collectImages: collectImages,
     textRuns: textRuns,
     plainText: plainText,

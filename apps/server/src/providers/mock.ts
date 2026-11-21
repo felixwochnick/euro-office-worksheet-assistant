@@ -173,6 +173,39 @@ export class MockProvider implements LLMProvider {
       };
     }
 
+    // W0p) "Erstelle eine Zuordnungsaufgabe mit Bildern" / "Bilder zuordnen" -> three pictogram searches, then a matching
+    //      task with the pictures on the left (picture items) and the words on the right
+    if (/(zuordn|verbind)/i.test(userText) && /(bilder|piktogramm|picture)/i.test(userText)) {
+      if (!req.tools.some((t) => t.name === 'search_images')) {
+        return { content: 'Mock-Modus: Bilder sind auf diesem Server ausgeschaltet.', tool_calls: [] };
+      }
+      const senses: Array<[string, string]> = [['Auge', 'Sehen'], ['Ohr', 'Hören'], ['Nase', 'Riechen']];
+      if (done('search_images').length === 0) {
+        return {
+          content: '',
+          tool_calls: senses.map(([word]) => ({ id: nextId(), name: 'search_images', arguments: { query: word, source: 'pictograms', limit: 1 } })),
+        };
+      }
+      const pairs = done('search_images')
+        .map((m, i) => {
+          const first = (parseResult(m) as { results?: Array<{ image_id: string }> }).results?.[0];
+          return first && senses[i] ? { left: { image_id: first.image_id }, right: senses[i][1] } : null;
+        })
+        .filter((p): p is { left: { image_id: string }; right: string } => p !== null);
+      if (pairs.length < 2) return { content: 'Mock-Modus: zu wenige Bilder für eine Zuordnung gefunden.', tool_calls: [] };
+      if (done('insert_blocks').length === 0) {
+        const blocks = [
+          { type: 'task', instruction: 'Verbinde jedes Bild mit dem passenden Wort.', icons: ['single'] },
+          { type: 'matching', pairs },
+        ];
+        return { content: '', tool_calls: [{ id: nextId(), name: 'insert_blocks', arguments: { position: 'end', blocks } }] };
+      }
+      const res = parseResult(done('insert_blocks')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Einfügen fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      if (res.inserted === false) return { content: 'Mock-Modus: Zuordnung verworfen.', tool_calls: [] };
+      return { content: `Fertig (Mock-Modus): Zuordnung mit ${pairs.length} Bildern eingefügt.`, tool_calls: [] };
+    }
+
     // W0a) "Füge ein Bild vom Fuchs ein" -> search_images, then the first result beside a short text (columns)
     const picture = /\b(bild|piktogramm|picture)\b/i.exec(userText) && /(?:vo[mn]|zum|zur|of an?|of)\s+(?:dem\s+|der\s+|einem\s+|einer\s+|the\s+)?([\p{L}-]+)/iu.exec(userText);
     if (picture) {

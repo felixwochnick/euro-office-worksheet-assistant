@@ -50,6 +50,29 @@ const numArray = (maxItems: number) => ({ type: 'array', items: { type: 'number'
 const PICTURE_DOC =
   'picture {image_id, width_cm? (default 5), align? left|center|right, caption?} = a picture (pictogram, photo, clipart or the user\'s own picture) – image_id ONLY from search_images; ';
 
+/** Pictures inside tasks (removed from the schema together with PICTURE_DOC when pictures are off). */
+const PICTURE_ITEM_DOC =
+  'Pictures inside tasks: a picture item {image_id, text?, width_cm? (1-8)} (image_id ONLY from search_images) can stand instead of a text ' +
+  'in matching pairs (left and/or right: picture ↔ word), multiple_choice options (tick the right picture), table cells (sorting tables) and ' +
+  'list items (pictogram before the word); multiple_choice questions[], true_false statements[] and crossword entries[] take an image_id ' +
+  '(a picture with the question/statement; crossword: picture clue, clue then optional). text = words printed under the picture – omit it ' +
+  'when recognising the picture is the task. Licence credits are collected on a sources page at the end automatically – never write them. ';
+
+/** A picture inside a task (see PICTURE_ITEM_DOC). */
+const pictureItemSchema = {
+  type: 'object',
+  description: 'picture item: a picture from search_images instead of a text',
+  properties: {
+    image_id: { type: 'string', maxLength: 600, description: 'id from a search_images result' },
+    text: { type: 'string', maxLength: 300, description: 'words under the picture (optional)' },
+    width_cm: { type: 'number', minimum: 1, maximum: 8 },
+  },
+  required: ['image_id'],
+};
+const textOrPicture = (maxLength: number) => ({ anyOf: [{ type: 'string', maxLength }, pictureItemSchema] });
+/** image_id on a task object (question, statement, crossword entry). */
+const itemImageId = { type: 'string', maxLength: 600, description: 'a picture from search_images with this item' };
+
 const DIAGRAM_DOC =
   'Computer science diagrams: ' +
   'class_diagram {classes [{name, kind? class|abstract|interface|enum, attributes ["- name: String", "- static anzahl: int"], methods ["+ getName(): String", "+ abstract flaeche(): double"], values? (enum literals)}], ' +
@@ -96,6 +119,7 @@ const BLOCK_TYPE_DOC =
   'chart {chart_type column|bar|line|pie, title?, labels[], series[{name, values[]}], x_label?, y_label?, blank? (empty axes to draw in)}; ' +
   'mindmap {center, branches[{text, children[]}], blank? (empty bubbles)}; qr_code {url, caption?, size_cm?}; ' +
   PICTURE_DOC +
+  PICTURE_ITEM_DOC +
   'svg {svg, width_cm?, caption?} = your own simple drawing (SVG markup); cut_line {label?}; ' +
   'self_assessment {statements[], title?} = "Das kann ich" table with smileys; hint_cards {cards[{title?, text}], columns? 1-3} = cut-out tip cards; ' +
   'grade_key {total_points, thresholds?[5] (percent for grades 1-5), step? 0.5|1} = points-to-grade table; ' +
@@ -129,10 +153,10 @@ const blockSchema = {
       anyOf: [{ type: 'number', minimum: 0, maximum: 1000 }, { type: 'array', maxItems: 50, items: { type: 'object', properties: { x: { type: 'number' }, y: { type: 'number' }, label: { type: 'string' } }, required: ['x', 'y'] } }],
     },
     time_min: { type: 'integer', minimum: 1, maximum: 300 },
-    items: { type: 'array', items: { type: 'string', maxLength: 2000 }, maxItems: 50 },
+    items: { type: 'array', items: textOrPicture(2000), maxItems: 50 },
     ordered: { type: 'boolean' },
     style: { type: 'string', description: 'list: bullet|numbered|letters|checkbox; lines: plain|school1-4|grid5|grid10' },
-    rows: { type: 'array', items: { type: 'array', items: { type: 'string', maxLength: 1000 }, maxItems: 10 }, maxItems: 60 },
+    rows: { type: 'array', items: { type: 'array', items: textOrPicture(1000), maxItems: 10 }, maxItems: 60 },
     header: { type: 'boolean' },
     header_column: { type: 'boolean' },
     widths: numArray(10),
@@ -149,16 +173,26 @@ const blockSchema = {
     words: strArray(30, 40),
     questions: {
       type: 'array', maxItems: 20,
-      items: { type: 'object', properties: { question: { type: 'string' }, options: strArray(8, 300), correct: { type: 'array', items: { type: 'integer' } } }, required: ['question', 'options'] },
+      items: {
+        type: 'object',
+        properties: {
+          question: { type: 'string' }, options: { type: 'array', items: textOrPicture(300), maxItems: 8 }, correct: { type: 'array', items: { type: 'integer' } },
+          image_id: itemImageId,
+        },
+        required: ['question', 'options'],
+      },
     },
     statements: {
       type: 'array', maxItems: 20, description: 'true_false: [{text, correct}]; self_assessment: strings',
-      items: { anyOf: [{ type: 'string' }, { type: 'object', properties: { text: { type: 'string' }, correct: { type: 'boolean' } }, required: ['text'] }] },
+      items: { anyOf: [{ type: 'string' }, { type: 'object', properties: { text: { type: 'string' }, correct: { type: 'boolean' }, image_id: itemImageId }, required: ['text'] }] },
     },
     labels: strArray(40, 60),
-    pairs: { type: 'array', maxItems: 12, items: { type: 'object', properties: { left: { type: 'string' }, right: { type: 'string' } }, required: ['left', 'right'] } },
+    pairs: { type: 'array', maxItems: 12, items: { type: 'object', properties: { left: textOrPicture(500), right: textOrPicture(500) }, required: ['left', 'right'] } },
     mode: { type: 'string', enum: ['lines', 'letters'] },
-    entries: { type: 'array', maxItems: 30, items: { type: 'object', properties: { answer: { type: 'string' }, clue: { type: 'string' } }, required: ['answer', 'clue'] } },
+    entries: {
+      type: 'array', maxItems: 30,
+      items: { type: 'object', properties: { answer: { type: 'string' }, clue: { type: 'string' }, image_id: itemImageId }, required: ['answer'] },
+    },
     difficulty: { type: 'string', enum: ['easy', 'medium', 'hard'] },
     line_numbers: { type: 'boolean' },
     every: { type: 'integer', minimum: 1, maximum: 10 },
@@ -493,8 +527,9 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
       'ideal for primary and special-needs schools; search in German), photos/drawings/historical pictures (Wikimedia Commons – ' +
       'real animals, plants, places, art, Roman or medieval pictures; English search terms often find more) and the user\'s own ' +
       'pictures (a picture folder the teacher fills, e.g. comic panels, scans, own photos; matched by file and folder names). ' +
-      'Returns image_id, title, keywords/description and size; put a chosen picture on the sheet with a picture block {image_id}. ' +
-      'The licence credit is printed automatically.',
+      'Returns image_id, title, keywords/description and size; put a chosen picture on the sheet with a picture block {image_id} ' +
+      'or as a picture item {image_id} inside a task (matching, multiple choice options, table cells, list items, crossword clues). ' +
+      'The licence credits are collected on a sources page at the end of the document automatically.',
     parameters: {
       type: 'object',
       properties: {
@@ -626,6 +661,54 @@ function cleanValue(v: unknown, key: string, depth: number, maxDepth = 5, raw = 
   return undefined;
 }
 
+const PICTURE_ID = /^(arasaac|commons|own):./s;
+
+/** An item of a list or a table cell: text, or a picture item {image_id, text?, width_cm?} (other keys dropped). */
+function cleanItem(x: unknown, max: number): string | Record<string, unknown> {
+  if (x && typeof x === 'object' && !Array.isArray(x)) {
+    const o = x as Record<string, unknown>;
+    const text = o.text == null ? '' : unescapeText(String(o.text)).slice(0, max);
+    if (!('image_id' in o)) return text;
+    const item: Record<string, unknown> = { image_id: typeof o.image_id === 'string' ? o.image_id.trim() : o.image_id };
+    if (text) item.text = text;
+    const w = Number(o.width_cm);
+    if (o.width_cm != null && Number.isFinite(w)) item.width_cm = Math.min(8, Math.max(1, w));
+    return item;
+  }
+  return x == null ? '' : unescapeText(String(x)).slice(0, max);
+}
+
+/**
+ * Pictures inside a block (picture items, questions/statements/entries with image_id): every image_id must be an id
+ * from search_images; data the model must not set (picture_meta, picture_data) is removed. Returns a problem or null.
+ */
+function pictureProblem(v: unknown, path: string, depth = 0): string | null {
+  if (depth > 12 || !v || typeof v !== 'object') return null;
+  if (Array.isArray(v)) {
+    for (let i = 0; i < v.length; i++) {
+      const p = pictureProblem(v[i], `${path}[${i}]`, depth + 1);
+      if (p) return p;
+    }
+    return null;
+  }
+  const o = v as Record<string, unknown>;
+  delete o.picture_meta;
+  delete o.picture_data;
+  if ('image_id' in o) {
+    const id = typeof o.image_id === 'string' ? o.image_id.trim() : '';
+    if (!PICTURE_ID.test(id)) {
+      return `${path}: "image_id" must be an id from a search_images result (e.g. "arasaac:2623") – call search_images first.`;
+    }
+    o.image_id = id;
+  }
+  for (const [k, x] of Object.entries(o)) {
+    if (k === 'columns' || !x || typeof x !== 'object') continue;
+    const p = pictureProblem(x, `${path}.${k}`, depth + 1);
+    if (p) return p;
+  }
+  return null;
+}
+
 /**
  * Validate and normalise worksheet blocks. Returns the cleaned blocks or a
  * message the model can act on (block number + problem). After the per-block
@@ -667,14 +750,14 @@ export function checkBlocks(raw: unknown, opts: { nested?: boolean; layout?: boo
       }
       case 'list': {
         if (!Array.isArray(b.items) || !b.items.length) return { error: `${at}: list needs "items" (array of strings).` };
-        out.push({ ...base, type, items: b.items.slice(0, 50).map((x) => unescapeText(String(x)).slice(0, 2000)), ordered: b.ordered === true });
+        out.push({ ...base, type, items: b.items.slice(0, 50).map((x) => cleanItem(x, 2000)), ordered: b.ordered === true });
         break;
       }
       case 'table': {
         if (!Array.isArray(b.rows) || !b.rows.length || !b.rows.every((r) => Array.isArray(r))) {
           return { error: `${at}: table needs "rows" (array of arrays of strings).` };
         }
-        const rows = (b.rows as unknown[][]).slice(0, 60).map((r) => r.slice(0, 10).map((c) => (c == null ? '' : unescapeText(String(c)).slice(0, 1000))));
+        const rows = (b.rows as unknown[][]).slice(0, 60).map((r) => r.slice(0, 10).map((c) => cleanItem(c, 1000)));
         out.push({ ...base, type, rows, header: b.header !== false });
         break;
       }
@@ -753,7 +836,7 @@ export function checkBlocks(raw: unknown, opts: { nested?: boolean; layout?: boo
       }
       case 'picture': {
         const id = typeof b.image_id === 'string' ? b.image_id.trim() : '';
-        if (!/^(arasaac|commons|own):./s.test(id)) {
+        if (!PICTURE_ID.test(id)) {
           return { error: `${at}: picture needs "image_id" from a search_images result (e.g. "arasaac:2623") – call search_images first.` };
         }
         const p: Record<string, unknown> = { ...base, type, image_id: id };
@@ -775,6 +858,12 @@ export function checkBlocks(raw: unknown, opts: { nested?: boolean; layout?: boo
       }
       default:
         out.push({ ...base, type });
+    }
+    if (type !== 'picture' && type !== 'columns') {
+      const last = out[out.length - 1];
+      delete last.image_id; // only picture blocks have one at the top level
+      const problem = pictureProblem(last, at);
+      if (problem) return { error: problem };
     }
   }
   if (opts.layout !== false && !opts.nested) {
@@ -823,40 +912,61 @@ export function toolDefinitions(ctx: { images?: ImageService | null }): ToolDefi
   return ctx.images ? TOOL_DEFINITIONS : TOOLS_WITHOUT_PICTURES;
 }
 
-/** Without pictures the model is not told about picture blocks either. */
-const TOOLS_WITHOUT_PICTURES: ToolDefinition[] = TOOL_DEFINITIONS.filter((d) => d.name !== 'search_images').map((d) => {
-  if (d.name !== 'insert_blocks' && d.name !== 'replace_elements') return d;
-  const params = JSON.parse(JSON.stringify(d.parameters)) as { properties: { blocks: { items: { properties: Record<string, { description?: string; enum?: string[] }> } } } };
-  const props = params.properties.blocks.items.properties;
-  props.type.description = String(props.type.description).replace(PICTURE_DOC, '');
-  props.type.enum = props.type.enum!.filter((t) => t !== 'picture');
-  delete props.image_id;
-  return { ...d, parameters: params };
-});
-
-function pictureBlocks(blocks: Record<string, unknown>[], out: Record<string, unknown>[] = []): Record<string, unknown>[] {
-  for (const b of blocks) {
-    if (b.type === 'picture') out.push(b);
-    else if (b.type === 'columns' && Array.isArray(b.columns)) for (const col of b.columns) if (Array.isArray(col)) pictureBlocks(col as Record<string, unknown>[], out);
+/** A schema without the picture forms: picture items leave the anyOf alternatives, image_id fields are dropped. */
+function withoutPictures(v: unknown): unknown {
+  if (Array.isArray(v)) return v.map(withoutPictures);
+  if (!v || typeof v !== 'object') return v;
+  const o = { ...(v as Record<string, unknown>) };
+  if (Array.isArray(o.anyOf)) {
+    // a picture item is the alternative that requires an image_id (statements only allow one)
+    const alts = (o.anyOf as unknown[]).filter((a) => !(a && typeof a === 'object' && ((a as { required?: string[] }).required ?? []).includes('image_id')));
+    delete o.anyOf;
+    if (alts.length === 1) Object.assign(o, alts[0] as Record<string, unknown>);
+    else o.anyOf = alts;
   }
-  return out;
+  for (const [k, x] of Object.entries(o)) {
+    if (k === 'properties' && x && typeof x === 'object') {
+      const props = { ...(x as Record<string, unknown>) };
+      delete props.image_id;
+      o.properties = withoutPictures(props);
+    } else if (k !== 'anyOf') {
+      o[k] = withoutPictures(x);
+    }
+  }
+  if (Array.isArray(o.anyOf)) o.anyOf = withoutPictures(o.anyOf);
+  return o;
 }
 
+/** Without pictures the model is not told about picture blocks or picture items either. */
+const TOOLS_WITHOUT_PICTURES: ToolDefinition[] = TOOL_DEFINITIONS.filter((d) => d.name !== 'search_images').map((d) => {
+  if (d.name !== 'insert_blocks' && d.name !== 'replace_elements') return d;
+  const params = withoutPictures(JSON.parse(JSON.stringify(d.parameters))) as { properties: { blocks: { items: { properties: Record<string, { description?: string; enum?: string[] }> } } } };
+  const props = params.properties.blocks.items.properties;
+  props.type.description = String(props.type.description).replace(PICTURE_DOC, '').replace(PICTURE_ITEM_DOC, '');
+  props.type.enum = props.type.enum!.filter((t) => t !== 'picture');
+  return { ...d, parameters: params as unknown as ToolDefinition['parameters'] };
+});
+
 /**
- * Validate a client tool call, including what needs the network: picture blocks must name a picture that exists.
- * Their metadata (title, credit, aspect ratio – a few bytes, no image data) is stored on the block as picture_meta.
+ * Validate a client tool call, including what needs the network: every picture (picture blocks and pictures inside
+ * tasks, see worksheet.layout.pictureRefs) must exist. Their metadata (title, credit, aspect ratio – a few bytes, no
+ * image data) is stored on them as picture_meta.
  */
 export async function checkToolCall(call: ToolCall, ctx: ToolContext): Promise<ToolCheck> {
   const check = checkClientToolCall(call);
   if (!check.ok || (call.name !== 'insert_blocks' && call.name !== 'replace_elements')) return check;
-  const pics = pictureBlocks(check.args.blocks as Record<string, unknown>[]);
+  const pics = worksheet.layout.pictureRefs(check.args.blocks);
   if (!pics.length) return check;
   const verb = call.name === 'insert_blocks' ? 'Nothing was inserted.' : 'Nothing was changed.';
-  if (!ctx.images) return { ok: false, args: call.arguments, error: `${verb} Pictures are switched off on this server – remove the picture blocks.` };
+  if (!ctx.images) return { ok: false, args: call.arguments, error: `${verb} Pictures are switched off on this server – remove the pictures (picture blocks and image_id items).` };
+  const images = ctx.images;
+  const described = new Map<string, ReturnType<ImageService['describe']>>();
   try {
     await Promise.all(
       pics.map(async (b) => {
-        const m = await ctx.images!.describe(String(b.image_id), ctx.userId);
+        const id = String(b.image_id);
+        if (!described.has(id)) described.set(id, images.describe(id, ctx.userId));
+        const m = await described.get(id)!;
         b.image_id = m.image_id; // canonical id (what the plugin fetches)
         b.picture_meta = { title: m.title, credit: m.credit, ...(m.width && m.height ? { width: m.width, height: m.height } : {}) };
       }),
@@ -896,7 +1006,9 @@ export async function runServerTool(call: ToolCall, ctx: ToolContext): Promise<u
   const out: Record<string, unknown> = { ok: true, query, results };
   if (r.notes.length) out.notes = r.notes;
   out.hint = results.length
-    ? 'Choose pictures that clearly show what the task is about and add them as picture blocks {image_id} (beside text: columns). ' +
+    ? 'Choose pictures that clearly show what the task is about. When the picture is part of the task, put it into the task as a picture ' +
+      'item {image_id, text?} (matching pairs, multiple choice options, table cells, list items, crossword entries); otherwise add picture ' +
+      'blocks {image_id} (beside text: columns). Credits go to the sources page automatically. ' +
       'Prefer one picture style per worksheet. If nothing fits, try another word (singular, a synonym, English for photos) or leave it out.'
     : 'Nothing found. Try a simpler or more general word (singular), another source, or English terms for photos.' +
       (images.sources.has('own') ? ` Own pictures are searched by file and folder names in ${images.folderName}.` : '');

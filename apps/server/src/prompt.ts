@@ -162,7 +162,19 @@ const MAX_CONTEXT_CHARS = 12000;
 export function renderDocumentContext(ctx: DocumentContext | undefined): string {
   if (!ctx || !Array.isArray(ctx.elements)) return 'DOCUMENT OUTLINE: (not available – call get_document_outline)';
   const lines: string[] = [];
+  const page = ctx.picture_sources_page;
+  const inSources = (i: number) => !!page && Number.isInteger(page.from) && Number.isInteger(page.to) && i >= page.from && i <= page.to;
+  let sourcesShown = false;
   for (const el of ctx.elements) {
+    if (el.sources || inSources(el.index)) {
+      // the picture sources page (licence credits): one line, the model must leave it alone
+      if (!sourcesShown) {
+        const range = page ? (page.from === page.to ? `[${page.from}]` : `[${page.from}-${page.to}]`) : `[${el.index}…]`;
+        lines.push(`${range} PICTURE SOURCES PAGE (automatic – never edit, delete or insert there; content inserted at "end" goes before it)`);
+        sourcesShown = true;
+      }
+      continue;
+    }
     const parts: string[] = [`[${el.index}]`];
     if (el.type === 'table') parts.push(`(table${el.rows ? ` ${el.rows}×${el.cols ?? '?'}` : ''})`);
     else if (el.type && el.type !== 'paragraph') parts.push(`(${el.type})`);
@@ -229,11 +241,20 @@ export const PICTURE_PROMPT = `PICTURES
   for real animals, plants, places, art and history (English terms often work better: "red fox", "Roman legionary").
   Own pictures (the user's picture folder) when the user mentions their own pictures, a folder, a comic or a character
   that free sources cannot have (e.g. Asterix and Obelix for Latin) – search "*" lists them.
-- Place pictures with picture {image_id, width_cm, align, caption?}: a picture beside a text or task with columns
+- Pictures INSIDE tasks: when the picture is what the task is about, put it into the task as a picture item
+  {image_id, text?} instead of a picture column beside it – match picture ↔ word (matching pairs, e.g. left = the
+  pictogram of an eye, right = "Sehen"), tick the right picture (multiple_choice options; a question with image_id
+  asks "Was ist das?"), sort pictures in a table (cells), pictograms before the words of a word list (list items),
+  a statement with a picture (true_false statements[].image_id), a picture crossword (crossword entries[].image_id,
+  clue optional). Leave out text when recognising the picture is the task; give text when the word should be read.
+- Other pictures with picture {image_id, width_cm, align, caption?}: a picture beside a text or task with columns
   (e.g. widths [1, 3] with the picture in the narrow column; two or three pictures side by side = one picture per
   column), an introductory picture after the title (width_cm 6–10). Pictograms 2.5–4 cm, photos 5–8 cm.
-- The licence credit is printed under free pictures automatically – do not write it yourself. If the user asks for a
-  picture that cannot be found, say so and offer a pictogram or the own picture folder instead.`;
+- Licence credits are collected automatically on a picture sources page at the end of the document (it does not count
+  in the page numbers) – never write credits yourself and never edit, delete or insert into that page.
+- When you rebuild a table, matching or other task from get_elements, keep its pictures: turn the tags
+  [Bild <image_id> „<title>“] back into picture items {image_id} (with the same text, if any).
+- If the user asks for a picture that cannot be found, say so and offer a pictogram or the own picture folder instead.`;
 
 export function buildSystemPrompt(ctx: DocumentContext | undefined, opts: { forceFinal?: boolean; pictures?: boolean } = {}): string {
   let prompt = `${BASE_SYSTEM_PROMPT}\n\n${opts.pictures ? PICTURE_PROMPT + '\n\n' : ''}${renderDocumentContext(ctx)}`;

@@ -214,12 +214,13 @@ test('labels follow the document language', () => {
 
 const PNG = 'data:image/png;base64,iVBORw0KGgo=';
 
-test('picture: loaded image with size from the aspect ratio, credit below, source in the alt text', () => {
+test('picture: loaded image with size from the aspect ratio, caption below, credit only in the alt text', () => {
   const r = layout.compose([
     { type: 'picture', image_id: 'commons:Red fox.jpg', width_cm: 6, caption: 'Ein **Fuchs**', align: 'left',
       picture_data: { dataUrl: PNG, width: 800, height: 600, title: 'Rotfuchs', credit: 'Bild: A__B, CC BY-SA 4.0, Wikimedia Commons' } },
   ], { theme: 'primary', textWidthMm: 170 });
-  const [pic, caption, credit] = r.elements;
+  assert.equal(r.elements.length, 2, 'picture and caption – no credit line (it goes to the sources page)');
+  const [pic, caption] = r.elements;
   const im = pic.runs[0].image;
   assert.equal(im.kind, 'picture');
   assert.equal(im.dataUrl, PNG);
@@ -228,16 +229,21 @@ test('picture: loaded image with size from the aspect ratio, credit below, sourc
   assert.equal(im.wEmu, 60 * 36000);
   assert.equal(im.hEmu, 45 * 36000);
   assert.equal(pic.jc, 'left');
-  assert.equal(pic.keepNext, true, 'picture stays with its caption/credit');
-  assert.match(im.alt, /^Bild: Rotfuchs/);
+  assert.equal(pic.keepNext, true, 'picture stays with its caption');
+  assert.equal(im.alt.split('\n\n')[0], 'Bild: Rotfuchs\nQuelle: Bild: A__B, CC BY-SA 4.0, Wikimedia Commons');
   const src = layout.parseMarker(im.alt, layout.GRAPHIC_MARKER);
   assert.deepEqual(src, { type: 'picture', image_id: 'commons:Red fox.jpg', width_cm: 6, align: 'left', caption: 'Ein **Fuchs**' });
   assert.ok(!JSON.stringify(src).includes('base64'), 'no image data in the alt text');
   assert.equal(layout.plainText(caption.runs.map((x) => x.text || '').join('')), 'Ein Fuchs');
-  assert.equal(credit.runs.length, 1, 'credit is one plain run (no markup parsing)');
-  assert.equal(credit.runs[0].text, 'Bild: A__B, CC BY-SA 4.0, Wikimedia Commons');
-  assert.equal(credit.after, 160);
+  assert.equal(caption.after, 160);
+  assert.ok(!JSON.stringify(r.elements).includes('Wikimedia Commons\"'), 'credit is not printed');
+  assert.ok(!r.elements.some((e) => e.t === 'p' && e.runs.some((x) => /CC BY-SA/.test(x.text || ''))), 'no credit paragraph');
   assert.deepEqual(layout.collectImages(r.elements), [im]);
+  // without a caption: one paragraph
+  const plain = layout.compose([{ type: 'picture', image_id: 'arasaac:2623', picture_meta: { title: 'Fuchs', credit: 'Piktogramm: X' } }], {});
+  assert.equal(plain.elements.length, 1);
+  assert.equal(plain.elements[0].after, 160);
+  assert.match(plain.elements[0].runs[0].image.alt, /^Bild: Fuchs\nQuelle: Piktogramm: X\n\nWSGRAPHIC \{"type":"picture","image_id":"arasaac:2623"\}$/);
 });
 
 test('picture: without data (layout check in the proxy) a placeholder of the right size; own pictures without credit', () => {
@@ -249,7 +255,8 @@ test('picture: without data (layout check in the proxy) a placeholder of the rig
   assert.equal(first.dataUrl, undefined);
   assert.equal(first.widthMm, 50, 'default width 5 cm');
   assert.equal(first.heightMm, 37.5, 'unknown aspect ratio: 4:3');
-  assert.equal(r.elements[0].after, 160, 'no credit line for own pictures');
+  assert.equal(r.elements.length, 2, 'one paragraph per picture, no credit lines');
+  assert.equal(first.alt.split('\n\n')[0], 'Bild: obelix', 'own pictures have no credit (no Quelle line)');
   const tall = r.elements[1].runs[0].image;
   assert.equal(tall.heightMm, 160, 'very tall pictures are limited to 16 cm');
   assert.equal(tall.widthMm, 16);
@@ -263,6 +270,162 @@ test('picture: needs an image id from search_images; works inside columns', () =
   const imgs = layout.collectImages(r.elements);
   assert.equal(imgs.length, 1);
   assert.ok(imgs[0].widthMm <= 170 / 4 + 0.01, 'picture fits its column');
+});
+
+// ---------------------------------------------------------------------------
+// picture items inside tasks
+// ---------------------------------------------------------------------------
+
+const ARASAAC = 'Piktogramm: Sergio Palao, ARASAAC (arasaac.org), CC BY-NC-SA 4.0';
+/** A picture item as the plugin passes it to the layout (loaded data) – or, with loaded = false, as in the proxy. */
+const pic = (n, title, extra = {}, loaded = true) => ({
+  image_id: 'arasaac:' + n,
+  ...(loaded ? { picture_data: { dataUrl: PNG, width: 500, height: 500, title, credit: ARASAAC } } : { picture_meta: { title, credit: ARASAAC, width: 500, height: 500 } }),
+  ...extra,
+});
+const pictures = (r) => layout.collectImages(r.elements).filter((im) => im.kind === 'picture');
+const altSource = (im) => layout.parseMarker(im.alt, layout.PICTURE_MARKER);
+const cellTexts = (cl) => cl.content.map((p) => (p.runs || []).map((x) => x.text || '').join('')).join('|');
+
+test('pictureRefs: every object with an image_id, in document order, also inside columns and nested items', () => {
+  const blocks = [
+    { type: 'picture', image_id: 'arasaac:1' },
+    { type: 'matching', pairs: [{ left: { image_id: 'arasaac:2' }, right: 'Sehen' }, { left: 'Ohr', right: { image_id: 'commons:Ear.jpg', text: 'Ohr' } }] },
+    { type: 'multiple_choice', questions: [{ question: 'Was ist das?', image_id: 'arasaac:3', options: [{ image_id: 'arasaac:4' }, 'Katze'] }] },
+    { type: 'columns', columns: [[{ type: 'table', rows: [[{ image_id: 'own:a.png' }, 'x']] }], [{ type: 'crossword', entries: [{ answer: 'Hund', image_id: 'arasaac:5' }] }]] },
+    { type: 'paragraph', text: 'kein Bild' },
+  ];
+  assert.deepEqual(layout.pictureRefs(blocks).map((r) => r.image_id),
+    ['arasaac:1', 'arasaac:2', 'commons:Ear.jpg', 'arasaac:3', 'arasaac:4', 'own:a.png', 'arasaac:5']);
+  assert.equal(layout.pictureRefs(blocks)[1], blocks[1].pairs[0].left, 'the objects themselves (to attach data)');
+  assert.deepEqual(layout.pictureRefs([{ type: 'picture', image_id: 'arasaac:1', picture_meta: { image_id: 'x' } }]).length, 1, 'meta/data are not searched');
+  assert.deepEqual(layout.pictureRefs(null), []);
+  assert.equal(layout.PICTURE_MARKER, 'WSPICTURE ');
+});
+
+test('matching: picture ↔ word – pictures 2.5 cm high in their boxes, rows grow, dots centred, credit in the alt text', () => {
+  const pairs = [{ left: pic(1, 'Auge'), right: 'Sehen' }, { left: pic(2, 'Ohr'), right: 'Hören' }, { left: pic(3, 'Nase', { text: 'Nase' }), right: 'Riechen' }];
+  const r = layout.compose([{ type: 'matching', pairs }], { theme: 'primary', textWidthMm: 170 });
+  const table = r.elements[0];
+  assert.deepEqual(table.widths, [38, 5, 14, 5, 38]);
+  const ims = pictures(r);
+  assert.equal(ims.length, 3);
+  for (const im of ims) {
+    assert.equal(im.dataUrl, PNG);
+    assert.equal(im.widthMm, 25);
+    assert.equal(im.heightMm, 25);
+    assert.equal(im.wEmu, 25 * 36000);
+    assert.match(im.alt, /^Bild: (Auge|Ohr|Nase)\nQuelle: Piktogramm: Sergio Palao, ARASAAC \(arasaac\.org\), CC BY-NC-SA 4\.0\n\nWSPICTURE \{/);
+  }
+  assert.deepEqual(altSource(ims[0]), { image_id: 'arasaac:1' });
+  assert.deepEqual(altSource(ims[2]), { image_id: 'arasaac:3', text: 'Nase' });
+  const row = table.rows[0];
+  assert.equal(row.cells[0].content[0].jc, 'center', 'picture centred in its box');
+  assert.equal(row.cells[0].valign, 'center');
+  assert.equal(row.cells[1].valign, 'center', 'the dot stays in the middle of the (taller) row');
+  assert.ok(row.cells[0].borders.top, 'picture boxed like a word');
+  assert.equal(row.height, layout.tw(10), 'minimum height – the row grows with the picture');
+  assert.equal(cellTexts(table.rows[4].cells[0]), '|Nase', 'text below the picture');
+  // the words on the right are shuffled; every word appears once
+  assert.deepEqual([0, 2, 4].map((i) => cellTexts(table.rows[i].cells[4])).sort(), ['Hören', 'Riechen', 'Sehen']);
+  assert.ok(!JSON.stringify(r.elements).includes('picture_data'));
+});
+
+test('matching: same order with and without loaded pictures; letters mode; solution key names the pictures', () => {
+  const pairs = (loaded) => [{ left: pic(1, 'Auge', {}, loaded), right: 'Sehen' }, { left: pic(2, 'Ohr', {}, loaded), right: 'Hören' }, { left: 'Mund', right: pic(4, 'Schmecken', { text: 'schmecken' }, loaded) }, { left: 'Haut', right: 'Fühlen' }];
+  const order = (r) => r.elements[0].rows.filter((x, i) => i % 2 === 0).map((row) => cellTexts(row.cells[4]) || layout.parseMarker(row.cells[4].content[0].runs[0].image.alt, layout.PICTURE_MARKER).image_id);
+  const proxy = layout.compose([{ type: 'matching', pairs: pairs(false) }], {});
+  const plugin = layout.compose([{ type: 'matching', pairs: pairs(true) }], {});
+  assert.deepEqual(order(proxy), order(plugin), 'the proxy check and the editor show the same order');
+  assert.equal(pictures(proxy)[0].dataUrl, undefined, 'placeholder without data');
+  assert.equal(pictures(proxy)[0].heightMm, 25);
+
+  const sol = layout.compose([{ type: 'matching', pairs: pairs(true), show_answers: true }], { lang: 'de' });
+  const key = sol.elements[sol.elements.length - 1].runs.map((x) => x.text).join('');
+  assert.equal(key, 'Lösung: Auge – Sehen;  Ohr – Hören;  Mund – schmecken;  Haut – Fühlen');
+  const untitled = layout.compose([{ type: 'matching', show_answers: true, pairs: [{ left: { image_id: 'arasaac:9' }, right: 'a' }, { left: 'b', right: 'c' }] }], { lang: 'de' });
+  assert.match(untitled.elements[1].runs.map((x) => x.text).join(''), /Bild – a/);
+
+  const letters = layout.compose([{ type: 'matching', mode: 'letters', pairs: pairs(true) }], { textWidthMm: 170 });
+  assert.deepEqual(letters.elements[0].widths, [6, 34, 8, 8, 6, 38]);
+  assert.equal(pictures(letters).length, 3);
+  for (const im of pictures(letters)) assert.ok(im.widthMm <= 170 * 0.34, 'fits the 34 % column');
+  assert.throws(() => layout.compose([{ type: 'matching', pairs: [{ left: {}, right: 'a' }, { left: 'b', right: 'c' }] }], {}), /pair 1: "left"/);
+  assert.equal(pictures(layout.compose([{ type: 'matching', pairs: [{ left: { text: 'x' }, right: 'a' }, { left: 'b', right: 'c' }] }], {})).length, 0, '{text} is a text item');
+  assert.throws(() => layout.compose([{ type: 'matching', pairs: [{ left: { image_id: 'http://x/y.png' }, right: 'a' }, { left: 'b', right: 'c' }] }], {}), /image_id/);
+});
+
+test('multiple choice: picture options side by side with check boxes below, a picture with the question', () => {
+  const q = { question: 'Was hörst du?', image_id: 'arasaac:7', picture_meta: { title: 'Ohr', credit: ARASAAC, width: 400, height: 300 },
+    options: [pic(1, 'Glocke', { text: 'Glocke' }), pic(2, 'Fisch'), 'nichts'], correct: [0] };
+  const r = layout.compose([{ type: 'multiple_choice', questions: [q], show_answers: true }], { textWidthMm: 170 });
+  const [question, qPic, table, spacer] = r.elements;
+  assert.match(question.runs.map((x) => x.text).join(''), /^1\. {2}Was hörst du\?/);
+  assert.equal(qPic.runs[0].image.heightMm, 30, 'question picture 3 cm high');
+  assert.equal(qPic.runs[0].image.widthMm, 40);
+  assert.equal(qPic.keepNext, true);
+  assert.equal(table.t, 'table');
+  assert.equal(table.rows.length, 1);
+  assert.equal(table.rows[0].cells.length, 4, 'indent column + 3 options');
+  const opt = table.rows[0].cells[1];
+  assert.equal(opt.content[0].runs[0].image.heightMm, 25);
+  assert.equal(opt.content[1].runs[0].text, '☒', 'correct option ticked in the solution');
+  assert.equal(opt.content[1].runs[2].text, 'Glocke');
+  assert.equal(opt.content[1].runs[2].b, true);
+  assert.equal(table.rows[0].cells[2].content[1].runs.length, 1, 'picture without text: just the check box');
+  assert.equal(table.rows[0].cells[3].content[0].runs[0].text, '☐', 'a text option in the row');
+  assert.equal(spacer.t, 'p');
+  // many options wrap into rows of 3 or 4
+  const many = layout.compose([{ type: 'multiple_choice', questions: [{ question: 'x', options: [1, 2, 3, 4, 5, 6].map((n) => pic(n, 'p' + n)) }] }], {});
+  assert.equal(many.elements[1].rows.length, 2);
+  assert.equal(many.elements[1].rows[0].cells.length, 4);
+  // text-only questions keep their layout
+  const plain = layout.compose([{ type: 'multiple_choice', questions: [{ question: 'x', options: ['a', 'b'] }] }], {});
+  assert.ok(plain.elements.every((e) => e.t === 'p'));
+});
+
+test('true/false, table, list and crossword with pictures', () => {
+  const tf = layout.compose([{ type: 'true_false', statements: [{ text: 'Das ist ein Hund.', correct: true, ...pic(1, 'Hund') }, { text: 'Ohne Bild', correct: false }] }], { textWidthMm: 170 });
+  const t = tf.elements[0];
+  assert.equal(t.widths.length, 4, 'a picture column in front of the statements');
+  assert.equal(t.rows[1].cells[0].content[0].runs[0].image.heightMm, 18);
+  assert.deepEqual(altSource(t.rows[1].cells[0].content[0].runs[0].image), { image_id: 'arasaac:1' }, 'the statement text is not the picture text');
+  assert.equal(cellTexts(t.rows[1].cells[1]), '1.  Das ist ein Hund.');
+  assert.equal(cellTexts(t.rows[2].cells[0]), '', 'no picture: empty cell');
+  const tfPlain = layout.compose([{ type: 'true_false', statements: ['a'] }], {});
+  assert.equal(tfPlain.elements[0].widths.length, 3);
+
+  const table = layout.compose([{ type: 'table', widths: [1, 1], rows: [['Säugetier', 'Vogel'], [pic(1, 'Hund', { text: 'Hund' }), pic(2, 'Amsel')]] }], { textWidthMm: 170 });
+  const row = table.elements[0].rows[1];
+  assert.equal(row.cells[0].content[0].runs[0].image.heightMm, 30, 'at most 3 cm high');
+  assert.equal(cellTexts(row.cells[0]), '|Hund');
+  assert.equal(row.cells[0].content[1].jc, 'center');
+  const narrow = layout.compose([{ type: 'table', rows: [[pic(1, 'x'), 'a', 'b', 'c', 'd', 'e', 'f', 'g']] }], { textWidthMm: 170 });
+  assert.ok(narrow.elements[0].rows[0].cells[0].content[0].runs[0].image.widthMm < 170 / 8, 'picture fits a narrow cell');
+  const wide = layout.compose([{ type: 'table', rows: [[pic(1, 'x', { width_cm: 5 }), 'a']] }], { textWidthMm: 170 });
+  assert.equal(wide.elements[0].rows[0].cells[0].content[0].runs[0].image.widthMm, 50, 'width_cm overrides the default');
+
+  const list = layout.compose([{ type: 'list', items: [pic(1, 'Apfel', { text: 'der Apfel' }), 'die Birne'] }], {});
+  const li = list.elements[0];
+  assert.equal(li.runs[0].image.heightMm, 15, 'pictogram 1.5 cm before the word');
+  assert.equal(li.runs.slice(1).map((x) => x.text).join(''), '  der Apfel');
+  assert.ok(li.numbering);
+  assert.equal(list.elements[1].runs[0].text, 'die Birne');
+
+  const cw = layout.compose([{ type: 'crossword', entries: [{ answer: 'Hund', ...pic(1, 'Hund') }, { answer: 'Haus', clue: 'Wohnung' }, { answer: 'Sonne', clue: 'warm' }, { answer: 'Nase', clue: 'im Gesicht', ...pic(2, 'Nase', {}, false) }] }], { textWidthMm: 170 });
+  const grid = cw.elements[0].runs[0].image;
+  const src = layout.parseMarker(grid.alt, layout.GRAPHIC_MARKER);
+  assert.deepEqual(src.entries[0], { answer: 'Hund', image_id: 'arasaac:1' }, 'picture entry in the source, without data');
+  assert.deepEqual(src.entries[3], { answer: 'Nase', clue: 'im Gesicht', image_id: 'arasaac:2' });
+  assert.ok(!JSON.stringify(src).includes('base64'));
+  const clues = [];
+  walk(cw.elements, (e) => { if (e.t === 'p' && e.runs.some((x) => x.image && x.image.kind === 'picture')) clues.push(e); });
+  assert.equal(clues.length, 2);
+  for (const p of clues) assert.equal(p.runs.find((x) => x.image).image.heightMm, 20, 'picture clue 2 cm');
+  const withText = clues.find((p) => p.runs.some((x) => x.text === 'im Gesicht'));
+  assert.ok(withText, 'clue text next to the picture');
+  assert.ok(!JSON.stringify(cw.elements).includes('⁣'), 'no placeholder printed');
+  assert.throws(() => layout.compose([{ type: 'crossword', entries: [{ answer: 'Hund' }, { answer: 'Haus', clue: 'x' }] }], {}), /clue/);
 });
 
 test('computer science diagrams: theme colours, solution version, printed labels, source in the alt text', () => {

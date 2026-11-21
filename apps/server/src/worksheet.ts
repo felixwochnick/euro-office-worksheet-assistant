@@ -24,6 +24,8 @@ export interface WorksheetLayout {
     elements: unknown[];
     warnings: string[];
   };
+  /** Every object with a string image_id in the blocks (picture blocks and pictures inside tasks). */
+  pictureRefs(blocks: unknown): Array<Record<string, unknown>>;
 }
 
 export interface WorksheetSvg {
