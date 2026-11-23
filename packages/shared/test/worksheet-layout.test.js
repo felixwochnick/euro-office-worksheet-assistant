@@ -41,6 +41,7 @@ const ALL_BLOCKS = [
   { type: 'qr_code', url: 'https://example.org/video', caption: 'Video' },
   { type: 'picture', image_id: 'arasaac:2623', width_cm: 3, picture_meta: { title: 'Fuchs', credit: 'Piktogramm: Sergio Palao, ARASAAC (arasaac.org), CC BY-NC-SA 4.0', width: 500, height: 500 } },
   { type: 'svg', svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 50" width="100" height="50"><rect x="5" y="5" width="90" height="40" fill="none" stroke="#000"/><script>alert(1)</script></svg>', caption: 'Rechteck' },
+  { type: 'scene_3d', caption: 'Eine Stadt aus Körpern', bodies: [{ id: 'h', shape: 'cuboid', size: [3, 2, 3] }, { shape: 'triangular_prism', lying: true, size: [3, 1.2, 3], on: 'h' }, { shape: 'cylinder', radius: 1, height: 3, at: [4, 0], label: '1' }] },
   { type: 'cut_line' },
   { type: 'self_assessment', statements: ['Ich kann den Wasserkreislauf erklären.'] },
   { type: 'hint_cards', cards: [{ title: 'Tipp 1', text: 'Schau in den Text.' }, { text: 'Frag deinen Partner.' }, { text: 'Drei' }] },
@@ -298,3 +299,33 @@ test('flowchart: Start/Ende in the language of the worksheet', () => {
   assert.match(svg('fr'), />Début</);
 });
 
+
+test('scene_3d: a computed picture with its scene in the alt text', () => {
+  const block = { type: 'scene_3d', width_cm: 12, bodies: [{ shape: 'cube', size: 2 }, { shape: 'sphere', radius: 1, at: [3, 0] }] };
+  const r = layout.compose([block], { theme: 'modern', lang: 'de', textWidthMm: 170 });
+  const images = layout.collectImages(r.elements);
+  assert.equal(images.length, 1);
+  const im = images[0];
+  assert.equal(im.kind, 'scene_3d');
+  assert.equal(im.widthMm, 120);
+  assert.equal(im.scene3d, undefined, 'no coloured pass for the outline style');
+  assert.match(im.alt, /^3D-Szene: 1 Würfel, 1 Kugel/);
+  const src = layout.parseMarker(im.alt, layout.GRAPHIC_MARKER);
+  assert.equal(src.type, 'scene_3d');
+  assert.deepEqual(src.bodies, block.bodies);
+  // coloured: the plugin gets the camera and the bodies
+  const colored = layout.collectImages(layout.compose([{ ...block, style: 'colored' }], { textWidthMm: 170 }).elements)[0];
+  assert.equal(colored.scene3d.bodies.length, 2);
+  assert.equal(colored.scene3d.viewProj.length, 16);
+  // inside columns, limited to the column width
+  const cols = layout.collectImages(layout.compose([{ type: 'columns', columns: [[block], [{ type: 'paragraph', text: 'x' }]] }], { textWidthMm: 170 }).elements)[0];
+  assert.ok(cols.widthMm < 90, 'column width ' + cols.widthMm);
+});
+
+test('scene_3d: errors and warnings', () => {
+  assert.throws(() => layout.compose([{ type: 'scene_3d', bodies: [{ id: 'k', shape: 'sphere' }, { shape: 'cube', on: 'k' }] }], { textWidthMm: 170 }),
+    /^Error: blocks\[0\] \(scene_3d\): bodies\[1\]: "on" names bodies\[0\] \(sphere\), which has no flat top/);
+  const r = layout.compose([{ type: 'scene_3d', bodies: [{ shape: 'cuboid', size: [4, 4, 4] }, { shape: 'cube', size: 1, label: 'A' }] }], { textWidthMm: 170 });
+  assert.match(r.warnings.join('\n'), /scene_3d: bodies\[1\] \(cube\) is completely inside bodies\[0\]/);
+  assert.match(r.warnings.join('\n'), /scene_3d: bodies\[1\] has the label "A"/);
+});
