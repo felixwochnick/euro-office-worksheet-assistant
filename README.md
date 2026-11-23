@@ -914,10 +914,12 @@ Sizes are in scene units (0.1–50, at most 1:100 between the largest and the sm
 the usual task: cube red, cuboid blue, sphere yellow, cylinder green, cone orange, pyramid purple, triangular_prism
 brown.
 
-**The line drawing** is computed analytically in the shared module, without dependencies, so the plugin and the proxy
-(validation) compute the same picture: all bodies are convex, the outlines of spheres, cylinders and cones are exact
-smooth curves, hidden lines are removed, and where bodies overlap (a tree crown sunk into its trunk) their
-intersection curve is drawn – every visible face is a closed region to colour in. **The coloured version** is rendered
+**The line drawing** is computed analytically in the shared module, without dependencies, by the plugin (the proxy
+only validates the scene – drawing a big scene of overlapping bodies can take a second): all bodies are convex, the
+outlines of spheres, cylinders and cones are exact smooth curves, hidden lines are removed, and where bodies overlap (a
+tree crown sunk into its trunk) their intersection curve is drawn – every visible face is a closed region to colour
+in. The unit tests compare the drawings of tricky scenes (touching, stacked, flush and overlapping bodies) with an
+independent ray-cast picture (`packages/shared/test/scene-oracle.js`; `test/scene-battery.js` runs ~330 scenes). **The coloured version** is rendered
 in the plugin with [three.js](https://threejs.org/) 0.187.0 (WebGL) at print resolution, with soft shading and the
 same vector lines on top. Without WebGL the plugin inserts the line drawing and reports a warning.
 

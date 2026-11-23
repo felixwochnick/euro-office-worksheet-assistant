@@ -54,7 +54,8 @@ GEOMETRIC BODIES (3D SCENES)
   bodies: house = cuboid + lying triangular_prism on it (same width/depth), tower = cylinder + cone on it, tree = thin cylinder + sphere on
   it, vehicle = cuboid + lying cylinders as wheels (turn: 90 so they face the viewer, at the sides of the vehicle). Stack with id/on
   (only on cube, cuboid, upright cylinder/prism; leave at out when stacking). Leave about one unit between objects; keep 5–15 bodies
-  for grades 1–4. Read the warnings after inserting (hidden bodies, invisible labels) and fix the scene with replace_elements.
+  for grades 1–4. Read the warnings after inserting (hidden bodies, invisible labels) and fix the scene with replace_elements –
+  except hidden inner cubes of a cube building (Würfelgebäude), which are meant to be hidden.
 - Colouring pictures (Ausmalbild): style outline (default), view front_left, a colouring task like "Male alle Würfel rot …"; on the
   solution sheet the same scene with style colored (colour by shape: cube red, cuboid blue, sphere yellow, cylinder green, cone orange,
   pyramid purple, prism brown – use exactly these colours in the task text, or give bodies their own color with color_by body).

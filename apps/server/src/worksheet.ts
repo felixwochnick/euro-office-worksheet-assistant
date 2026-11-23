@@ -21,7 +21,7 @@ export interface WorksheetThemes {
 export interface WorksheetLayout {
   BLOCK_TYPES: string[];
   LINE_STYLES: string[];
-  compose(blocks: unknown[], ctx: { theme?: string; lang?: string; textWidthMm?: number }): {
+  compose(blocks: unknown[], ctx: { theme?: string; lang?: string; textWidthMm?: number; validate?: boolean }): {
     elements: unknown[];
     warnings: string[];
   };

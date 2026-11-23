@@ -815,7 +815,8 @@ export function checkBlocks(raw: unknown, opts: { nested?: boolean; layout?: boo
   }
   if (opts.layout !== false && !opts.nested) {
     try {
-      worksheet.layout.compose(out, { theme: 'modern', lang: 'de', textWidthMm: 170 });
+      // validate: 3D scenes are checked without drawing them (the plugin draws them)
+      worksheet.layout.compose(out, { theme: 'modern', lang: 'de', textWidthMm: 170, validate: true });
     } catch (e) {
       return { error: (e as Error).message };
     }

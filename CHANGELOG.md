@@ -26,7 +26,7 @@
   colouring tasks with a coloured solution, Schrägbilder with dashed hidden edges for grades 4–6.
 - **Rendering library:** a subset of [three.js](https://threejs.org/) 0.187.0 (MIT) – bundled with esbuild by
   `scripts/build-three.mjs` and vendored for the plugin (`vendor/three/three.min.js`, checksum in `vendor/SHA256SUMS`).
-  Only the plugin uses it; the proxy and the desktop app's server program compute the line drawing without it.
+  Only the plugin uses it. The plugin also computes the line drawing; the proxy only validates the scene.
 
 ## 0.8.2 – English file names for the desktop app
 

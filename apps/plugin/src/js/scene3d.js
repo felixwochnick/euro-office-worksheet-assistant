@@ -15,15 +15,23 @@
   'use strict';
 
   var MAX_PX = 4096;
+  var webgl = null;
 
+  /** WebGL and three.js present? Tested once (a test context is released right away; browsers limit contexts). */
   function available() {
     if (!window.THREE) return false;
-    try {
-      var c = document.createElement('canvas');
-      return !!(c.getContext('webgl2') || c.getContext('webgl'));
-    } catch (e) {
-      return false;
+    if (webgl === null) {
+      try {
+        var c = document.createElement('canvas');
+        var gl = c.getContext('webgl2') || c.getContext('webgl');
+        webgl = !!gl;
+        var lose = gl && gl.getExtension('WEBGL_lose_context');
+        if (lose) lose.loseContext();
+      } catch (e) {
+        webgl = false;
+      }
     }
+    return webgl;
   }
 
   /** Flat-shaded geometry from polygons (counter-clockwise seen from outside). */
@@ -114,6 +122,13 @@
         var mesh = new T.Mesh(geo, mat);
         mesh.matrixAutoUpdate = false;
         mesh.matrix.fromArray(b.matrix);
+        // Overlapping bodies can share a plane (two cylinders of the same height): the nudge – a shift towards the viewer
+        // far below a pixel, growing with the body index – decides which colour wins instead of flickering stripes.
+        if (b.nudge) {
+          mesh.matrix.elements[12] += b.nudge[0];
+          mesh.matrix.elements[13] += b.nudge[1];
+          mesh.matrix.elements[14] += b.nudge[2];
+        }
         mesh.frustumCulled = false;
         scene.add(mesh);
       });

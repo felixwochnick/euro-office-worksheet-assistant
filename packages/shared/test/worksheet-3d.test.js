@@ -292,3 +292,62 @@ test('the vendored three.js bundle (plugin) is the version of the root devDepend
   assert.ok(vendored.startsWith(`/* three.js ${version} `), `vendor/three/three.min.js is not three ${version} – run node scripts/build-three.mjs`);
   assert.ok(vendored.includes(`"${version.split('.')[1]}"`), 'REVISION in the bundle');
 });
+
+// ---------------------------------------------------------------------------
+// Regression scenes checked against an independent ray-cast id buffer (test/scene-oracle.js):
+// every boundary between faces has a line, no line runs through a single face.
+// ---------------------------------------------------------------------------
+
+const oracle = require('./scene-oracle.js');
+const WHEELS = [[-1.3, 1], [1.3, 1], [-1.3, -1], [1.3, -1]].map((at) => ({ shape: 'cylinder', lying: true, radius: 0.5, height: 0.4, turn: 90, at }));
+const REGRESSION = {
+  // a crease on a grid row of the marching squares (half the tower in the block)
+  'tower of height 4 in a block of height 2': { ground: false, bodies: [{ shape: 'cuboid', size: [4, 2, 3] }, { shape: 'cylinder', radius: 0.8, height: 4, at: [0.5, 0] }] },
+  'vehicle with wheels centred on its sides': { bodies: [{ shape: 'cuboid', size: [4, 1.5, 2] }, ...WHEELS] },
+  'row of overlapping cubes': { bodies: [{ shape: 'cube', size: 2, at: [0, 0] }, { shape: 'cube', size: 2, at: [1.8, 0] }, { shape: 'cube', size: 2, at: [3.6, 0] }] },
+  'L-shaped body as a Schrägbild': { projection: 'oblique', hidden_edges: 'dashed', bodies: [{ shape: 'cuboid', size: [4, 1, 1.5] }, { shape: 'cuboid', size: [1.5, 1, 4], at: [-1.25, -1.25] }] },
+  'pyramid on the base of a cube': { bodies: [{ shape: 'cube', size: 2 }, { shape: 'pyramid', size: [2, 3, 2] }] },
+  'cone on the base of a cylinder': { bodies: [{ shape: 'cylinder', radius: 1, height: 2 }, { shape: 'cone', radius: 1, height: 4 }] },
+  'turned cuboid, isometric': { ground: false, projection: 'isometric', bodies: [{ shape: 'cuboid', size: [3, 1, 2], turn: 45 }] },
+  'cube building': { bodies: [{ id: 'a', shape: 'cube', size: 1 }, { shape: 'cube', size: 1, on: 'a' }, { shape: 'cube', size: 1, at: [1, 0] },
+    { id: 'c', shape: 'cube', size: 1, at: [0, -1] }, { id: 'c2', shape: 'cube', size: 1, on: 'c' }, { shape: 'cube', size: 1, on: 'c2' }, { shape: 'cube', size: 1, at: [1, -1] }] },
+  'two equal bodies in one place': { bodies: [{ shape: 'cube', size: 2 }, { shape: 'cube', size: 2 }] },
+  'flush fronts': { bodies: [{ shape: 'cuboid', size: [4, 1, 2], at: [-1, 0] }, { shape: 'cube', size: 2, at: [1, 0] }] },
+  'same-height cuboid and prism': { bodies: [{ shape: 'cuboid', size: [3, 1.5, 2] }, { shape: 'triangular_prism', size: [3, 1.5, 2], at: [0.9, 0.6], turn: -35 }] },
+  'tree crown sunk into its trunk': { bodies: [{ shape: 'cylinder', radius: 0.3, height: 2.5 }, { shape: 'sphere', radius: 1.2 }] },
+  'town': CITY,
+};
+
+// Each scene in the default view and one other (rotating through isometric and a high view from the right) – the id
+// buffer is slow; test/scene-battery.js runs ~330 scenes by hand.
+const VIEWS2 = [{ projection: 'isometric' }, { elevation: 'high', view: 'front_right' }, { elevation: 'low', view: 'front' }];
+Object.entries(REGRESSION).forEach(([name, block], i) => {
+  test(`id buffer: ${name}`, () => {
+    for (const p of block.projection ? [{}] : [{}, VIEWS2[i % VIEWS2.length]]) {
+      const a = oracle.analyse({ ...block, ...p }, { widthMm: 60, res: 0.15 });
+      assert.deepEqual(a.issues, [], `${name} ${JSON.stringify(p)}`);
+    }
+  });
+});
+
+test('id buffer: the checker finds a missing line and a stray line', () => {
+  const block = { ground: false, bodies: [{ shape: 'cube', size: 2 }] };
+  const r = W3.render(block, { widthMm: 60 });
+  // remove the last segment of the visible path
+  const cut = r.svg.replace(/(d="M[^"]*)L[\d.]+ [\d.]+("\/>)/, '$1$2');
+  const stray = r.svg.replace(/(stroke-linejoin="round" d=")/, '$1M28 20L32 22');
+  const orig = W3.render;
+  try {
+    W3.render = () => ({ ...r, svg: cut });
+    assert.match(oracle.analyse(block, { widthMm: 60, res: 0.15 }).issues.join('\n'), /GAP/);
+    W3.render = () => ({ ...r, svg: stray });
+    assert.match(oracle.analyse(block, { widthMm: 60, res: 0.15 }).issues.join('\n'), /LINE-THROUGH-FACE/);
+  } finally {
+    W3.render = orig;
+  }
+});
+
+test('labels are cut by characters, not UTF-16 units', () => {
+  const s = W3.normalizeScene({ bodies: [{ shape: 'cube', label: '🍎🍐🍊🍋' }] });
+  assert.equal(s.bodies[0].label, '🍎🍐🍊');
+});

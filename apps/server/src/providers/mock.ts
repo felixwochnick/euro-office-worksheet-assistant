@@ -244,7 +244,7 @@ export class MockProvider implements LLMProvider {
     }
 
     // W0d) "… Körper-Stadt / geometrische Körper zum Ausmalen …" -> a 3D scene to colour in and the coloured solution
-    if (/(körper|3d-szene|3d scene|ausmalbild)/i.test(userText)) {
+    if (/(geometrische[nm]? körper|körper-stadt|3d-szene|3d scene|ausmalbild)/i.test(userText)) {
       if (done('insert_blocks').length === 0) {
         const bodies = [
           { id: 'haus', shape: 'cuboid', size: [3, 2, 3], at: [0, 0] },

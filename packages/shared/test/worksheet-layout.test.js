@@ -329,3 +329,13 @@ test('scene_3d: errors and warnings', () => {
   assert.match(r.warnings.join('\n'), /scene_3d: bodies\[1\] \(cube\) is completely inside bodies\[0\]/);
   assert.match(r.warnings.join('\n'), /scene_3d: bodies\[1\] has the label "A"/);
 });
+
+test('scene_3d: validate mode checks the scene without drawing it', () => {
+  const block = { type: 'scene_3d', bodies: [{ shape: 'cuboid', size: [4, 4, 4] }, { shape: 'cube', size: 1, label: 'A' }] };
+  const r = layout.compose([block], { textWidthMm: 170, validate: true });
+  assert.deepEqual(r.warnings, [], 'no drawing, no warnings');
+  const im = layout.collectImages(r.elements)[0];
+  assert.equal(im.kind, 'scene_3d');
+  assert.match(im.alt, /^3D-Szene: 1 Würfel, 1 Quader/);
+  assert.throws(() => layout.compose([{ type: 'scene_3d', bodies: [{ shape: 'cone', lying: true }] }], { validate: true }), /bodies\[0\]: only a cylinder or a triangular_prism can be "lying"/);
+});

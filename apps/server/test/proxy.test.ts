@@ -578,3 +578,12 @@ test('tools: 3D scenes are in the schema, validated and explained in the prompt'
   assert.match(prompt, /GEOMETRIC BODIES \(3D SCENES\)/);
   assert.match(prompt, /never svg\n?\s*for UML, structograms, automata, ER diagrams or 3D bodies/);
 });
+
+test('tools: the proxy validates 3D scenes without drawing them (big overlapping scenes stay cheap)', () => {
+  const shapes = ['cube', 'cuboid', 'sphere', 'cylinder', 'cone', 'pyramid', 'triangular_prism'];
+  const pile = { type: 'scene_3d', bodies: Array.from({ length: 40 }, (_, i) => ({ shape: shapes[i % 7], at: [(i % 5) * 0.7, (Math.floor(i / 5) % 4) * 0.7], turn: i * 17 })) };
+  const t = Date.now();
+  const ok = checkClientToolCall({ id: 's3', name: 'insert_blocks', arguments: { position: 'end', blocks: Array.from({ length: 10 }, () => pile) } });
+  assert.equal(ok.ok, true, ok.error);
+  assert.ok(Date.now() - t < 1000, `validation took ${Date.now() - t} ms`);
+});

@@ -21,8 +21,8 @@
  * render(block, opts) -> { svg, widthMm, heightMm, warnings, render }
  *   render: what the plugin needs for the coloured pass with three.js (same camera as the lines):
  *   { style, widthMm, heightMm, viewProj (world -> clip, 4x4 column-major), light (towards the light),
- *     bodies: [{ shape, dims, lying, matrix (local -> world, 4x4 column-major), color, faces? (local
- *     polygons of polyhedra) }], ground: { corners: [[x,y,z] x4], color } | null }
+ *     bodies: [{ shape, dims, lying, matrix (local -> world, 4x4 column-major), color, nudge (world shift towards the
+ *     viewer for the depth buffer only), faces? (local polygons of polyhedra) }], ground: { corners: [[x,y,z] x4], color } | null }
  *
  * Local frame of a body: origin at the centre of its base, y up, x to the right, z towards the viewer.
  */
@@ -218,7 +218,7 @@
       var b = {
         index: i, shape: shape, lying: lying, dims: dimsOf(raw, shape, at),
         id: raw.id == null || raw.id === '' ? null : String(raw.id).trim(),
-        label: raw.label == null || raw.label === '' ? null : String(raw.label).trim().slice(0, 3),
+        label: raw.label == null || raw.label === '' ? null : Array.from(String(raw.label).trim()).slice(0, 3).join(''),
         color: colorOf(raw.color, at),
         turnDeg: raw.turn == null || raw.turn === '' ? 0 : coord(raw.turn, at, 'turn'),
         on: raw.on == null || raw.on === '' ? null : String(raw.on).trim(),
@@ -651,13 +651,26 @@
   function frontFacing(cam, n, p) { return dot(n, towards(cam, p)) > 0; }
 
   /**
+   * Points of a circle are drawn as short chords; the tests use the exact circle (a chord's middle lies a hair inside
+   * – inside a cone standing on the same base, for example).
+   */
+  function circleSnap(center, axis, rad) {
+    return function (p) {
+      var q = sub(p, center);
+      var radial = sub(q, mul(axis, dot(q, axis)));
+      var l = len(radial);
+      return l > 1e-12 ? add(center, mul(radial, rad / l)) : p;
+    };
+  }
+
+  /**
    * Curves of one solid: { pts, body, own(p) -> bool (own-body visibility), exclude: [solid indices], dashable,
    * faces?(p) -> [{ dir, n }] }. faces: the faces meeting at an edge (direction from the edge into the face and the
    * face normal), used to drop edges that are covered by or merged into other bodies.
    */
   function bodyCurves(s, si, cam, scene) {
     var out = [];
-    function curve(pts, own, faces) { out.push({ pts: pts, own: own, exclude: [si], dashable: true, body: si, faces: faces || null }); }
+    function curve(pts, own, faces, snap) { out.push({ pts: pts, own: own, exclude: [si], dashable: true, body: si, faces: faces || null, snap: snap || null }); }
     var yes = function () { return true; };
     if (s.kind === 'poly') {
       s.edges.forEach(function (e) {
@@ -688,9 +701,10 @@
         axis = cam.vv; cc = s.c; rad = s.r;
       }
       var a1 = perp(axis);
-      curve(circlePoints(cc, a1, cross(axis, a1), rad, CIRCLE_SEGMENTS), yes);
+      curve(circlePoints(cc, a1, cross(axis, a1), rad, CIRCLE_SEGMENTS), yes, null, circleSnap(cc, axis, rad));
       if (scene.hiddenEdges === 'dashed') {
-        curve(circlePoints(s.c, [1, 0, 0], [0, 0, 1], s.r, CIRCLE_SEGMENTS), function (p) { return frontFacing(cam, norm(sub(p, s.c)), p); });
+        curve(circlePoints(s.c, [1, 0, 0], [0, 0, 1], s.r, CIRCLE_SEGMENTS), function (p) { return frontFacing(cam, norm(sub(p, s.c)), p); },
+          null, circleSnap(s.c, [0, 1, 0], s.r));
       }
       return out;
     }
@@ -708,7 +722,7 @@
       }, function (p) {
         var along = isCone ? norm(sub(s.apex, p)) : mul(cap.n, -1);
         return [{ dir: norm(sub(cap.c, p)), n: cap.n }, { dir: along, n: sideNormal(p) }];
-      });
+      }, circleSnap(cap.c, s.a, s.r));
     });
     // silhouette generators
     var top = isCone ? s.apex : add(s.b, mul(s.a, s.L));
@@ -750,8 +764,10 @@
         var v = dot(c, e2);
         bx0 = Math.min(bx0, u); bx1 = Math.max(bx1, u); by0 = Math.min(by0, v); by1 = Math.max(by1, v);
       }); }); });
-      var pad = 1e-6 * (x1 - x0 + y1 - y0 + 1);
-      x0 = Math.max(x0, bx0) - pad; x1 = Math.min(x1, bx1) + pad; y0 = Math.max(y0, by0) - pad; y1 = Math.min(y1, by1) + pad;
+      // exactly the face (no margin: a grid row beyond the face could cross a coplanar face of the other body), cut to
+      // the other body's box with a margin (a crossing on the box boundary must lie inside the grid)
+      var m = 0.02 * other.radius + 1e-9;
+      x0 = Math.max(x0, bx0 - m); x1 = Math.min(x1, bx1 + m); y0 = Math.max(y0, by0 - m); y1 = Math.min(y1, by1 + m);
       if (x0 >= x1 || y0 >= y1) return;
       var n = norm(cross(e1, e2));
       patches.push({
@@ -817,7 +833,7 @@
       else if (fb < 0) t1 = Math.min(t1, fa / (fa - fb));
     }
     if (t0 >= t1) return null;
-    return [lerp(a, b, t0), lerp(a, b, t1)];
+    return [t0 > 0 ? lerp(a, b, t0) : a, t1 < 1 ? lerp(a, b, t1) : b];
   }
 
   function clipCircle(a, b, origin, e1, e2, rad) {
@@ -834,20 +850,34 @@
     var t0 = Math.max(0, (-B - sq) / A);
     var t1 = Math.min(1, (-B + sq) / A);
     if (t0 >= t1) return null;
-    return [lerp(a, b, t0), lerp(a, b, t1)];
+    return [t0 > 0 ? lerp(a, b, t0) : a, t1 < 1 ? lerp(a, b, t1) : b];
   }
 
   /** Intersection segments of the surface of s with the surface of o: [[p, q], ...] (3D). */
   function intersectionSegments(s, o, tau) {
     var segs = [];
-    var g = function (p) { return inside(o, p); };
+    var lo = o.lo, hi = o.hi;
+    // outside the other body's bounding box: certainly outside (cheap test first)
+    var g = function (p) {
+      if (p[0] < lo[0] - tau || p[0] > hi[0] + tau || p[1] < lo[1] - tau || p[1] > hi[1] + tau || p[2] < lo[2] - tau || p[2] > hi[2] + tau) return 1;
+      return inside(o, p);
+    };
     patchesOf(s, o).forEach(function (patch) {
       var nu = patch.nu, nv = patch.nv;
+      // g at a patch point; a point exactly on the other surface (round sizes often put a grid row there) is decided
+      // by a small step into the patch: a surface passing through gets its side, one lying in the other's face stays
+      // "on" (|g| <= tau, counted as outside).
+      function gAt(u, v) {
+        var gv = g(patch.point(u, v));
+        if (Math.abs(gv) > tau) return gv;
+        var gp = g(patch.point(u + (u < 1 ? 0.0137 : -0.0137) / nu, v + (v < 1 ? 0.0113 : -0.0113) / nv));
+        return Math.abs(gp) > tau ? gp : gv;
+      }
       var vals = [];
       var gs = [];
       for (var j = 0; j <= nv; j++) {
         for (var i = 0; i <= nu; i++) {
-          var gv = g(patch.point(i / nu, j / nv));
+          var gv = gAt(i / nu, j / nv);
           gs.push(gv);
           vals.push(gv < -tau);
         }
@@ -861,8 +891,7 @@
         var lo = 0, hi = 1;
         for (var k = 0; k < 24; k++) {
           var m = (lo + hi) / 2;
-          var pm = patch.point(ua + (ub - ua) * m, va + (vb - va) * m);
-          if ((g(pm) < -tau) === ina) lo = m; else hi = m;
+          if ((gAt(ua + (ub - ua) * m, va + (vb - va) * m) < -tau) === ina) lo = m; else hi = m;
         }
         var t = (lo + hi) / 2;
         cache[key] = patch.point(ua + (ub - ua) * t, va + (vb - va) * t);
@@ -888,13 +917,18 @@
           var pairs = [];
           if (found.length === 2) pairs.push(found);
           else if (found.length === 4) {
-            var centerIn = g(patch.point((ci + 0.5) / nu, (cj + 0.5) / nv)) < -tau;
+            var centerIn = gAt((ci + 0.5) / nu, (cj + 0.5) / nv) < -tau;
             if (c00 === centerIn) { pairs.push([e[0], e[1]]); pairs.push([e[2], e[3]]); }
             else { pairs.push([e[0], e[3]]); pairs.push([e[1], e[2]]); }
           }
           pairs.forEach(function (pr) {
             var seg = patch.clip ? patch.clip(pr[0], pr[1]) : pr;
-            if (seg && len(sub(seg[1], seg[0])) > 1e-12) segs.push(seg);
+            if (!seg || len(sub(seg[1], seg[0])) <= 1e-12) return;
+            // where the two surfaces are parallel they touch or lie in one plane: no crease (only exactly parallel –
+            // two faces 2° apart still meet in a crease)
+            var mid = lerp(seg[0], seg[1], 0.5);
+            if (Math.abs(dot(patch.normal(mid), normalAt(o, mid))) > 1 - 1e-7) return;
+            segs.push(seg);
           });
         }
       }
@@ -902,9 +936,19 @@
     return segs;
   }
 
-  /** Chain 3D segments sharing end points into polylines. */
+  /**
+   * Chain 3D segments sharing end points into polylines. Neighbouring marching-squares cells share their crossing
+   * points (the same array object), so end points are matched by identity.
+   */
   function chain3(segs) {
-    var key = function (p) { return p[0].toFixed(9) + ',' + p[1].toFixed(9) + ',' + p[2].toFixed(9); };
+    var ids = typeof Map === 'function' ? new Map() : null;
+    var next = 0;
+    var key = function (p) {
+      if (!ids) return p.join(',');
+      var k = ids.get(p);
+      if (k === undefined) { k = next++; ids.set(p, k); }
+      return k;
+    };
     var byKey = {};
     segs.forEach(function (s, i) {
       [0, 1].forEach(function (k) { var kk = key(s[k]); (byKey[kk] = byKey[kk] || []).push(i); });
@@ -1081,14 +1125,15 @@
         if (g < -tau) return 'covered';
         if (g <= tau) {
           var d = dot(normalAt(so, q), n);
-          if (d < -0.999) return 'covered';
-          if (d > 0.999) res = 'merged';
+          if (d < -(1 - 1e-7)) return 'covered';
+          if (d > 1 - 1e-7) res = 'merged';
         }
       }
       return res;
     }
-    // An edge is a line of the picture when at least one of its faces is free, unless the other face merges into a
-    // face of another body (then the surface continues flat across the edge).
+    // An edge is a line of the picture when one of its faces is free or when both merge into faces of other bodies
+    // (two bodies sharing the edge). It is gone when no face is free and at least one is covered – e.g. the rim of a
+    // cylinder standing inside a cuboid: its base lies in the cuboid's base, its side inside the cuboid.
     function edgeGone(c, p) {
       var fs = c.faces(p);
       var free = 0;
@@ -1098,10 +1143,11 @@
         if (cl === 'free') free++;
         else if (cl === 'merged') merged++;
       }
-      return free === 0 || (free === 1 && merged > 0);
+      return free === 0 && merged < fs.length;
     }
     // 0 = no line (inside another body or covered), 1 = visible, 2 = hidden
     function state(c, p) {
+      if (c.snap) p = c.snap(p);
       if (c.faces ? edgeGone(c, p) : insideOther(p, c.exclude)) return 0;
       if (!c.own(p)) return 2;
       return occluded(p, c.exclude) ? 2 : 1;
@@ -1125,7 +1171,6 @@
         for (var k2 = 1; k2 <= n; k2++) {
           var t = k2 / n;
           var sNow = state(c, lerp(pa, pb, t));
-          var tPrev = ts[ts.length - 1];
           var sPrev = st[st.length - 1];
           if (sNow !== sPrev) {
             var l = (k2 - 1) / n;
@@ -1137,7 +1182,6 @@
             ts.push((l + h) / 2);
             st.push(sNow);
           }
-          void tPrev;
         }
         ts.push(1);
         for (var r = 0; r < st.length; r++) {
@@ -1216,8 +1260,8 @@
     var color = opts.color || '#1f2937';
     var font = opts.font || DEFAULT_FONT;
     var body = '';
-    var visD = pathData(chain2(visPieces));
-    var hidD = pathData(chain2(hidPieces));
+    var visD = pathData(dropSpecks(chain2(mergeCollinear(visPieces))));
+    var hidD = pathData(dropSpecks(chain2(mergeCollinear(hidPieces))));
     if (hidD) body += '<path fill="none" stroke="' + color + '" stroke-width="' + f3(hw) + '" stroke-dasharray="' + f3(hw * 4) + ' ' + f3(hw * 3) + '" stroke-linecap="butt" stroke-linejoin="round" d="' + hidD + '"/>';
     if (visD) body += '<path fill="none" stroke="' + color + '" stroke-width="' + f3(lw) + '" stroke-linecap="round" stroke-linejoin="round" d="' + visD + '"/>';
     labels.forEach(function (l) {
@@ -1241,15 +1285,56 @@
       style: scene.style, widthMm: W, heightMm: H,
       viewProj: viewProjMatrix(cam, fr, dmin, dmax).map(function (v) { return round(v, 9); }),
       light: light.map(function (v) { return round(v, 6); }),
-      bodies: solids.map(function (s) {
+      bodies: solids.map(function (s, si) {
         var b = s.body;
-        var o = { shape: b.shape, dims: b.dims, lying: b.lying, matrix: s.matrix.map(function (v) { return round(v, 9); }), color: b.fill };
+        // nudge: a tiny shift towards the viewer, growing with the body index, so that faces of two bodies in one plane
+        // (two cylinders of the same height) get a clear winner in the depth buffer instead of flickering stripes
+        var nudge = mul(norm(towards(cam, s.center)), (si + 1) * 2e-4 * S);
+        var o = { shape: b.shape, dims: b.dims, lying: b.lying, matrix: s.matrix.map(function (v) { return round(v, 9); }), color: b.fill,
+          nudge: nudge.map(function (v) { return round(v, 9); }) };
         if (s.localFaces) o.faces = s.localFaces;
         return o;
       }),
       ground: ground ? { corners: ground.corners, color: GROUND_COLOR } : null
     };
     return { svg: svg, widthMm: W, heightMm: H, warnings: warnings, render: renderDesc, scene: scene, summary: describe(scene) };
+  }
+
+  /**
+   * Merge straight 2D pieces that lie on one line and overlap – an edge shared by two bodies comes twice, and two
+   * dashed copies with different dash phases would look like a solid line.
+   */
+  function mergeCollinear(pieces) {
+    var groups = {};
+    var order = [];
+    pieces.forEach(function (pc) {
+      var dx = pc[1][0] - pc[0][0], dy = pc[1][1] - pc[0][1];
+      var l = Math.sqrt(dx * dx + dy * dy);
+      if (l < 1e-6) return;
+      var ux = dx / l, uy = dy / l;
+      if (ux < -1e-9 || (Math.abs(ux) <= 1e-9 && uy < 0)) { ux = -ux; uy = -uy; }
+      var key = Math.round(Math.atan2(uy, ux) * 2000) + ':' + Math.round((uy * pc[0][0] - ux * pc[0][1]) * 200);
+      var g = groups[key];
+      if (!g) { g = groups[key] = { ux: ux, uy: uy, list: [] }; order.push(key); }
+      var t0 = pc[0][0] * g.ux + pc[0][1] * g.uy;
+      var t1 = pc[1][0] * g.ux + pc[1][1] * g.uy;
+      g.list.push(t0 <= t1 ? { t0: t0, t1: t1, a: pc[0], b: pc[1] } : { t0: t1, t1: t0, a: pc[1], b: pc[0] });
+    });
+    var out = [];
+    order.forEach(function (key) {
+      var list = groups[key].list.sort(function (x, y) { return x.t0 - y.t0; });
+      var cur = null;
+      list.forEach(function (it) {
+        if (cur && it.t0 <= cur.t1 + 1e-3) {
+          if (it.t1 > cur.t1) { cur.t1 = it.t1; cur.b = it.b; }
+        } else {
+          if (cur) out.push([cur.a, cur.b]);
+          cur = { t0: it.t0, t1: it.t1, a: it.a, b: it.b };
+        }
+      });
+      if (cur) out.push([cur.a, cur.b]);
+    });
+    return out;
   }
 
   /** Chain 2D pieces [[a, b], ...] into polylines (end points within 0.001 mm). */
@@ -1290,6 +1375,15 @@
     return lines;
   }
 
+  /** Leave out lines shorter than 0.25 mm: specks where a corner barely touches a face (a round cap would show a dot). */
+  function dropSpecks(lines) {
+    return lines.filter(function (line) {
+      var l = 0;
+      for (var i = 1; i < line.length; i++) l += Math.sqrt((line[i][0] - line[i - 1][0]) * (line[i][0] - line[i - 1][0]) + (line[i][1] - line[i - 1][1]) * (line[i][1] - line[i - 1][1]));
+      return l >= 0.25;
+    });
+  }
+
   /** Drop points that lie on the straight line between their neighbours (collinear within 0.002 mm). */
   function simplify(line) {
     if (line.length < 3) return line;
@@ -1300,8 +1394,11 @@
       var c = line[i + 1];
       var dx = c[0] - a[0], dy = c[1] - a[1];
       var l = Math.sqrt(dx * dx + dy * dy);
-      var dist = l < 1e-9 ? Math.sqrt((b[0] - a[0]) * (b[0] - a[0]) + (b[1] - a[1]) * (b[1] - a[1])) : Math.abs(dx * (b[1] - a[1]) - dy * (b[0] - a[0])) / l;
-      if (dist > 0.002) out.push(b);
+      // b may go: on the segment a–c (strictly between a and c, within 0.002 mm); a point where the line turns back
+      // (outside a–c) stays
+      var t = l < 1e-9 ? -1 : ((b[0] - a[0]) * dx + (b[1] - a[1]) * dy) / (l * l);
+      var dist = l < 1e-9 ? Infinity : Math.abs(dx * (b[1] - a[1]) - dy * (b[0] - a[0])) / l;
+      if (!(t > 0 && t < 1 && dist <= 0.002)) out.push(b);
     }
     out.push(line[line.length - 1]);
     return out;

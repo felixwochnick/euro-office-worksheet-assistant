@@ -221,6 +221,15 @@ warning wording, test structure.
   `true` otherwise.
 - **`isometric` honours the view:** `front_left` and `front_right` turn the camera by 45° to either side; `front` is
   treated as `front_left` (a straight front view would not be isometric).
+- **The proxy validates, the plugin draws.** `checkBlocks` runs the layout with `validate: true`: a scene is
+  normalised (all errors) but not drawn – a scene of 40 overlapping bodies takes up to ~2 s to draw, and a call can carry
+  80 blocks. The warnings (hidden bodies, labels) come from the plugin's insert result, as designed.
+- **After the code review:** samples exactly on another body's surface (round sizes put grid rows there) are decided by
+  a small step into the patch; edges are dropped only when no adjacent face is free and one is covered (two bodies
+  sharing an edge keep it); collinear duplicate pieces are merged (dashed shared edges stay dashed); circle samples are
+  tested on the exact circle, not the chord; the coloured pass shifts each body a tiny, index-dependent distance towards
+  the viewer so coplanar faces of two bodies do not flicker. An independent ray-cast id buffer
+  (`packages/shared/test/scene-oracle.js`) checks the drawings in the unit tests.
 - **Smaller refinements:** `color` also accepts German colour names (`rot`, `blau`, …) and `#rrggbb`; a stacked body
   whose centre is not on the top face of its support gets a warning; the perspective camera uses camera heights of
   12°/25°/45°.

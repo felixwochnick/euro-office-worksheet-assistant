@@ -184,7 +184,9 @@
       taskCounter: num(ctx.taskStart, 0),
       listCounter: 0,
       listPrefix: ctx.listPrefix || ('l' + Math.floor(Math.random() * 1e9).toString(36)),
-      nested: false
+      nested: false,
+      // validation only (the proxy): expensive pictures are checked, not drawn
+      validate: !!ctx.validate
     };
     var doc = theme.id === 'document';
     c.body = { font: theme.font, size: theme.size, color: theme.colors.text };
@@ -979,6 +981,13 @@
   builders.scene_3d = function (b, c) {
     var widthMm = b.width_cm != null ? clamp(num(b.width_cm, 16), 3, c.widthMm / 10) * 10 : c.widthMm;
     var r;
+    if (c.validate) {
+      // the proxy only needs the errors: the drawing (up to seconds for big overlapping scenes) happens in the plugin
+      var scene;
+      try { scene = lib('worksheet-3d').normalizeScene(b); } catch (e) { throw blockError(e && e.message ? e.message : String(e)); }
+      var ph = svgLib().cutLine({ widthMm: widthMm });
+      return [imagePara(c, imageRun(ph, graphicAlt('3D-Szene: ' + lib('worksheet-3d').describe(scene), sourceOf(b, 'scene_3d')), { kind: 'scene_3d' }))];
+    }
     try {
       r = lib('worksheet-3d').render(b, { widthMm: widthMm, maxHeightMm: 180, font: svgOpts(c).font, color: '#1f2937' });
     } catch (e) {
@@ -1129,7 +1138,9 @@
 
   /**
    * Blocks -> layout elements.
-   * ctx: { theme (id or object), lang, textWidthMm, staffWidthCm, taskStart, listPrefix }
+   * ctx: { theme (id or object), lang, textWidthMm, staffWidthCm, taskStart, listPrefix, validate }
+   * validate: true = only check the blocks (the proxy): 3D scenes are validated, not drawn (their images are
+   * placeholders and their warnings are left out).
    * Throws an Error "blocks[i] (type): message" for invalid blocks.
    */
   function compose(blocks, ctx) {
