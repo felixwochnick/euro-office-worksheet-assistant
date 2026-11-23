@@ -97,6 +97,12 @@ const BLOCK_TYPE_DOC =
   'mindmap {center, branches[{text, children[]}], blank? (empty bubbles)}; qr_code {url, caption?, size_cm?}; ' +
   PICTURE_DOC +
   'svg {svg, width_cm?, caption?} = your own simple drawing (SVG markup); cut_line {label?}; ' +
+  'scene_3d {bodies [{shape cube|cuboid|sphere|cylinder|cone|pyramid|triangular_prism, size (cube: edge; cuboid/pyramid/prism: [width, height, depth]), ' +
+  'radius, height (sphere: radius; cylinder/cone: radius + height), at? [x, z] (ground position; x right, z towards the viewer), id?, on? (id of the body it stands on – ' +
+  'only on cube, cuboid, upright cylinder/prism; with on, at is an offset, usually omitted), turn? (degrees), lying? (cylinder/prism: axis horizontal; a lying prism is a roof), ' +
+  'label? (max. 3 characters, circled), color?}], style? outline (colouring picture, default)|colored, projection? perspective|isometric|oblique (Schrägbild), ' +
+  'view? front|front_left|front_right, elevation? low|medium|high, hidden_edges? none|dashed, ground? (ground plate), color_by? shape|body} = ' +
+  '3D picture of geometric bodies, computed from the scene (never draw bodies as svg); '+
   'self_assessment {statements[], title?} = "Das kann ich" table with smileys; hint_cards {cards[{title?, text}], columns? 1-3} = cut-out tip cards; ' +
   'grade_key {total_points, thresholds?[5] (percent for grades 1-5), step? 0.5|1} = points-to-grade table; ' +
   'columns {columns [[blocks], [blocks]], widths?} = 2-3 columns side by side; ' +
@@ -131,7 +137,7 @@ const blockSchema = {
     time_min: { type: 'integer', minimum: 1, maximum: 300 },
     items: { type: 'array', items: { type: 'string', maxLength: 2000 }, maxItems: 50 },
     ordered: { type: 'boolean' },
-    style: { type: 'string', description: 'list: bullet|numbered|letters|checkbox; lines: plain|school1-4|grid5|grid10' },
+    style: { type: 'string', description: 'list: bullet|numbered|letters|checkbox; lines: plain|school1-4|grid5|grid10; scene_3d: outline|colored' },
     rows: { type: 'array', items: { type: 'array', items: { type: 'string', maxLength: 1000 }, maxItems: 10 }, maxItems: 60 },
     header: { type: 'boolean' },
     header_column: { type: 'boolean' },
@@ -277,6 +283,36 @@ const blockSchema = {
         required: ['from', 'to'],
       },
     },
+    // 3D scenes of geometric bodies (packages/shared/worksheet-3d.js)
+    bodies: {
+      type: 'array', maxItems: worksheet.scene3d.MAX_BODIES, description: 'scene_3d: the bodies; they stand on the ground (at) or on each other (on)',
+      items: {
+        type: 'object',
+        properties: {
+          shape: { type: 'string', enum: worksheet.scene3d.SHAPES },
+          size: { description: 'cube: edge length; cuboid, pyramid, triangular_prism: [width, height, depth]', anyOf: [{ type: 'number' }, numArray(3)] },
+          radius: { type: 'number', description: 'sphere, cylinder, cone' },
+          height: { type: 'number', description: 'cylinder, cone (lying cylinder: its length)' },
+          at: { ...numArray(2), description: '[x, z] ground position of the centre (x to the right, z towards the viewer); with "on": offset from the centre of the body below' },
+          on: { type: 'string', description: 'id of the body it stands on (flat top: cube, cuboid, upright cylinder or triangular_prism)' },
+          id: { type: 'string', maxLength: 40 },
+          turn: { type: 'number', description: 'rotation in degrees about the vertical axis' },
+          lying: { type: 'boolean', description: 'cylinder, triangular_prism: axis horizontal (left–right); a lying prism is a roof' },
+          label: { type: 'string', maxLength: 3, description: 'short label on the body, e.g. "1" or "A"' },
+          color: { type: 'string', enum: Object.keys(worksheet.scene3d.COLORS), description: 'colored style' },
+        },
+        required: ['shape'],
+      },
+    },
+    projection: { type: 'string', enum: worksheet.scene3d.PROJECTIONS, description: 'scene_3d: perspective (default), isometric, oblique = Schrägbild (Kavalierperspektive, maths books)' },
+    view: { type: 'string', enum: worksheet.scene3d.VIEWS, description: 'scene_3d: camera position (default front_left)' },
+    elevation: { type: 'string', enum: worksheet.scene3d.ELEVATIONS, description: 'scene_3d: camera height for perspective (default medium)' },
+    hidden_edges: { type: 'string', enum: ['none', 'dashed'], description: 'scene_3d: dashed = hidden edges dashed (maths-book style)' },
+    ground: { type: 'boolean', description: 'scene_3d: ground plate around the bodies (default true, false for oblique)' },
+    color_by: {
+      type: 'string', enum: ['shape', 'body'],
+      description: 'scene_3d colored: by shape (cube red, cuboid blue, sphere yellow, cylinder green, cone orange, pyramid purple, triangular_prism brown; default) or each body\'s color',
+    },
   },
   required: ['type'],
 };
@@ -370,7 +406,7 @@ export const TOOL_DEFINITIONS: ToolDefinition[] = [
     description:
       'Insert worksheet content in a consistent design: title, name line, numbered tasks, texts, cloze texts with word bank, lists, tables, ' +
       'multiple choice, true/false, matching, crossword, word search, reading texts with line numbers, formulas, number lines, coordinate ' +
-      'systems, charts, mind maps, QR codes, own SVG drawings, computer science diagrams (UML class, object, sequence, state, activity and ' +
+      'systems, charts, mind maps, QR codes, own SVG drawings, 3D scenes of geometric bodies, computer science diagrams (UML class, object, sequence, state, activity and ' +
       'use case diagrams, finite automata, structograms, flowcharts, ER diagrams – also to fill in), writing lines and lineatures, info boxes, hint cards, self-assessment, ' +
       'grade key, columns, music staves, page breaks. Use it to create a whole worksheet in one call (in reading order) or to add parts. ' +
       'Returns the index range of the new elements.',

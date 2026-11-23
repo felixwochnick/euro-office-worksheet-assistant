@@ -8,6 +8,7 @@
 import themes from '@worksheet-assistant/shared/worksheet-themes.js';
 import layout from '@worksheet-assistant/shared/worksheet-layout.js';
 import svg from '@worksheet-assistant/shared/worksheet-svg.js';
+import scene3d from '@worksheet-assistant/shared/worksheet-3d.js';
 
 export interface WorksheetThemes {
   THEME_IDS: string[];
@@ -30,14 +31,27 @@ export interface WorksheetSvg {
   ICON_NAMES: string[];
 }
 
+/** 3D scenes of geometric bodies (block scene_3d). */
+export interface Worksheet3d {
+  SHAPES: string[];
+  STYLES: string[];
+  PROJECTIONS: string[];
+  VIEWS: string[];
+  ELEVATIONS: string[];
+  COLORS: Record<string, string>;
+  MAX_BODIES: number;
+}
+
 interface Modules {
   themes: WorksheetThemes;
   layout: WorksheetLayout;
   svg: WorksheetSvg;
+  scene3d: Worksheet3d;
 }
 
 export const worksheet: Modules = {
   themes: themes as WorksheetThemes,
   layout: layout as WorksheetLayout,
   svg: svg as WorksheetSvg,
+  scene3d: scene3d as Worksheet3d,
 };
