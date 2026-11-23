@@ -29,7 +29,7 @@ export interface SiteContent {
   meta: { title: string, description: string }
   nav: { features: string, informatics: string, ways: string, mcp: string, install: string, faq: string, language: string }
   hero: {
-    /** badge above the title, links to the newest feature; {version} = "0.8" */
+    /** badge above the title, links to the newest feature (3D scenes in the graphics section); {version} = "0.9" */
     badge: string
     headline: string
     title: string
@@ -39,14 +39,15 @@ export interface SiteContent {
     imageAlt: string
   }
   /**
-   * Overview, 12 items in this order: chat, designs, tasks, graphics, pictures, informatics, music, page,
+   * Overview, 13 items in this order: chat, designs, tasks, graphics, 3D bodies, pictures, informatics, music, page,
    * check & solutions, editing, mcp, privacy
    */
   features: { headline: string, title: string, description: string, items: Item[], more: string }
   /** themes: 3 items in this order: classic, modern, primary; items: 3 points below the pictures */
   designs: { headline: string, title: string, description: string, themes: Item[], imageAlt: string, items: Item[] }
-  /** 4 items each */
+  /** 4 items */
   tasks: Showcase
+  /** 5 items: number line & coordinate system, charts, formulas, mind maps & drawings, 3D scenes */
   graphics: Showcase
   /** 3 items: pictograms, photos, own pictures */
   pictures: Showcase
@@ -77,7 +78,7 @@ export interface SiteContent {
     headline: string
     title: string
     description: string
-    /** 3 groups in this order: worksheets, pictures & diagrams, music – 4–5 example requests each, in the language of the page */
+    /** 3 groups in this order: worksheets, pictures & diagrams, music – 4–6 example requests each, in the language of the page */
     groups: Array<{ label: string, items: string[] }>
   }
   parts: {

@@ -8,7 +8,7 @@ const fr: SiteContent = {
   },
   nav: { features: 'Fonctionnalités', informatics: 'Informatique', ways: 'Utilisations', mcp: 'MCP', install: 'Installation', faq: 'FAQ', language: 'Langue' },
   hero: {
-    badge: 'Nouveau en {version} : diagrammes d’informatique',
+    badge: 'Nouveau en {version} : scènes 3D de solides',
     headline: 'Plugin d’IA pour Euro-Office – dans Nextcloud et sur ordinateur',
     title: 'Créez des fiches d’exercices avec l’IA – pour toutes les matières',
     description:
@@ -43,6 +43,10 @@ const fr: SiteContent = {
         title: 'Graphiques et formules',
         description:
           'Droite numérique, repère cartésien, diagrammes, carte mentale, lignes d’écriture et papier quadrillé. Les formules LaTeX deviennent de véritables équations modifiables.'
+      },
+      {
+        title: 'Solides en 3D',
+        description: 'Cubes, pavés droits, cylindres, cônes et pyramides – aussi empilés en maisons et en tours. Une perspective calculée juste, en dessin à colorier ou en couleur.'
       },
       {
         title: 'Images',
@@ -131,7 +135,8 @@ const fr: SiteContent = {
       { title: 'Droite numérique et repère', description: 'Avec des cases à remplir, des points, des segments et des polygones.' },
       { title: 'Diagrammes', description: 'Colonnes, barres, courbes et secteurs – aussi vides, à dessiner soi-même.' },
       { title: 'Formules', description: 'LaTeX devient une véritable équation dans le document, même au milieu d’une phrase.' },
-      { title: 'Cartes mentales et dessins', description: 'Cartes mentales (aussi avec des bulles vides) et dessins simples que l’IA conçoit elle-même.' }
+      { title: 'Cartes mentales et dessins', description: 'Cartes mentales (aussi avec des bulles vides) et dessins simples que l’IA conçoit elle-même.' },
+      { title: 'Scènes 3D', description: 'Des scènes de cubes, de cylindres, de cônes et plus, calculées au lieu d’être dessinées : un dessin à colorier sans lignes cachées, la même scène en couleur pour le corrigé ou une perspective cavalière avec les arêtes cachées en pointillés.' }
     ]
   },
   pictures: {
@@ -277,6 +282,7 @@ const fr: SiteContent = {
           'Fais-en des mots croisés avec dix termes et ajoute une page de corrigés à la fin.',
           'Reformule la consigne de l’exercice 1 pour que des élèves de CE2 la comprennent.',
           'Utilise le design Classique et mets le nom de notre école et les numéros de page en en-tête et en pied de page.',
+          'Un coloriage pour le CE1 : une ville faite de solides, avec la consigne de colorier tous les cubes en rouge et tous les cylindres en vert – et la ville en couleur sur la page de corrigés.',
           'Vérifie la fiche et supprime l’exercice 3.'
         ]
       },
@@ -285,6 +291,7 @@ const fr: SiteContent = {
         items: [
           'Une fiche de lecture pour le CP sur les animaux de la forêt – avec un pictogramme à côté de chaque mot et la coloration des syllabes.',
           'Place une photo d’un légionnaire romain à côté du texte.',
+          'Dessine un cube, un pavé droit et un cylindre en perspective cavalière, avec les arêtes cachées en pointillés.',
           'Dessine un diagramme de classes UML pour Compte, Compte courant et Compte épargne, où les élèves complètent l’héritage.',
           'Crée un structogramme pour l’algorithme d’Euclide et, en dessous, un organigramme vide à compléter.',
           'Un diagramme ER pour les élèves, les cours et les enseignants, en notation de Chen.'
@@ -310,7 +317,7 @@ const fr: SiteContent = {
       {
         title: 'Plugin',
         badge: 'toujours',
-        description: 'De simples fichiers (≈ 1,4 Mo) dans le dossier des plugins d’Euro-Office. Fonctionne dans l’éditeur du navigateur ou dans l’application de bureau.',
+        description: 'De simples fichiers (≈ 2 Mo) dans le dossier des plugins d’Euro-Office. Fonctionne dans l’éditeur du navigateur ou dans l’application de bureau.',
         bullets: ['Met en page les fiches, les graphiques et les diagrammes', 'Dessine les portées, onglet musique complet', 'Exécute les appels MCP dans le document']
       },
       {
@@ -451,7 +458,7 @@ const fr: SiteContent = {
       {
         label: 'Est-ce open source ?',
         content:
-          'Oui, sous licence MIT. Il inclut abcjs, dagre et qrcode-generator (tous MIT) et les fichiers de plugin ONLYOFFICE (AGPL-3.0) ; l’application Worksheet Assistant contient Node.js et des paquets npm – tous avec leurs textes de licence.'
+          'Oui, sous licence MIT. Il inclut abcjs, dagre, qrcode-generator et three.js (tous MIT) et les fichiers de plugin ONLYOFFICE (AGPL-3.0) ; l’application Worksheet Assistant contient Node.js et des paquets npm – tous avec leurs textes de licence.'
       }
     ]
   },
@@ -463,7 +470,7 @@ const fr: SiteContent = {
   },
   footer: {
     license: 'Worksheet Assistant · licence MIT',
-    uses: 'utilise abcjs, dagre et qrcode-generator (MIT) et le SDK de plugins ONLYOFFICE (AGPL-3.0) · Pictogrammes : Sergio Palao, ARASAAC (CC BY-NC-SA)',
+    uses: 'utilise abcjs, dagre, qrcode-generator et three.js (MIT) et le SDK de plugins ONLYOFFICE (AGPL-3.0) · Pictogrammes : Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Copier',
     copied: 'Copié',
     zoom: 'Ouvrir l’image en taille réelle'

@@ -8,7 +8,7 @@ const es: SiteContent = {
   },
   nav: { features: 'Funciones', informatics: 'Informática', ways: 'Usos', mcp: 'MCP', install: 'Instalación', faq: 'FAQ', language: 'Idioma' },
   hero: {
-    badge: 'Novedad en {version}: diagramas de informática',
+    badge: 'Novedad en {version}: escenas 3D de cuerpos geométricos',
     headline: 'Plugin de IA para Euro-Office – en Nextcloud y en el escritorio',
     title: 'Crea fichas de trabajo con IA – para cualquier asignatura',
     description:
@@ -38,6 +38,10 @@ const es: SiteContent = {
       {
         title: 'Gráficos y fórmulas',
         description: 'Recta numérica, sistema de coordenadas, diagramas, mapa mental, pautas de escritura y papel cuadriculado. Las fórmulas en LaTeX se convierten en ecuaciones reales y editables.'
+      },
+      {
+        title: 'Cuerpos geométricos en 3D',
+        description: 'Cubos, ortoedros, cilindros, conos y pirámides – también apilados formando casas y torres. Con la perspectiva calculada: como dibujo para colorear o en color.'
       },
       {
         title: 'Imágenes',
@@ -114,7 +118,8 @@ const es: SiteContent = {
       { title: 'Recta numérica y sistema de coordenadas', description: 'Con huecos para rellenar, puntos, segmentos y polígonos.' },
       { title: 'Diagramas', description: 'Columnas, barras, líneas y circular – también vacíos para dibujarlos a mano.' },
       { title: 'Fórmulas', description: 'LaTeX se convierte en una ecuación real en el documento, también en medio de una frase.' },
-      { title: 'Mapas mentales y dibujos', description: 'Mapas mentales (también con burbujas vacías) y dibujos sencillos que diseña la propia IA.' }
+      { title: 'Mapas mentales y dibujos', description: 'Mapas mentales (también con burbujas vacías) y dibujos sencillos que diseña la propia IA.' },
+      { title: 'Escenas 3D', description: 'Escenas de cubos, cilindros, conos y más, calculadas en lugar de dibujadas: un dibujo para colorear sin líneas ocultas, la misma escena en color para la solución o una perspectiva caballera con las aristas ocultas discontinuas.' }
     ]
   },
   pictures: {
@@ -227,6 +232,7 @@ const es: SiteContent = {
           'Conviértela en un crucigrama con diez términos y añade al final una página de soluciones.',
           'Cambia el enunciado del ejercicio 1 para que lo entiendan alumnos de 3.º de primaria.',
           'Usa el diseño Clásico y pon el nombre de nuestro centro y los números de página en el encabezado y el pie.',
+          'Una ficha para colorear para 2.º de primaria: una ciudad hecha de cuerpos geométricos, con la tarea de pintar todos los cubos de rojo y todos los cilindros de verde – y en la página de soluciones la ciudad en color.',
           'Revisa la ficha y borra el ejercicio 3.'
         ]
       },
@@ -235,6 +241,7 @@ const es: SiteContent = {
         items: [
           'Una ficha de lectura para 1.º de primaria sobre los animales del bosque – con un pictograma junto a cada palabra y sílabas coloreadas.',
           'Pon una foto de un legionario romano junto al texto.',
+          'Dibuja un cubo, un ortoedro y un cilindro en perspectiva caballera, con las aristas ocultas discontinuas.',
           'Dibuja un diagrama de clases UML de Cuenta, Cuenta corriente y Cuenta de ahorros en el que los alumnos completen la herencia.',
           'Crea un diagrama de Nassi-Shneiderman del algoritmo de Euclides y debajo un diagrama de flujo vacío para rellenar.',
           'Un diagrama ER para alumnos, cursos y docentes en notación de Chen.'
@@ -260,7 +267,7 @@ const es: SiteContent = {
       {
         title: 'Plugin',
         badge: 'siempre',
-        description: 'Solo archivos (≈ 1,4 MB) en la carpeta de plugins de Euro-Office. Funciona en el editor del navegador o en la aplicación de escritorio.',
+        description: 'Solo archivos (≈ 2 MB) en la carpeta de plugins de Euro-Office. Funciona en el editor del navegador o en la aplicación de escritorio.',
         bullets: ['Maqueta fichas, gráficos y diagramas', 'Dibuja pentagramas, pestaña de música completa', 'Ejecuta las llamadas MCP en el documento']
       },
       {
@@ -398,7 +405,7 @@ const es: SiteContent = {
       {
         label: '¿Es de código abierto?',
         content:
-          'Sí, con licencia MIT. Incluye abcjs, dagre y qrcode-generator (todos MIT) y los archivos de plugin de ONLYOFFICE (AGPL-3.0); la aplicación Worksheet Assistant contiene Node.js y paquetes de npm – todos con sus textos de licencia.'
+          'Sí, con licencia MIT. Incluye abcjs, dagre, qrcode-generator y three.js (todos MIT) y los archivos de plugin de ONLYOFFICE (AGPL-3.0); la aplicación Worksheet Assistant contiene Node.js y paquetes de npm – todos con sus textos de licencia.'
       }
     ]
   },
@@ -410,7 +417,7 @@ const es: SiteContent = {
   },
   footer: {
     license: 'Worksheet Assistant · licencia MIT',
-    uses: 'usa abcjs, dagre y qrcode-generator (MIT) y el SDK de plugins de ONLYOFFICE (AGPL-3.0) · Pictogramas: Sergio Palao, ARASAAC (CC BY-NC-SA)',
+    uses: 'usa abcjs, dagre, qrcode-generator y three.js (MIT) y el SDK de plugins de ONLYOFFICE (AGPL-3.0) · Pictogramas: Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Copiar',
     copied: 'Copiado',
     zoom: 'Abrir la imagen a tamaño completo'

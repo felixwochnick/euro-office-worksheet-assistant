@@ -1,6 +1,6 @@
 # 3D scenes of geometric bodies – design
 
-Date: 2026-11-23 · Status: draft, waiting for the owner's approval
+Date: 2026-11-23 · Status: approved by the owner on 2026-11-23
 
 ## Intent
 
@@ -203,3 +203,24 @@ versions – the same pattern as dagre. Loaded in `index.html` before `worksheet
 Tessellation detail, exact line widths, the edge angle threshold, silhouette method per shape, label placement,
 palette hex values, shading constants, ground plate size and margins, the esbuild entry for the vendored bundle,
 warning wording, test structure.
+
+## Changes during implementation
+
+- **The line drawing needs no three.js.** `packages/shared/worksheet-3d.js` stays dependency-free (UMD, ES2015,
+  synchronous). All bodies are convex, so they are handled analytically instead of as triangle meshes: polyhedra as
+  faces with outward normals, sphere, cylinder and cone as quadrics. Silhouettes of the round bodies are exact for the
+  camera; visibility uses exact ray intervals through the bodies (lines sampled every 0.25 mm on paper, transitions
+  found by bisection, so visible lines meet); intersection curves of overlapping bodies come from marching squares of
+  the other body's inside function on each surface patch. Neither `three` nor `three-mesh-bvh` is a dependency of
+  `packages/shared`; the proxy, the desktop app's server program and the tests need no 3D library.
+- **three.js only in the plugin.** A subset of three.js 0.187.0 (root devDependency `three`, exact version) is bundled
+  with esbuild by `scripts/build-three.mjs` into `vendor/three/three.min.js` (global `THREE`; checksum in
+  `vendor/SHA256SUMS`, listed in `vendor/SOURCES.md`) and used by `apps/plugin/src/js/scene3d.js` for the coloured
+  pass only. A unit test checks that the vendored bundle has the version of the devDependency.
+- **`ground` defaults to `false` for `projection: "oblique"`** (Schrägbilder in maths books have no ground plate);
+  `true` otherwise.
+- **`isometric` honours the view:** `front_left` and `front_right` turn the camera by 45° to either side; `front` is
+  treated as `front_left` (a straight front view would not be isometric).
+- **Smaller refinements:** `color` also accepts German colour names (`rot`, `blau`, …) and `#rrggbb`; a stacked body
+  whose centre is not on the top face of its support gets a warning; the perspective camera uses camera heights of
+  12°/25°/45°.

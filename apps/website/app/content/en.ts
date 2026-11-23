@@ -8,7 +8,7 @@ const en: SiteContent = {
   },
   nav: { features: 'Features', informatics: 'Computer science', ways: 'Use cases', mcp: 'MCP', install: 'Installation', faq: 'FAQ', language: 'Language' },
   hero: {
-    badge: 'New in {version}: computer science diagrams',
+    badge: 'New in {version}: 3D scenes of geometric bodies',
     headline: 'AI plugin for Euro-Office – in Nextcloud and on the desktop',
     title: 'Create worksheets with AI – for every subject',
     description:
@@ -38,6 +38,10 @@ const en: SiteContent = {
       {
         title: 'Graphics and formulas',
         description: 'Number line, coordinate system, charts, mind map, writing lines and squared paper. Formulas from LaTeX become real, editable equations.'
+      },
+      {
+        title: 'Geometric bodies in 3D',
+        description: 'Cubes, cuboids, cylinders, cones and pyramids – also stacked into houses and towers. Computed in correct perspective: a line drawing to color in or in color.'
       },
       {
         title: 'Pictures',
@@ -114,7 +118,8 @@ const en: SiteContent = {
       { title: 'Number line and coordinate system', description: 'With gaps to fill in, points, line segments and polygons.' },
       { title: 'Charts', description: 'Column, bar, line and pie charts – also empty, for students to draw themselves.' },
       { title: 'Formulas', description: 'LaTeX becomes a real equation in the document, even in the middle of a sentence.' },
-      { title: 'Mind maps and drawings', description: 'Mind maps (also with empty bubbles) and simple drawings that the AI designs itself.' }
+      { title: 'Mind maps and drawings', description: 'Mind maps (also with empty bubbles) and simple drawings that the AI designs itself.' },
+      { title: '3D scenes', description: 'Scenes of cubes, cylinders, cones and more, computed instead of drawn: a line drawing to color in with hidden lines removed, the same scene in color for the solution, or an oblique drawing with dashed hidden edges.' }
     ]
   },
   pictures: {
@@ -227,6 +232,7 @@ const en: SiteContent = {
           'Turn this into a crossword with ten terms and add a solution page at the end.',
           'Reword the instruction of task 1 so that third-graders understand it.',
           'Use the Classic design and put our school name and page numbers in the header and footer.',
+          'A coloring sheet for grade 2: a town built from geometric bodies with the task to color all cubes red and all cylinders green – and the town in color on the solution page.',
           'Check the sheet and delete task 3.'
         ]
       },
@@ -235,6 +241,7 @@ const en: SiteContent = {
         items: [
           'A reading sheet for grade 1 about animals in the forest – with a pictogram next to each word and syllable coloring.',
           'Put a photo of a Roman legionary next to the text.',
+          'Draw a cube, a cuboid and a cylinder as an oblique drawing with dashed hidden edges.',
           'Draw a UML class diagram for account, checking account and savings account where the students complete the inheritance.',
           'Create a Nassi-Shneiderman diagram for the Euclidean algorithm and below it an empty flowchart to fill in.',
           'An ER diagram for students, courses and teachers in Chen notation.'
@@ -260,7 +267,7 @@ const en: SiteContent = {
       {
         title: 'Plugin',
         badge: 'always',
-        description: 'Just files (≈ 1.4 MB) in Euro-Office’s plugin folder. Runs in the editor in the browser or in the desktop app.',
+        description: 'Just files (≈ 2 MB) in Euro-Office’s plugin folder. Runs in the editor in the browser or in the desktop app.',
         bullets: ['Lays out worksheets, graphics and diagrams', 'Draws staves, complete music tab', 'Executes MCP calls in the document']
       },
       {
@@ -398,7 +405,7 @@ const en: SiteContent = {
       {
         label: 'Is it open source?',
         content:
-          'Yes, under the MIT license. It ships abcjs, dagre and qrcode-generator (all MIT) and the ONLYOFFICE plugin files (AGPL-3.0); the Worksheet Assistant app contains Node.js and npm packages – all with their license texts.'
+          'Yes, under the MIT license. It ships abcjs, dagre, qrcode-generator and three.js (all MIT) and the ONLYOFFICE plugin files (AGPL-3.0); the Worksheet Assistant app contains Node.js and npm packages – all with their license texts.'
       }
     ]
   },
@@ -410,7 +417,7 @@ const en: SiteContent = {
   },
   footer: {
     license: 'Worksheet Assistant · MIT license',
-    uses: 'uses abcjs, dagre and qrcode-generator (MIT) and the ONLYOFFICE plugin SDK (AGPL-3.0) · Pictograms: Sergio Palao, ARASAAC (CC BY-NC-SA)',
+    uses: 'uses abcjs, dagre, qrcode-generator and three.js (MIT) and the ONLYOFFICE plugin SDK (AGPL-3.0) · Pictograms: Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Copy',
     copied: 'Copied',
     zoom: 'Open image in full size'

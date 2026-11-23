@@ -8,7 +8,7 @@ const pl: SiteContent = {
   },
   nav: { features: 'Funkcje', informatics: 'Informatyka', ways: 'Zastosowania', mcp: 'MCP', install: 'Instalacja', faq: 'FAQ', language: 'Język' },
   hero: {
-    badge: 'Nowość w {version}: diagramy informatyczne',
+    badge: 'Nowość w {version}: sceny 3D z brył geometrycznych',
     headline: 'Wtyczka AI do Euro-Office – w Nextcloud i na komputerze',
     title: 'Twórz karty pracy z AI – do każdego przedmiotu',
     description:
@@ -38,6 +38,10 @@ const pl: SiteContent = {
       {
         title: 'Grafiki i wzory',
         description: 'Oś liczbowa, układ współrzędnych, wykresy, mapa myśli, linie do pisania i papier w kratkę. Wzory z LaTeX stają się prawdziwymi, edytowalnymi równaniami.'
+      },
+      {
+        title: 'Bryły geometryczne w 3D',
+        description: 'Sześciany, prostopadłościany, walce, stożki i ostrosłupy – także ułożone w domy i wieże. Z poprawnie obliczoną perspektywą: jako kolorowanka albo w kolorze.'
       },
       {
         title: 'Obrazy',
@@ -114,7 +118,8 @@ const pl: SiteContent = {
       { title: 'Oś liczbowa i układ współrzędnych', description: 'Z lukami do uzupełnienia, punktami, odcinkami i wielokątami.' },
       { title: 'Wykresy', description: 'Kolumnowe, słupkowe, liniowe i kołowe – także puste do samodzielnego narysowania.' },
       { title: 'Wzory', description: 'LaTeX staje się prawdziwym równaniem w dokumencie, także w środku zdania.' },
-      { title: 'Mapy myśli i rysunki', description: 'Mapy myśli (także z pustymi dymkami) i proste rysunki, które AI sama projektuje.' }
+      { title: 'Mapy myśli i rysunki', description: 'Mapy myśli (także z pustymi dymkami) i proste rysunki, które AI sama projektuje.' },
+      { title: 'Sceny 3D', description: 'Sceny z sześcianów, walców, stożków i innych brył, obliczane zamiast rysowane: kolorowanka bez linii niewidocznych, ta sama scena w kolorze jako rozwiązanie albo rzut ukośny z krawędziami niewidocznymi narysowanymi linią przerywaną.' }
     ]
   },
   pictures: {
@@ -227,6 +232,7 @@ const pl: SiteContent = {
           'Zrób z tego krzyżówkę z dziesięcioma hasłami i dodaj na końcu stronę z rozwiązaniami.',
           'Przeformułuj polecenie w zadaniu 1 tak, żeby zrozumieli je uczniowie klasy 3.',
           'Użyj projektu Klasyczny i wpisz nazwę naszej szkoły w nagłówku, a numery stron w stopce.',
+          'Kolorowanka dla klasy 2: miasto zbudowane z brył geometrycznych z poleceniem, aby pokolorować wszystkie sześciany na czerwono, a wszystkie walce na zielono – a na stronie z rozwiązaniami to samo miasto w kolorze.',
           'Sprawdź kartę i usuń zadanie 3.'
         ]
       },
@@ -235,6 +241,7 @@ const pl: SiteContent = {
         items: [
           'Karta do czytania dla klasy 1 o zwierzętach w lesie – z piktogramem obok każdego słowa i kolorowaniem sylab.',
           'Wstaw zdjęcie rzymskiego legionisty obok tekstu.',
+          'Narysuj sześcian, prostopadłościan i walec w rzucie ukośnym, z krawędziami niewidocznymi zaznaczonymi linią przerywaną.',
           'Narysuj diagram klas UML dla klas Konto, KontoBieżące i KontoOszczędnościowe, w którym uczniowie uzupełnią dziedziczenie.',
           'Zrób schemat Nassi-Shneidermana dla algorytmu Euklidesa, a pod nim pusty schemat blokowy do uzupełnienia.',
           'Diagram ER dla uczniów, kursów i nauczycieli w notacji Chena.'
@@ -260,7 +267,7 @@ const pl: SiteContent = {
       {
         title: 'Wtyczka',
         badge: 'zawsze',
-        description: 'Same pliki (≈ 1,4 MB) w folderze wtyczek Euro-Office. Działa w edytorze w przeglądarce lub w aplikacji desktopowej.',
+        description: 'Same pliki (≈ 2 MB) w folderze wtyczek Euro-Office. Działa w edytorze w przeglądarce lub w aplikacji desktopowej.',
         bullets: ['Układa karty pracy, grafiki i diagramy', 'Rysuje pięciolinie, pełna zakładka muzyczna', 'Wykonuje wywołania MCP w dokumencie']
       },
       {
@@ -398,7 +405,7 @@ const pl: SiteContent = {
       {
         label: 'Czy to open source?',
         content:
-          'Tak, na licencji MIT. W zestawie są abcjs, dagre i qrcode-generator (wszystkie MIT) oraz pliki wtyczek ONLYOFFICE (AGPL-3.0); aplikacja Worksheet Assistant zawiera Node.js i pakiety npm – wszystko wraz z tekstami licencji.'
+          'Tak, na licencji MIT. W zestawie są abcjs, dagre, qrcode-generator i three.js (wszystkie MIT) oraz pliki wtyczek ONLYOFFICE (AGPL-3.0); aplikacja Worksheet Assistant zawiera Node.js i pakiety npm – wszystko wraz z tekstami licencji.'
       }
     ]
   },
@@ -410,7 +417,7 @@ const pl: SiteContent = {
   },
   footer: {
     license: 'Worksheet Assistant · licencja MIT',
-    uses: 'korzysta z abcjs, dagre i qrcode-generator (MIT) oraz ONLYOFFICE Plugin SDK (AGPL-3.0) · Piktogramy: Sergio Palao, ARASAAC (CC BY-NC-SA)',
+    uses: 'korzysta z abcjs, dagre, qrcode-generator i three.js (MIT) oraz ONLYOFFICE Plugin SDK (AGPL-3.0) · Piktogramy: Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Kopiuj',
     copied: 'Skopiowano',
     zoom: 'Otwórz obraz w pełnym rozmiarze'
