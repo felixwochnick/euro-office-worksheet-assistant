@@ -243,6 +243,31 @@ export class MockProvider implements LLMProvider {
       return { content: res.inserted === false ? 'Mock-Modus: Klassendiagramm verworfen.' : 'Fertig (Mock-Modus): Klassendiagramm zum Ergänzen und Lösung eingefügt.', tool_calls: [] };
     }
 
+    // W0d) "… Körper-Stadt / geometrische Körper zum Ausmalen …" -> a 3D scene to colour in and the coloured solution
+    if (/(körper|3d-szene|3d scene|ausmalbild)/i.test(userText)) {
+      if (done('insert_blocks').length === 0) {
+        const bodies = [
+          { id: 'haus', shape: 'cuboid', size: [3, 2, 3], at: [0, 0] },
+          { shape: 'triangular_prism', lying: true, size: [3, 1.2, 3], on: 'haus' },
+          { id: 'turm', shape: 'cylinder', radius: 1, height: 4, at: [5, 1] },
+          { shape: 'cone', radius: 1.2, height: 2, on: 'turm' },
+          { shape: 'sphere', radius: 1, at: [-3, 2], label: '3' },
+          { shape: 'cube', size: 1.6, at: [2.5, 3] },
+        ];
+        const blocks = [
+          { type: 'task', number: '1', instruction: 'Male alle Würfel rot, Quader blau, Kugeln gelb, Zylinder grün und Kegel orange an.', icons: ['single', 'draw'] },
+          { type: 'scene_3d', bodies, caption: 'Eine Stadt aus Körpern' },
+          { type: 'page_break' },
+          { type: 'heading', level: 2, text: 'Lösung' },
+          { type: 'scene_3d', bodies, style: 'colored' },
+        ];
+        return { content: '', tool_calls: [{ id: nextId(), name: 'insert_blocks', arguments: { position: 'end', blocks } }] };
+      }
+      const res = parseResult(done('insert_blocks')[0]);
+      if (!res.ok) return { content: `Mock-Modus: Einfügen fehlgeschlagen: ${res.error ?? 'unbekannt'}`, tool_calls: [] };
+      return { content: res.inserted === false ? 'Mock-Modus: Körper-Stadt verworfen.' : 'Fertig (Mock-Modus): Körper-Stadt zum Ausmalen und farbige Lösung eingefügt.', tool_calls: [] };
+    }
+
     // W1) "Erstelle ein Arbeitsblatt zu <Thema>" -> one insert_blocks call at the end
     const worksheet = /(erstell|mach|create)/i.test(userText) && /(arbeitsblatt|worksheet)/i.test(userText);
     if (worksheet) {
