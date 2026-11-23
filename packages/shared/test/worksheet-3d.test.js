@@ -281,3 +281,14 @@ test('40 bodies render quickly', () => {
   check(W3.render({ bodies }, { widthMm: 170 }));
   assert.ok(Date.now() - t < 3000, 'took ' + (Date.now() - t) + ' ms');
 });
+
+test('the vendored three.js bundle (plugin) is the version of the root devDependency', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const root = path.join(__dirname, '..', '..', '..');
+  const vendored = fs.readFileSync(path.join(root, 'vendor', 'three', 'three.min.js'), 'utf8');
+  const version = require(path.join(root, 'package.json')).devDependencies.three;
+  assert.match(version, /^\d+\.\d+\.\d+$/, 'exact version in the root package.json');
+  assert.ok(vendored.startsWith(`/* three.js ${version} `), `vendor/three/three.min.js is not three ${version} – run node scripts/build-three.mjs`);
+  assert.ok(vendored.includes(`"${version.split('.')[1]}"`), 'REVISION in the bundle');
+});

@@ -708,14 +708,47 @@
     });
   }
 
-  /** Rasterise all images of the layout elements (SVG graphics and music staves). */
-  function rasterize(elements, settings) {
+  var SCENE_FALLBACK = 'scene_3d: the coloured version needs WebGL, which is not available here – inserted the line drawing instead.';
+
+  /**
+   * A coloured 3D scene: the bodies filled with three.js (scene3d.js) under the vector lines, rasterised as one SVG.
+   * Without WebGL (or when it fails) the line drawing is inserted and a warning is added.
+   */
+  function rasterScene(img, settings, warnings) {
+    var fill = null;
+    if (window.Scene3dRenderer && window.Scene3dRenderer.available()) {
+      try {
+        fill = window.Scene3dRenderer.renderColored(img.scene3d, settings.dpi);
+      } catch (e) {
+        fill = null;
+      }
+    }
+    if (!fill) {
+      if (warnings) warnings.push(SCENE_FALLBACK);
+      return rasterSvg(img, settings.dpi);
+    }
+    var lines = img.svg;
+    var withFill = { svg: lines.replace(/^(<svg[^>]*>)/, '$1<image href="' + fill + '" x="0" y="0" width="' + img.widthMm + '" height="' + img.heightMm +
+      '" preserveAspectRatio="none"/>'), widthMm: img.widthMm, heightMm: img.heightMm };
+    return rasterSvg(withFill, settings.dpi).then(function () {
+      img.dataUrl = withFill.dataUrl;
+      img.wEmu = withFill.wEmu;
+      img.hEmu = withFill.hEmu;
+    }, function () {
+      if (warnings) warnings.push(SCENE_FALLBACK);
+      return rasterSvg(img, settings.dpi);
+    });
+  }
+
+  /** Rasterise all images of the layout elements (SVG graphics, coloured 3D scenes and music staves). */
+  function rasterize(elements, settings, warnings) {
     var imgs = window.WorksheetLayout.collectImages(elements);
     // Sequential: abcjs renders into one shared sandbox element.
     return imgs.reduce(function (p, img) {
       return p.then(function () {
         if (img.dataUrl) return null;
         if (img.kind === 'staff' || img.kind === 'empty_staves') return rasterStaff(img, settings);
+        if (img.kind === 'scene_3d' && img.scene3d) return rasterScene(img, settings, warnings);
         if (img.svg) return rasterSvg(img, settings.dpi);
         return null;
       });
@@ -845,7 +878,7 @@
         theme: themeSpec, lang: lang, textWidthMm: info.textWidthMm, staffWidthCm: settings.widthCm,
         taskStart: opts.taskStart
       });
-      return rasterize(composed.elements, settings).then(function (els) {
+      return rasterize(composed.elements, settings, composed.warnings).then(function (els) {
         return {
           elements: els, theme: theme, lang: lang, warnings: composed.warnings, textWidthMm: info.textWidthMm,
           // remember the theme in the document when it was chosen now (new worksheet or explicit request)

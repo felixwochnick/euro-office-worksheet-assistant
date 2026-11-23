@@ -3,7 +3,8 @@
 #
 #   scripts/build.sh                  build dist/worksheet-assistant/ and dist/worksheet-assistant.plugin
 #   scripts/build.sh --update-vendor  re-download abcjs, qrcode-generator, dagre and the ONLYOFFICE v1 SDK files
-#                                     into vendor/ (versions below), then build
+#                                     into vendor/ (versions below), rebuild the three.js subset
+#                                     (scripts/build-three.mjs, version from the root package.json), then build
 #
 # Output:
 #   dist/worksheet-assistant/          plugin folder – copy into .../documentserver/sdkjs-plugins/
@@ -53,8 +54,10 @@ update_vendor() {
   mkdir -p "$tmp/dagre"
   curl -fsSL "$(pnpm view "@dagrejs/dagre@$DAGRE_VERSION" dist.tarball)" | tar xz -C "$tmp/dagre"
   cp "$tmp/dagre/package/dist/dagre.min.js" "$tmp/dagre/package/LICENSE" "$VENDOR/dagre/"
+  # three.js: a subset bundled from the npm package (root devDependency "three") – global THREE
+  (cd "$ROOT" && pnpm install --frozen-lockfile >/dev/null && node scripts/build-three.mjs)
   (cd "$VENDOR" && sha256sum onlyoffice/plugins.js onlyoffice/plugins-ui.js abcjs/abcjs-basic-min.js \
-    qrcode-generator/qrcode.js dagre/dagre.min.js > SHA256SUMS)
+    qrcode-generator/qrcode.js dagre/dagre.min.js three/three.min.js > SHA256SUMS)
   echo "    Updated vendor/SHA256SUMS – also update the table in vendor/SOURCES.md:"
   cat "$VENDOR/SHA256SUMS"
 }
@@ -96,10 +99,12 @@ cp "$VENDOR/onlyoffice/plugins.js" "$VENDOR/onlyoffice/plugins-ui.js" "$OUT/vend
 cp "$VENDOR/abcjs/abcjs-basic-min.js" "$OUT/vendor/"
 cp "$VENDOR/qrcode-generator/qrcode.js" "$OUT/vendor/qrcode.js"
 cp "$VENDOR/dagre/dagre.min.js" "$OUT/vendor/dagre.min.js"
+cp "$VENDOR/three/three.min.js" "$OUT/vendor/three.min.js"
 cp "$ROOT/LICENSE" "$OUT/licenses/LICENSE-worksheet-assistant.txt"
 cp "$VENDOR/abcjs/LICENSE.md" "$OUT/licenses/LICENSE-abcjs.txt"
 cp "$VENDOR/qrcode-generator/LICENSE" "$OUT/licenses/LICENSE-qrcode-generator.txt"
 cp "$VENDOR/dagre/LICENSE" "$OUT/licenses/LICENSE-dagre.txt"
+cp "$VENDOR/three/LICENSE" "$OUT/licenses/LICENSE-three.txt"
 cp "$VENDOR/onlyoffice/LICENSE" "$OUT/licenses/LICENSE-onlyoffice-plugin-sdk-AGPL-3.0.txt"
 cp "$VENDOR/SOURCES.md" "$OUT/licenses/THIRD-PARTY.md"
 

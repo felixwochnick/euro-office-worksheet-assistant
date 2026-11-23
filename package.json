@@ -24,6 +24,7 @@
   "devDependencies": {
     "esbuild": "^0.28.2",
     "playwright-core": "^1.65.1",
-    "postject": "^1.0.0-alpha.6"
+    "postject": "^1.0.0-alpha.6",
+    "three": "0.187.0"
   }
 }
