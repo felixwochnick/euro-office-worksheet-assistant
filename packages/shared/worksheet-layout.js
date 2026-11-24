@@ -8,7 +8,8 @@
  * renders as HTML. All design decisions live here: fonts, colours and spacing
  * come from the theme (worksheet-themes.js), puzzles from worksheet-generators.js,
  * graphics from worksheet-svg.js, computer science diagrams (UML, structograms, ER) from
- * worksheet-diagrams.js, syllable colouring from german-syllables.js.
+ * worksheet-diagrams.js, 3D scenes of geometric bodies from worksheet-3d.js, syllable colouring from
+ * german-syllables.js.
  * Pure and deterministic – used by the plugin (browser), by the proxy (to
  * validate blocks before they reach the editor) and by the unit tests.
  *
@@ -25,6 +26,9 @@
  *           the plugin rasterises them and adds { dataUrl, wEmu, hEmu }. Pictures (block picture) arrive with
  *           { dataUrl, wEmu, hEmu, widthMm, heightMm, alt, kind: 'picture' } when the plugin loaded them
  *           (block.picture_data), otherwise without dataUrl (layout check in the proxy).
+ *           3D scenes (block scene_3d): { svg, widthMm, heightMm, alt, kind: 'scene_3d', scene3d? } – scene3d (the
+ *           camera and bodies from worksheet-3d.js) only for style "colored": the plugin fills the bodies with three.js
+ *           under the vector lines.
  */
 (function (root, factory) {
   if (typeof module === 'object' && module.exports) {
@@ -35,6 +39,7 @@
         case 'worksheet-generators': return require('./worksheet-generators.js');
         case 'worksheet-svg': return require('./worksheet-svg.js');
         case 'worksheet-diagrams': return require('./worksheet-diagrams.js');
+        case 'worksheet-3d': return require('./worksheet-3d.js');
         case 'german-syllables': return require('./german-syllables.js');
         default: return null;
       }
@@ -45,6 +50,7 @@
       'worksheet-generators': 'WorksheetGen',
       'worksheet-svg': 'WorksheetSvg',
       'worksheet-diagrams': 'WorksheetDiagrams',
+      'worksheet-3d': 'Worksheet3d',
       'german-syllables': 'GermanSyllables'
     };
     root.WorksheetLayout = factory(function (name) { return root[globals[name]]; });
@@ -74,12 +80,12 @@
   var BLOCK_TYPES = [
     'title', 'name_line', 'heading', 'paragraph', 'task', 'list', 'table', 'lines', 'box', 'cloze', 'word_bank',
     'multiple_choice', 'true_false', 'matching', 'crossword', 'word_search', 'reading_text', 'formula',
-    'number_line', 'coordinate_system', 'chart', 'mindmap', 'qr_code', 'picture', 'svg', 'cut_line', 'self_assessment',
-    'hint_cards', 'grade_key', 'columns', 'staff', 'empty_staves', 'page_break', 'spacer'
+    'number_line', 'coordinate_system', 'chart', 'mindmap', 'qr_code', 'picture', 'svg', 'scene_3d', 'cut_line',
+    'self_assessment', 'hint_cards', 'grade_key', 'columns', 'staff', 'empty_staves', 'page_break', 'spacer'
   ].concat(DIAGRAM_TYPES);
   var LINE_STYLES = ['plain', 'school1', 'school2', 'school3', 'school4', 'grid5', 'grid10'];
   var GRAPHIC_TYPES = ['lineature', 'crossword', 'word_search', 'number_line', 'coordinate_system', 'chart', 'mindmap',
-    'qr_code', 'picture', 'svg', 'cut_line'].concat(DIAGRAM_TYPES);
+    'qr_code', 'picture', 'svg', 'scene_3d', 'cut_line'].concat(DIAGRAM_TYPES);
 
   // ---------------------------------------------------------------------------
   // Units and small helpers
@@ -178,7 +184,9 @@
       taskCounter: num(ctx.taskStart, 0),
       listCounter: 0,
       listPrefix: ctx.listPrefix || ('l' + Math.floor(Math.random() * 1e9).toString(36)),
-      nested: false
+      nested: false,
+      // validation only (the proxy): expensive pictures are checked, not drawn
+      validate: !!ctx.validate
     };
     var doc = theme.id === 'document';
     c.body = { font: theme.font, size: theme.size, color: theme.colors.text };
@@ -965,6 +973,35 @@
     return graphicBlock(c, b, r, b.caption ? 'Grafik: ' + b.caption : 'Grafik', { type: 'svg', svg: str(b.svg).slice(0, 50000), caption: b.caption, width_cm: b.width_cm });
   };
 
+  /**
+   * 3D scene of geometric bodies (worksheet-3d.js): a line drawing (colouring picture, Schrägbild) or, with
+   * style "colored", the same drawing filled by the plugin (three.js). Problems the model cannot see in the picture
+   * (hidden bodies, invisible labels) are warnings.
+   */
+  builders.scene_3d = function (b, c) {
+    var widthMm = b.width_cm != null ? clamp(num(b.width_cm, 16), 3, c.widthMm / 10) * 10 : c.widthMm;
+    var r;
+    if (c.validate) {
+      // the proxy only needs the errors: the drawing (up to seconds for big overlapping scenes) happens in the plugin
+      var scene;
+      try { scene = lib('worksheet-3d').normalizeScene(b); } catch (e) { throw blockError(e && e.message ? e.message : String(e)); }
+      var ph = svgLib().cutLine({ widthMm: widthMm });
+      return [imagePara(c, imageRun(ph, graphicAlt('3D-Szene: ' + lib('worksheet-3d').describe(scene), sourceOf(b, 'scene_3d')), { kind: 'scene_3d' }))];
+    }
+    try {
+      r = lib('worksheet-3d').render(b, { widthMm: widthMm, maxHeightMm: 180, font: svgOpts(c).font, color: '#1f2937' });
+    } catch (e) {
+      throw blockError(e && e.message ? e.message : String(e));
+    }
+    r.warnings.forEach(function (w) { c.warnings.push('scene_3d: ' + w); });
+    var extra = { kind: 'scene_3d' };
+    if (r.render.style === 'colored') extra.scene3d = r.render;
+    var alt = graphicAlt('3D-Szene: ' + (b.caption ? str(b.caption) : r.summary), sourceOf(b, 'scene_3d'));
+    var out = [imagePara(c, imageRun(r, alt, extra), { jc: 'center', after: b.caption ? 40 : 160 })];
+    if (b.caption) out.push(captionPara(c, b.caption));
+    return out;
+  };
+
   builders.cut_line = function (b, c) {
     var g = svgLib().cutLine(svgOpts(c, { widthMm: c.widthMm, label: b.label != null ? b.label : c.L.cut, color: c.theme.colors.muted }));
     return [imagePara(c, imageRun(g, graphicAlt('Schnittlinie', { type: 'cut_line' })), { after: 120, before: 120 })];
@@ -1101,7 +1138,9 @@
 
   /**
    * Blocks -> layout elements.
-   * ctx: { theme (id or object), lang, textWidthMm, staffWidthCm, taskStart, listPrefix }
+   * ctx: { theme (id or object), lang, textWidthMm, staffWidthCm, taskStart, listPrefix, validate }
+   * validate: true = only check the blocks (the proxy): 3D scenes are validated, not drawn (their images are
+   * placeholders and their warnings are left out).
    * Throws an Error "blocks[i] (type): message" for invalid blocks.
    */
   function compose(blocks, ctx) {

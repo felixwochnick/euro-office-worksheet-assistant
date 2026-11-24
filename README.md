@@ -23,6 +23,12 @@ boxes, page breaks and **music staves** (ABC notation, rendered as printable ima
   QR codes, simple SVG drawings by the AI, German primary-school **lineatures** (Lineatur 1–4) and squared paper.
   Formulas are inserted as native, editable equations from LaTeX. Graphics keep their source in the alt text, so the
   AI can change them later.
+- **3D scenes of geometric bodies** – cubes, cuboids, spheres, cylinders, cones, pyramids and triangular prisms
+  (roofs), standing on the ground or stacked into houses, towers and trees, in perspective, isometric or oblique
+  projection (Schrägbild). The AI only describes the scene; the picture is computed: a crisp **line drawing to colour
+  in** (hidden lines removed, smooth outlines, the lines where bodies meet; hidden edges dashed on request) or the same
+  scene **coloured and shaded** for the solution. Short labels on bodies ("1", "A") for tasks. See
+  [3D scenes of geometric bodies](#3d-scenes-of-geometric-bodies).
 - **Computer science diagrams (Informatik)** – UML **class diagrams** (classes, interfaces, abstract classes,
   enumerations, inheritance, associations with multiplicities, aggregation, composition), **object diagrams**,
   **sequence diagrams** (actors, calls, replies, object creation, activation bars, `alt`/`opt`/`loop` fragments),
@@ -88,7 +94,7 @@ service, the proxy.
 
 | Component | What it is | Where it runs | Needed for | Resources |
 |-----------|-----------|---------------|------------|-----------|
-| **Plugin** (`worksheet-assistant/`) | Static files (HTML, JavaScript, icons, abcjs, qrcode-generator) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: inserting and editing worksheet content, rendering staves, lyrics, manual mode | ≈ 1.2 MB of files, no process |
+| **Plugin** (`worksheet-assistant/`) | Static files (HTML, JavaScript, icons, abcjs, qrcode-generator, dagre, three.js) | Served from the Document Server's `sdkjs-plugins` folder; **executed in the browser** inside the editor | Everything: inserting and editing worksheet content, rendering staves, lyrics, manual mode | ≈ 2 MB of files, no process |
 | **Proxy** (`apps/server/`) | Small Node.js server (Docker image) | Any host with Docker that browsers reach via **HTTPS** – e.g. the Nextcloud AIO host behind its reverse proxy. With the desktop editors: inside the desktop app on the user's computer (installation D) | **Only the AI chat and MCP** | Image ≈ 255 MB, ≈ 30 MB RAM, ≈ 0 % CPU when idle (measured locally) |
 | **Language model** | Mistral / OpenAI-compatible / Anthropic API, or a local model via Ollama | At the provider (or your Ollama host) | Only the AI chat (MCP clients bring their own) | Billed by the provider / your hardware |
 
@@ -130,8 +136,9 @@ packages are named `@worksheet-assistant/<name>`.
 | ↳ `worksheet-generators.js` | Crossword, word search, cloze, matching, grade key (deterministic) |
 | ↳ `worksheet-svg.js` | Icons, task badges, lineatures, number lines, coordinate systems, charts, mind maps, QR codes, SVG sanitiser |
 | ↳ `worksheet-diagrams.js` | Computer science diagrams: UML class, object, sequence, state, activity and use case diagrams, finite automata, structograms, flowcharts (PAP), ER diagrams (layout with dagre; fill-in and solution versions) |
+| ↳ `worksheet-3d.js` | 3D scenes of geometric bodies: placement, camera (perspective, isometric, oblique) and the line drawing – exact outlines, hidden lines removed, intersection curves (analytic, no dependencies) |
 | ↳ `german-syllables.js`, `worksheet-check.js` | Syllables for Silbenfärbung; the worksheet quality check |
-| `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js`, `qrcode-generator`, `dagre` (see `vendor/SOURCES.md`) |
+| `vendor/` | Pinned third-party files: ONLYOFFICE `v1/plugins.js` + `plugins-ui.js`, `abcjs-basic-min.js`, `qrcode-generator`, `dagre`, a subset of `three.js` built by `scripts/build-three.mjs` (see `vendor/SOURCES.md`) |
 | `scripts/build.sh` | Builds the plugin: `dist/worksheet-assistant/`, `.plugin`, `.tar.gz` and `.zip` |
 | `scripts/install-aio.sh` | Installs the plugin into Nextcloud AIO's Euro-Office container (optionally with auto re-install) |
 | `scripts/build-desktop.mjs`, `scripts/collect-desktop.mjs`, `scripts/updater-json.mjs` | Build the desktop app; copy its installers under the release names to `dist/desktop/`; write `latest.json` for the app's updater |
@@ -596,6 +603,13 @@ Worksheets (any subject):
 - „Setze neben Aufgabe 1 ein Bild von einem Fuchs.“
 - „Nimm für das Latein-Arbeitsblatt Bilder aus meinem Asterix-Ordner.“ (own pictures, see [Pictures](#pictures))
 
+Geometric bodies (see [3D scenes of geometric bodies](#3d-scenes-of-geometric-bodies)):
+
+- „Erstelle für Klasse 2 ein Ausmalbild: eine Stadt aus geometrischen Körpern – Häuser aus Quader und Dach, Türme aus Zylinder und Kegel, Bäume aus Zylinder und Kugel. Aufgabe: Male alle Würfel rot, alle Quader blau und alle Kugeln gelb an. Auf der Lösungsseite dieselbe Stadt in Farbe.“
+- „Nummeriere die Körper im Bild und frage: Welcher Körper ist Nr. 3? Wie viele Zylinder findest du?“
+- „Zeichne für Klasse 5 einen Würfel, einen Quader und einen Zylinder als Schrägbild mit gestrichelten verdeckten Kanten.“
+- „Zeige dieselbe Szene von rechts und etwas höher.“
+
 Computer science (see [Computer science diagrams](#computer-science-diagrams)):
 
 - „Erstelle ein Arbeitsblatt zur Vererbung für Klasse 10 (Java): Klassendiagramm mit Tier, Hund und Katze, in dem die Schüler die Vererbung einzeichnen und die Methoden ergänzen – mit Lösungsseite.“
@@ -865,6 +879,55 @@ desktop app. Text is 3.4 mm high; a diagram that does not fit the text width is 
 2.6 mm), otherwise the AI is told to split it. Like all graphics, a diagram keeps its source in the alt text, so the
 AI can change it later.
 
+## 3D scenes of geometric bodies
+
+The block `scene_3d` (`packages/shared/worksheet-3d.js`) is for worksheets on geometric bodies (Würfel, Quader, Kugel,
+Zylinder, Kegel, Pyramide): colouring pictures in primary school (*"colour all cubes red"*, *"count the cylinders"*)
+and oblique drawings (Schrägbilder) in grades 4–6. The AI only describes the scene – which bodies, how big, where,
+stacked on what, from which side; the assistant computes the picture.
+
+| Field | Values | Default |
+|-------|--------|---------|
+| `bodies` | 1–40 bodies (below) | – |
+| `style` | `outline` (line drawing to colour in) or `colored` (filled and shaded, the same lines on top) | `outline` |
+| `projection` | `perspective`, `isometric` or `oblique` (Schrägbild: front faces undistorted, depth at 45° to the upper right, halved) | `perspective` |
+| `view` | `front`, `front_left` or `front_right`; `isometric` uses `front_left`/`front_right` (`front` → `front_left`); `oblique` is always from the front | `front_left` |
+| `elevation` | `low`, `medium` or `high` – camera height of the perspective view (about 12°/25°/45°) | `medium` |
+| `hidden_edges` | `none` or `dashed` (hidden edges dashed, a sphere also gets its equator) | `none` |
+| `ground` | a ground plate around the bodies | `true`; `false` for `oblique` |
+| `color_by` | `shape` (colours below) or `body` (each body's `color`) | `shape`; `body` if a body has a `color` |
+| `width_cm`, `caption` | as for the other graphics; the height follows from the scene (at most 18 cm) | text width |
+
+| Body field | Meaning |
+|------------|---------|
+| `shape` | `cube`, `cuboid`, `sphere`, `cylinder`, `cone`, `pyramid` (rectangular base), `triangular_prism` |
+| `size` | cube: the edge (a number); cuboid, pyramid, triangular_prism: `[width, height, depth]` |
+| `radius`, `height` | sphere: `radius`; cylinder and cone: `radius` and `height` (of a lying cylinder: its length) |
+| `at` | `[x, z]`: the centre on the ground, x to the right, z towards the viewer; with `on`: the offset from the centre of the body below |
+| `on` | `id` of the body it stands on – only flat tops: cube, cuboid, upright cylinder, upright triangular_prism |
+| `turn` | rotation about the vertical axis in degrees |
+| `lying` | cylinder and triangular_prism: the axis lies horizontally along x; a lying prism is a roof (ridge on top) |
+| `id`, `label` | `id`: name for `on`; `label`: up to 3 characters, drawn circled on the visible part of the body ("1", "A") |
+| `color` | `red`, `blue`, `yellow`, `green`, `orange`, `purple`, `brown`, `gray`, `white` (German names such as `rot`, `blau` work too) |
+
+Sizes are in scene units (0.1–50, at most 1:100 between the largest and the smallest body). Colours by shape, as in
+the usual task: cube red, cuboid blue, sphere yellow, cylinder green, cone orange, pyramid purple, triangular_prism
+brown.
+
+**The line drawing** is computed analytically in the shared module, without dependencies, by the plugin (the proxy
+only validates the scene – drawing a big scene of overlapping bodies can take a second): all bodies are convex, the
+outlines of spheres, cylinders and cones are exact smooth curves, hidden lines are removed, and where bodies overlap (a
+tree crown sunk into its trunk) their intersection curve is drawn – every visible face is a closed region to colour
+in. The unit tests compare the drawings of tricky scenes (touching, stacked, flush and overlapping bodies) with an
+independent ray-cast picture (`packages/shared/test/scene-oracle.js`; `test/scene-battery.js` runs ~330 scenes). **The coloured version** is rendered
+in the plugin with [three.js](https://threejs.org/) 0.187.0 (WebGL) at print resolution, with soft shading and the
+same vector lines on top. Without WebGL the plugin inserts the line drawing and reports a warning.
+
+Typical use: the task with `outline`, the solution with the same scene `colored`. What the AI cannot see comes back as
+a warning: a body completely inside another or hidden behind others, a label on a body that cannot be seen, a stacked
+body whose centre is not on its support. Like all graphics, the scene stays in the alt text, so the AI can change it
+later (*"the same scene from the right"*).
+
 ## Known limitations
 
 ### Plugin updates and the browser cache
@@ -970,6 +1033,8 @@ Other versions may differ. Every call that is not guaranteed has a **primary pat
   © Kazuhiko Arase, **MIT** (`vendor/qrcode-generator/LICENSE`) – QR codes on worksheets.
 - `vendor/dagre/dagre.min.js`: [dagre](https://github.com/dagrejs/dagre) with graphlib © Chris Pettitt, **MIT**
   (`vendor/dagre/LICENSE`) – layout of the computer science diagrams.
+- `vendor/three/three.min.js`: a subset of [three.js](https://github.com/mrdoob/three.js) © three.js authors,
+  **MIT** (`vendor/three/LICENSE`) – coloured 3D scenes.
 
 Exact versions and checksums: `vendor/SOURCES.md`.
 

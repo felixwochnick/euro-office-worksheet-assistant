@@ -8,7 +8,7 @@ const it: SiteContent = {
   },
   nav: { features: 'Funzionalità', informatics: 'Informatica', ways: 'Casi d’uso', mcp: 'MCP', install: 'Installazione', faq: 'FAQ', language: 'Lingua' },
   hero: {
-    badge: 'Novità in {version}: diagrammi di informatica',
+    badge: 'Novità in {version}: scene 3D di solidi geometrici',
     headline: 'Plugin IA per Euro-Office – in Nextcloud e sul desktop',
     title: 'Crea schede didattiche con l’IA – per ogni materia',
     description:
@@ -38,6 +38,10 @@ const it: SiteContent = {
       {
         title: 'Grafici e formule',
         description: 'Retta numerica, piano cartesiano, diagrammi, mappa mentale, righe per scrivere e carta quadrettata. Le formule in LaTeX diventano vere equazioni modificabili.'
+      },
+      {
+        title: 'Solidi geometrici in 3D',
+        description: 'Cubi, parallelepipedi, cilindri, coni e piramidi – anche impilati in case e torri. Prospettiva calcolata correttamente: come disegno da colorare o a colori.'
       },
       {
         title: 'Immagini',
@@ -114,7 +118,8 @@ const it: SiteContent = {
       { title: 'Retta numerica e piano cartesiano', description: 'Con spazi da compilare, punti, segmenti e poligoni.' },
       { title: 'Diagrammi', description: 'A colonne, a barre, a linee e a torta – anche vuoti, da disegnare da sé.' },
       { title: 'Formule', description: 'LaTeX diventa una vera equazione nel documento, anche in mezzo a una frase.' },
-      { title: 'Mappe mentali e disegni', description: 'Mappe mentali (anche con bolle vuote) e semplici disegni che l’IA progetta da sola.' }
+      { title: 'Mappe mentali e disegni', description: 'Mappe mentali (anche con bolle vuote) e semplici disegni che l’IA progetta da sola.' },
+      { title: 'Scene 3D', description: 'Scene di cubi, cilindri, coni e altro, calcolate invece che disegnate: un disegno da colorare senza linee nascoste, la stessa scena a colori per la soluzione o una prospettiva cavaliera con gli spigoli nascosti tratteggiati.' }
     ]
   },
   pictures: {
@@ -227,6 +232,7 @@ const it: SiteContent = {
           'Fanne un cruciverba con dieci parole e aggiungi in fondo una pagina con le soluzioni.',
           'Riformula la consegna dell’esercizio 1 in modo che la capiscano gli alunni di terza.',
           'Usa il design Classico e scrivi il nome della nostra scuola e i numeri di pagina nell’intestazione e nel piè di pagina.',
+          'Una scheda da colorare per la classe seconda: una città fatta di solidi geometrici, con la consegna di colorare di rosso tutti i cubi e di verde tutti i cilindri – e nella pagina delle soluzioni la città a colori.',
           'Controlla la scheda ed elimina l’esercizio 3.'
         ]
       },
@@ -235,6 +241,7 @@ const it: SiteContent = {
         items: [
           'Una scheda di lettura per la classe prima sugli animali del bosco – con un pittogramma accanto a ogni parola e le sillabe colorate.',
           'Metti accanto al testo la foto di un legionario romano.',
+          'Disegna un cubo, un parallelepipedo e un cilindro in prospettiva cavaliera, con gli spigoli nascosti tratteggiati.',
           'Disegna un diagramma delle classi UML con Conto, ContoCorrente e ContoRisparmio, in cui gli studenti completano l’ereditarietà.',
           'Crea un diagramma di Nassi-Shneiderman per l’algoritmo di Euclide e, sotto, un diagramma di flusso vuoto da completare.',
           'Un diagramma ER per studenti, corsi e insegnanti nella notazione di Chen.'
@@ -260,7 +267,7 @@ const it: SiteContent = {
       {
         title: 'Plugin',
         badge: 'sempre',
-        description: 'Solo file (≈ 1,4 MB) nella cartella dei plugin di Euro-Office. Funziona nell’editor nel browser o nell’app desktop.',
+        description: 'Solo file (≈ 2 MB) nella cartella dei plugin di Euro-Office. Funziona nell’editor nel browser o nell’app desktop.',
         bullets: ['Impagina schede, grafici e diagrammi', 'Disegna pentagrammi, sezione musica completa', 'Esegue le chiamate MCP nel documento']
       },
       {
@@ -398,7 +405,7 @@ const it: SiteContent = {
       {
         label: 'È open source?',
         content:
-          'Sì, con licenza MIT. Include abcjs, dagre e qrcode-generator (tutti MIT) e i file del plugin ONLYOFFICE (AGPL-3.0); l’app Worksheet Assistant contiene Node.js e pacchetti npm – tutti con i rispettivi testi di licenza.'
+          'Sì, con licenza MIT. Include abcjs, dagre, qrcode-generator e three.js (tutti MIT) e i file del plugin ONLYOFFICE (AGPL-3.0); l’app Worksheet Assistant contiene Node.js e pacchetti npm – tutti con i rispettivi testi di licenza.'
       }
     ]
   },
@@ -410,7 +417,7 @@ const it: SiteContent = {
   },
   footer: {
     license: 'Worksheet Assistant · licenza MIT',
-    uses: 'usa abcjs, dagre e qrcode-generator (MIT) e l’SDK per plugin di ONLYOFFICE (AGPL-3.0) · Pittogrammi: Sergio Palao, ARASAAC (CC BY-NC-SA)',
+    uses: 'usa abcjs, dagre, qrcode-generator e three.js (MIT) e l’SDK per plugin di ONLYOFFICE (AGPL-3.0) · Pittogrammi: Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Copia',
     copied: 'Copiato',
     zoom: 'Apri l’immagine a dimensione intera'

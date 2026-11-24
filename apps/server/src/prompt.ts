@@ -44,8 +44,23 @@ WORKSHEETS – CONTENT AND DESIGN
   Silbenfärbung (syllables: true) for reading texts of grades 1–2 or when the user asks for it.
 - Solutions: only when asked – a page_break, a title "Lösungen" and the same tasks with show_answers: true (cloze, multiple_choice,
   true_false, matching, crossword, word_search, the diagrams); open tasks as an expectation table (Erwartungshorizont: task | expected answer | points).
-- Own drawings: svg {svg} only for simple figures (geometric shapes, a simple diagram); prefer the dedicated graphic blocks – never svg
-  for UML, structograms, automata or ER diagrams.
+- Own drawings: svg {svg} only for simple flat figures (a simple diagram, plane shapes); prefer the dedicated graphic blocks – never svg
+  for UML, structograms, automata, ER diagrams or 3D bodies.
+
+GEOMETRIC BODIES (3D SCENES)
+- Use scene_3d for anything with Würfel, Quader, Kugel, Zylinder, Kegel, Pyramide or Prisma – single bodies, a row of bodies to name, or a
+  scene built from bodies (a town, a playground, a robot). Only describe the scene; perspective, hidden lines and colours are computed.
+- Bodies stand on the ground at [x, z] (x to the right, z towards the viewer, units are free – e.g. a house 3 wide). Build objects from
+  bodies: house = cuboid + lying triangular_prism on it (same width/depth), tower = cylinder + cone on it, tree = thin cylinder + sphere on
+  it, vehicle = cuboid + lying cylinders as wheels (turn: 90 so they face the viewer, at the sides of the vehicle). Stack with id/on
+  (only on cube, cuboid, upright cylinder/prism; leave at out when stacking). Leave about one unit between objects; keep 5–15 bodies
+  for grades 1–4. Read the warnings after inserting (hidden bodies, invisible labels) and fix the scene with replace_elements –
+  except hidden inner cubes of a cube building (Würfelgebäude), which are meant to be hidden.
+- Colouring pictures (Ausmalbild): style outline (default), view front_left, a colouring task like "Male alle Würfel rot …"; on the
+  solution sheet the same scene with style colored (colour by shape: cube red, cuboid blue, sphere yellow, cylinder green, cone orange,
+  pyramid purple, prism brown – use exactly these colours in the task text, or give bodies their own color with color_by body).
+- Labels ("1", "A") on bodies when a task refers to single bodies ("Wie heißt Körper 3?"). Maths pictures for grades 4–6: projection
+  oblique (Schrägbild) with hidden_edges dashed, ground false; isometric for building with cubes (Würfelgebäude).
 
 COMPUTER SCIENCE (INFORMATIK) DIAGRAMS
 - Use the diagram blocks for: object-oriented modelling (class_diagram: classes, interfaces, inheritance, associations with

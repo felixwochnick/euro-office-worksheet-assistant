@@ -42,6 +42,7 @@ const featureLinks = [
   { icon: 'i-lucide-palette', to: '#designs' },
   { icon: 'i-lucide-puzzle', to: '#tasks' },
   { icon: 'i-lucide-chart-column', to: '#graphics' },
+  { icon: 'i-lucide-cuboid', to: '#graphics' },
   { icon: 'i-lucide-image', to: '#pictures' },
   { icon: 'i-lucide-workflow', to: '#informatics' },
   { icon: 'i-lucide-music', to: '#music' },
@@ -58,7 +59,7 @@ const features = computed(() => c.value.features.items.map((it, i) => ({ ...it, 
 
 const designIcons = ['i-lucide-list-ordered', 'i-lucide-sticky-note', 'i-lucide-languages']
 const taskIcons = ['i-lucide-text-cursor-input', 'i-lucide-puzzle', 'i-lucide-book-open-check', 'i-lucide-scissors']
-const graphicIcons = ['i-lucide-ruler', 'i-lucide-chart-pie', 'i-lucide-sigma', 'i-lucide-network']
+const graphicIcons = ['i-lucide-ruler', 'i-lucide-chart-pie', 'i-lucide-sigma', 'i-lucide-network', 'i-lucide-cuboid']
 const pictureIcons = ['i-lucide-smile', 'i-lucide-landmark', 'i-lucide-folder-heart']
 const informaticIcons = ['i-lucide-boxes', 'i-lucide-pencil-ruler', 'i-lucide-scaling']
 const musicIcons = ['i-lucide-layout-template', 'i-lucide-languages', 'i-lucide-printer']
@@ -132,7 +133,7 @@ const stepsOf = (tab: string): Step[] => (c.value.install as unknown as Record<s
         <div class="flex flex-col items-center gap-3">
           <UBadge
             as="a"
-            href="#informatics"
+            href="#graphics"
             color="primary"
             variant="subtle"
             size="lg"

@@ -7,7 +7,7 @@ import { MockProvider } from '../src/providers/mock.js';
 import { OpenAICompatibleProvider } from '../src/providers/openai.js';
 import { buildServer } from '../src/server.js';
 import { buildSystemPrompt } from '../src/prompt.js';
-import { checkClientToolCall, executeServerTool, normalizePosition } from '../src/tools.js';
+import { checkClientToolCall, executeServerTool, normalizePosition, TOOL_DEFINITIONS } from '../src/tools.js';
 import type { ChatMessage, CompletionRequest, CompletionResult, LLMProvider } from '../src/types.js';
 
 const TOKEN = 'test-token-0123456789';
@@ -547,4 +547,43 @@ test('providers: temporary provider errors are retried, the message is readable'
   } finally {
     globalThis.fetch = realFetch;
   }
+});
+
+test('tools: 3D scenes are in the schema, validated and explained in the prompt', () => {
+  const scene = {
+    type: 'scene_3d', style: 'outline', view: 'front_left', caption: 'Eine Stadt aus Körpern',
+    bodies: [
+      { id: 'haus', shape: 'cuboid', size: [3, 2, 3], at: [0, 0] },
+      { shape: 'triangular_prism', lying: true, size: [3, 1.2, 3], on: 'haus' },
+      { id: 'turm', shape: 'cylinder', radius: 1, height: 4, at: [5, 1] },
+      { shape: 'cone', radius: 1.2, height: 2, on: 'turm' },
+      { shape: 'sphere', radius: 1, at: [-3, 2], label: '3', color: 'yellow' },
+    ],
+  };
+  const ok = checkClientToolCall({ id: 's1', name: 'insert_blocks', arguments: { position: 'end', blocks: [scene] } });
+  assert.equal(ok.ok, true, ok.error);
+  assert.deepEqual((ok.args.blocks as any[])[0].bodies, scene.bodies);
+  const bad = checkClientToolCall({
+    id: 's2', name: 'insert_blocks',
+    arguments: { position: 'end', blocks: [{ type: 'scene_3d', bodies: [{ id: 'k', shape: 'sphere' }, { shape: 'cube', on: 'k' }] }] },
+  });
+  assert.equal(bad.ok, false);
+  assert.match(bad.error!, /blocks\[0\] \(scene_3d\): bodies\[1\]: "on" names bodies\[0\] \(sphere\), which has no flat top/);
+  const insert = TOOL_DEFINITIONS.find((t) => t.name === 'insert_blocks')!;
+  const block = (insert.parameters as any).properties.blocks.items;
+  assert.ok(block.properties.type.enum.includes('scene_3d'));
+  assert.deepEqual(block.properties.bodies.items.properties.shape.enum, ['cube', 'cuboid', 'sphere', 'cylinder', 'cone', 'pyramid', 'triangular_prism']);
+  assert.match(block.properties.type.description, /scene_3d \{bodies/);
+  const prompt = buildSystemPrompt({ elements: [] } as any);
+  assert.match(prompt, /GEOMETRIC BODIES \(3D SCENES\)/);
+  assert.match(prompt, /never svg\n?\s*for UML, structograms, automata, ER diagrams or 3D bodies/);
+});
+
+test('tools: the proxy validates 3D scenes without drawing them (big overlapping scenes stay cheap)', () => {
+  const shapes = ['cube', 'cuboid', 'sphere', 'cylinder', 'cone', 'pyramid', 'triangular_prism'];
+  const pile = { type: 'scene_3d', bodies: Array.from({ length: 40 }, (_, i) => ({ shape: shapes[i % 7], at: [(i % 5) * 0.7, (Math.floor(i / 5) % 4) * 0.7], turn: i * 17 })) };
+  const t = Date.now();
+  const ok = checkClientToolCall({ id: 's3', name: 'insert_blocks', arguments: { position: 'end', blocks: Array.from({ length: 10 }, () => pile) } });
+  assert.equal(ok.ok, true, ok.error);
+  assert.ok(Date.now() - t < 1000, `validation took ${Date.now() - t} ms`);
 });

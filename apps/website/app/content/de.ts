@@ -8,7 +8,7 @@ const de: SiteContent = {
   },
   nav: { features: 'Funktionen', informatics: 'Informatik', ways: 'Einsatz', mcp: 'MCP', install: 'Installation', faq: 'FAQ', language: 'Sprache' },
   hero: {
-    badge: 'Neu in {version}: Informatik-Diagramme',
+    badge: 'Neu in {version}: 3D-Szenen aus geometrischen Körpern',
     headline: 'KI-Plugin für Euro-Office – in Nextcloud und auf dem Desktop',
     title: 'Arbeitsblätter mit KI erstellen – für jedes Fach',
     description:
@@ -38,6 +38,10 @@ const de: SiteContent = {
       {
         title: 'Grafiken und Formeln',
         description: 'Zahlenstrahl, Koordinatensystem, Diagramme, Mindmap, Lineaturen und Karopapier. Formeln aus LaTeX werden zu echten, bearbeitbaren Gleichungen.'
+      },
+      {
+        title: 'Geometrische Körper in 3D',
+        description: 'Würfel, Quader, Zylinder, Kegel und Pyramiden – auch gestapelt zu Häusern und Türmen. Perspektivisch richtig berechnet: als Ausmalbild oder farbig.'
       },
       {
         title: 'Bilder',
@@ -114,7 +118,8 @@ const de: SiteContent = {
       { title: 'Zahlenstrahl und Koordinatensystem', description: 'Mit Lücken zum Eintragen, Punkten, Strecken und Vielecken.' },
       { title: 'Diagramme', description: 'Säulen, Balken, Linien und Kreis – auch leer zum Selberzeichnen.' },
       { title: 'Formeln', description: 'LaTeX wird zur echten Gleichung im Dokument, auch mitten im Satz.' },
-      { title: 'Mindmaps und Zeichnungen', description: 'Mindmaps (auch mit leeren Blasen) und einfache Zeichnungen, die die KI selbst entwirft.' }
+      { title: 'Mindmaps und Zeichnungen', description: 'Mindmaps (auch mit leeren Blasen) und einfache Zeichnungen, die die KI selbst entwirft.' },
+      { title: '3D-Szenen', description: 'Szenen aus Würfeln, Zylindern, Kegeln und mehr, berechnet statt gezeichnet: ein Ausmalbild ohne verdeckte Linien, dieselbe Szene farbig für die Lösung oder ein Schrägbild mit gestrichelten verdeckten Kanten.' }
     ]
   },
   pictures: {
@@ -227,6 +232,7 @@ const de: SiteContent = {
           'Mach daraus ein Kreuzworträtsel mit zehn Begriffen und füge am Ende eine Lösungsseite hinzu.',
           'Ändere in Aufgabe 1 die Anweisung so, dass sie für Klasse 3 verständlich ist.',
           'Nimm das Design Klassisch und schreibe unsere Schule und Seitenzahlen in Kopf- und Fußzeile.',
+          'Ein Ausmalbild für Klasse 2: eine Stadt aus geometrischen Körpern mit der Aufgabe, alle Würfel rot und alle Zylinder grün anzumalen – und auf der Lösungsseite die Stadt in Farbe.',
           'Prüfe das Blatt und lösche Aufgabe 3.'
         ]
       },
@@ -235,6 +241,7 @@ const de: SiteContent = {
         items: [
           'Ein Leseblatt für Klasse 1 zu Tieren im Wald – mit einem Piktogramm neben jedem Wort und Silbenfärbung.',
           'Setze ein Foto eines römischen Legionärs neben den Text.',
+          'Zeichne einen Würfel, einen Quader und einen Zylinder als Schrägbild mit gestrichelten verdeckten Kanten.',
           'Zeichne ein UML-Klassendiagramm zu Konto, Girokonto und Sparkonto, bei dem die Schülerinnen und Schüler die Vererbung ergänzen.',
           'Erstelle ein Struktogramm zum Euklidischen Algorithmus und darunter einen leeren Programmablaufplan zum Ausfüllen.',
           'Ein ER-Diagramm für Schüler, Kurse und Lehrkräfte in Chen-Notation.'
@@ -260,7 +267,7 @@ const de: SiteContent = {
       {
         title: 'Plugin',
         badge: 'immer',
-        description: 'Nur Dateien (≈ 1,4 MB) im Plugin-Ordner von Euro-Office. Läuft im Editor im Browser bzw. in der Desktop-App.',
+        description: 'Nur Dateien (≈ 2 MB) im Plugin-Ordner von Euro-Office. Läuft im Editor im Browser bzw. in der Desktop-App.',
         bullets: ['Gestaltet Blätter, Grafiken und Diagramme', 'Noten zeichnen, Noten-Tab komplett', 'Führt MCP-Aufrufe im Dokument aus']
       },
       {
@@ -399,7 +406,7 @@ const de: SiteContent = {
       {
         label: 'Ist das Open Source?',
         content:
-          'Ja, unter MIT-Lizenz. Mitgeliefert werden abcjs, dagre und qrcode-generator (alle MIT) und die ONLYOFFICE-Plugin-Dateien (AGPL-3.0); die App Arbeitsblatt-Assistent enthält Node.js und npm-Pakete – alle mit ihren Lizenztexten.'
+          'Ja, unter MIT-Lizenz. Mitgeliefert werden abcjs, dagre, qrcode-generator und three.js (alle MIT) und die ONLYOFFICE-Plugin-Dateien (AGPL-3.0); die App Arbeitsblatt-Assistent enthält Node.js und npm-Pakete – alle mit ihren Lizenztexten.'
       }
     ]
   },
@@ -411,7 +418,7 @@ const de: SiteContent = {
   },
   footer: {
     license: 'Arbeitsblatt-Assistent · MIT-Lizenz',
-    uses: 'nutzt abcjs, dagre und qrcode-generator (MIT) und das ONLYOFFICE-Plugin-SDK (AGPL-3.0) · Piktogramme: Sergio Palao, ARASAAC (CC BY-NC-SA)',
+    uses: 'nutzt abcjs, dagre, qrcode-generator und three.js (MIT) und das ONLYOFFICE-Plugin-SDK (AGPL-3.0) · Piktogramme: Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Kopieren',
     copied: 'Kopiert',
     zoom: 'Bild in voller Größe öffnen'

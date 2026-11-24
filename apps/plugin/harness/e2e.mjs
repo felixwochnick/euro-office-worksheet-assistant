@@ -229,6 +229,30 @@ try {
   assert.equal(uml[0].wMm, uml[1].wMm, 'same layout');
   console.log('ok - class diagram to fill in and its solution');
 
+  // 1i) 3D scene of geometric bodies: colouring picture and coloured solution (three.js/WebGL in the panel)
+  const cardsBefore3d = await frame.locator('.card').count();
+  await frame.locator('#chat-text').fill('Füge eine Körper-Stadt zum Ausmalen mit farbiger Lösung ein');
+  await frame.locator('#chat-send').click();
+  const sceneCard = frame.locator('.card').nth(cardsBefore3d);
+  await sceneCard.locator('button.primary').waitFor({ timeout: 15000 });
+  if (shot) await sceneCard.screenshot({ path: `${shot}-scene3d.png` });
+  await sceneCard.locator('button.primary').click();
+  await frame.locator('.msg.assistant', { hasText: 'Körper-Stadt zum Ausmalen' }).waitFor({ timeout: 20000 });
+  const scenes = await page.evaluate(() => {
+    const out = [];
+    window.HarnessMock.state.elements.forEach((e) => (e.drawings || []).forEach((dr) => out.push({ descr: dr.descr || '', src: String(dr.src || '').slice(0, 22), wMm: dr.wMm, hMm: dr.hMm })));
+    return out.filter((x) => /^3D-Szene/.test(x.descr));
+  });
+  assert.equal(scenes.length, 2, 'colouring picture and solution');
+  assert.match(scenes[0].descr, /^3D-Szene: Eine Stadt aus Körpern\n\nWSGRAPHIC \{"type":"scene_3d"/);
+  assert.match(scenes[1].descr, /"style":"colored"/);
+  for (const s of scenes) {
+    assert.equal(s.src, 'data:image/png;base64,');
+    assert.ok(s.wMm > 100 && s.wMm <= 171, `scene width ${s.wMm} mm`);
+  }
+  assert.equal(scenes[0].hMm, scenes[1].hMm, 'same picture size');
+  console.log('ok - 3D scene to colour in and its coloured solution');
+
   // 2) manual mode: template after element 0, load + replace selected image
   await frame.locator('.tab[data-tab=manual]').click();
   await frame.locator('#m-template').selectOption('melody');

@@ -1,5 +1,33 @@
 # Changelog
 
+## 0.9.0 – 3D scenes of geometric bodies
+
+- **3D scenes for worksheets on geometric bodies:** a new block `scene_3d`. The AI describes the scene, the
+  assistant computes the picture – before, the AI drew such pictures by hand as `svg` and got perspective and viewing
+  angle wrong. Bodies: cube, cuboid, sphere, cylinder, cone, pyramid and triangular prism, up to 40 per scene:
+  - placed on the ground (`at`), stacked on flat tops (`on`: cube, cuboid, upright cylinder, upright prism), turned
+    (`turn`), cylinders and prisms `lying` (a lying prism is a roof) – houses, towers, trees and vehicles are built
+    from bodies;
+  - projections `perspective`, `isometric` and `oblique` (Schrägbild, without a ground plate by default), views from
+    the front, front left or front right, three camera heights, an optional ground plate;
+  - short labels on bodies ("1", "A"), drawn circled, for tasks like "Welcher Körper ist Nr. 3?".
+- **Line drawing to colour in** (`style: "outline"`, the default): computed analytically in the shared module
+  (`packages/shared/worksheet-3d.js`, no dependencies) – all bodies are convex, so the outlines of spheres, cylinders
+  and cones are exact smooth curves, hidden lines are removed, the intersection curves of overlapping bodies are drawn
+  and every visible face is a closed region to colour in; `hidden_edges: "dashed"` shows hidden edges dashed
+  (maths-book style).
+- **Coloured version** (`style: "colored"`): rendered in the plugin with WebGL at print resolution – colours by shape
+  (cube red, cuboid blue, sphere yellow, cylinder green, cone orange, pyramid purple, prism brown) or each body's
+  `color`, soft shading, the same vector lines on top. Without WebGL the plugin inserts the line drawing and reports
+  a warning. One scene, two blocks: the task with `outline`, the solution `colored`.
+- **Warnings** for what the AI cannot see: a body completely inside another or hidden behind others, a label on a
+  body that cannot be seen, a stacked body whose centre is not on its support.
+- **Prompt:** a section on geometric bodies – `scene_3d` instead of `svg` for bodies, how to build common objects,
+  colouring tasks with a coloured solution, Schrägbilder with dashed hidden edges for grades 4–6.
+- **Rendering library:** a subset of [three.js](https://threejs.org/) 0.187.0 (MIT) – bundled with esbuild by
+  `scripts/build-three.mjs` and vendored for the plugin (`vendor/three/three.min.js`, checksum in `vendor/SHA256SUMS`).
+  Only the plugin uses it. The plugin also computes the line drawing; the proxy only validates the scene.
+
 ## 0.8.2 – English file names for the desktop app
 
 - **English file names:** the desktop app is installed as *Worksheet Assistant* (macOS `Worksheet Assistant.app`,

@@ -8,7 +8,7 @@ const nl: SiteContent = {
   },
   nav: { features: 'Functies', informatics: 'Informatica', ways: 'Toepassingen', mcp: 'MCP', install: 'Installatie', faq: 'FAQ', language: 'Taal' },
   hero: {
-    badge: 'Nieuw in {version}: diagrammen voor informatica',
+    badge: 'Nieuw in {version}: 3D-scènes van ruimtefiguren',
     headline: 'AI-plugin voor Euro-Office – in Nextcloud en op de desktop',
     title: 'Werkbladen maken met AI – voor elk vak',
     description:
@@ -38,6 +38,10 @@ const nl: SiteContent = {
       {
         title: 'Grafieken en formules',
         description: 'Getallenlijn, coördinatenstelsel, diagrammen, mindmap, schrijflijnen en ruitjespapier. LaTeX-formules worden echte, bewerkbare vergelijkingen.'
+      },
+      {
+        title: 'Ruimtefiguren in 3D',
+        description: 'Kubussen, balken, cilinders, kegels en piramides – ook gestapeld tot huizen en torens. Met correct berekend perspectief: als kleurplaat of in kleur.'
       },
       {
         title: 'Afbeeldingen',
@@ -114,7 +118,8 @@ const nl: SiteContent = {
       { title: 'Getallenlijn en coördinatenstelsel', description: 'Met open plekken om in te vullen, punten, lijnstukken en veelhoeken.' },
       { title: 'Diagrammen', description: 'Staaf-, balk-, lijn- en cirkeldiagrammen – ook leeg om zelf te tekenen.' },
       { title: 'Formules', description: 'LaTeX wordt een echte vergelijking in het document, ook midden in een zin.' },
-      { title: 'Mindmaps en tekeningen', description: 'Mindmaps (ook met lege bubbels) en eenvoudige tekeningen die de AI zelf ontwerpt.' }
+      { title: 'Mindmaps en tekeningen', description: 'Mindmaps (ook met lege bubbels) en eenvoudige tekeningen die de AI zelf ontwerpt.' },
+      { title: '3D-scènes', description: 'Scènes van kubussen, cilinders, kegels en meer, berekend in plaats van getekend: een kleurplaat zonder verborgen lijnen, dezelfde scène in kleur voor de antwoorden of een scheve parallelprojectie met gestippelde onzichtbare ribben.' }
     ]
   },
   pictures: {
@@ -227,6 +232,7 @@ const nl: SiteContent = {
           'Maak hier een kruiswoordpuzzel van met tien begrippen en voeg aan het eind een antwoordenblad toe.',
           'Pas de instructie van opdracht 1 aan, zodat leerlingen van groep 5 die begrijpen.',
           'Kies de vormgeving Klassiek en zet de naam van onze school en paginanummers in de koptekst en voettekst.',
+          'Een kleurplaat voor groep 4: een stad van ruimtefiguren, met de opdracht om alle kubussen rood en alle cilinders groen te kleuren – en op het antwoordenblad de stad in kleur.',
           'Controleer het blad en verwijder opdracht 3.'
         ]
       },
@@ -235,6 +241,7 @@ const nl: SiteContent = {
         items: [
           'Een leesblad voor groep 3 over dieren in het bos – met een pictogram naast elk woord en lettergrepen afwisselend blauw en rood.',
           'Zet een foto van een Romeinse legionair naast de tekst.',
+          'Teken een kubus, een balk en een cilinder in scheve parallelprojectie, met gestippelde onzichtbare ribben.',
           'Teken een UML-klassendiagram voor Rekening, Betaalrekening en Spaarrekening, waarbij de leerlingen de overerving aanvullen.',
           'Maak een Nassi-Shneiderman-diagram voor het algoritme van Euclides en daaronder een leeg stroomdiagram om in te vullen.',
           'Een ER-diagram voor leerlingen, cursussen en leraren in Chen-notatie.'
@@ -260,7 +267,7 @@ const nl: SiteContent = {
       {
         title: 'Plugin',
         badge: 'altijd',
-        description: 'Alleen bestanden (≈ 1,4 MB) in de pluginmap van Euro-Office. Draait in de editor in de browser of in de desktopapp.',
+        description: 'Alleen bestanden (≈ 2 MB) in de pluginmap van Euro-Office. Draait in de editor in de browser of in de desktopapp.',
         bullets: ['Maakt werkbladen, grafieken en diagrammen op', 'Tekent notenbalken, compleet muziektabblad', 'Voert MCP-aanroepen uit in het document']
       },
       {
@@ -398,7 +405,7 @@ const nl: SiteContent = {
       {
         label: 'Is het open source?',
         content:
-          'Ja, onder de MIT-licentie. Meegeleverd worden abcjs, dagre en qrcode-generator (allemaal MIT) en de ONLYOFFICE-pluginbestanden (AGPL-3.0); de Worksheet Assistant-app bevat Node.js en npm-pakketten – allemaal met hun licentieteksten.'
+          'Ja, onder de MIT-licentie. Meegeleverd worden abcjs, dagre, qrcode-generator en three.js (allemaal MIT) en de ONLYOFFICE-pluginbestanden (AGPL-3.0); de Worksheet Assistant-app bevat Node.js en npm-pakketten – allemaal met hun licentieteksten.'
       }
     ]
   },
@@ -410,7 +417,7 @@ const nl: SiteContent = {
   },
   footer: {
     license: 'Worksheet Assistant · MIT-licentie',
-    uses: 'gebruikt abcjs, dagre en qrcode-generator (MIT) en de ONLYOFFICE-plugin-SDK (AGPL-3.0) · Pictogrammen: Sergio Palao, ARASAAC (CC BY-NC-SA)',
+    uses: 'gebruikt abcjs, dagre, qrcode-generator en three.js (MIT) en de ONLYOFFICE-plugin-SDK (AGPL-3.0) · Pictogrammen: Sergio Palao, ARASAAC (CC BY-NC-SA)',
     copy: 'Kopiëren',
     copied: 'Gekopieerd',
     zoom: 'Afbeelding op volledige grootte openen'
